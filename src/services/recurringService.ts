@@ -22,8 +22,8 @@ export async function createRecurringRule(rule: Omit<RecurringRule, 'created_at'
     `INSERT INTO recurring_rules (
       id, type, account_id, to_account_id, category_id, amount,
       frequency, start_date, end_date, next_due_date, auto_create,
-      is_active, notes, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      is_active, notes, gross_amount, deductions_json, payout_day_1, payout_day_2, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       newRule.id,
       newRule.type,
@@ -38,6 +38,10 @@ export async function createRecurringRule(rule: Omit<RecurringRule, 'created_at'
       newRule.auto_create,
       newRule.is_active,
       newRule.notes ?? '',
+      newRule.gross_amount ?? null,
+      newRule.deductions_json ?? null,
+      newRule.payout_day_1 ?? null,
+      newRule.payout_day_2 ?? null,
       newRule.created_at,
     ]
   );
@@ -54,7 +58,8 @@ export async function updateRecurringRule(rule: Partial<RecurringRule> & { id: s
     `UPDATE recurring_rules
      SET type = ?, account_id = ?, to_account_id = ?, category_id = ?, amount = ?,
          frequency = ?, start_date = ?, end_date = ?, next_due_date = ?,
-         auto_create = ?, is_active = ?, notes = ?
+         auto_create = ?, is_active = ?, notes = ?, gross_amount = ?, deductions_json = ?,
+         payout_day_1 = ?, payout_day_2 = ?
      WHERE id = ?`,
     [
       rule.type ?? existing.type,
@@ -69,6 +74,10 @@ export async function updateRecurringRule(rule: Partial<RecurringRule> & { id: s
       rule.auto_create ?? existing.auto_create,
       rule.is_active ?? existing.is_active,
       rule.notes ?? existing.notes ?? '',
+      rule.gross_amount ?? existing.gross_amount ?? null,
+      rule.deductions_json ?? existing.deductions_json ?? null,
+      rule.payout_day_1 ?? existing.payout_day_1 ?? null,
+      rule.payout_day_2 ?? existing.payout_day_2 ?? null,
       rule.id,
     ]
   );
@@ -79,26 +88,66 @@ export async function deleteRecurringRule(id: string): Promise<void> {
   await db.runAsync('DELETE FROM recurring_rules WHERE id = ?', [id]);
 }
 
-export function computeNextDueDate(currentDateStr: string, frequency: FrequencyType): string {
-  const date = new Date(currentDateStr);
+function formatYearMonthDay(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export function computeNextDueDate(
+  currentDateStr: string,
+  frequency: FrequencyType,
+  payoutDay1?: number | null,
+  payoutDay2?: number | null
+): string {
+  const [yearStr, monthStr, dayStr] = currentDateStr.split('-');
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10) - 1; // 0-indexed
+  const day = parseInt(dayStr, 10);
+
   switch (frequency) {
-    case 'daily':
-      date.setDate(date.getDate() + 1);
-      break;
-    case 'weekly':
-      date.setDate(date.getDate() + 7);
-      break;
-    case 'biweekly':
-      date.setDate(date.getDate() + 14);
-      break;
-    case 'monthly':
-      date.setMonth(date.getMonth() + 1);
-      break;
-    case 'yearly':
-      date.setFullYear(date.getFullYear() + 1);
-      break;
+    case 'daily': {
+      const d = new Date(year, month, day + 1);
+      return formatYearMonthDay(d);
+    }
+    case 'weekly': {
+      const d = new Date(year, month, day + 7);
+      return formatYearMonthDay(d);
+    }
+    case 'biweekly': {
+      const d = new Date(year, month, day + 14);
+      return formatYearMonthDay(d);
+    }
+    case 'semi_monthly': {
+      const rawDay1 = payoutDay1 && payoutDay1 >= 1 && payoutDay1 <= 31 ? payoutDay1 : 15;
+      const rawDay2 = payoutDay2 && payoutDay2 >= 1 && payoutDay2 <= 31 ? payoutDay2 : 30;
+      const [firstDay, secondDay] = rawDay1 <= rawDay2 ? [rawDay1, rawDay2] : [rawDay2, rawDay1];
+
+      const daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
+      const effectiveSecondDay = Math.min(secondDay, daysInCurrentMonth);
+
+      if (day < effectiveSecondDay) {
+        // Next is the 2nd cutoff of the current month
+        return formatYearMonthDay(new Date(year, month, effectiveSecondDay));
+      } else {
+        // Next is the 1st cutoff of the following month
+        const targetMonth = month + 1;
+        const daysInTargetMonth = new Date(year, targetMonth + 1, 0).getDate();
+        const effectiveFirstDay = Math.min(firstDay, daysInTargetMonth);
+        return formatYearMonthDay(new Date(year, targetMonth, effectiveFirstDay));
+      }
+    }
+    case 'monthly': {
+      const targetMonth = month + 1;
+      const daysInTargetMonth = new Date(year, targetMonth + 1, 0).getDate();
+      const targetDay = Math.min(day, daysInTargetMonth);
+      return formatYearMonthDay(new Date(year, targetMonth, targetDay));
+    }
+    case 'yearly': {
+      return formatYearMonthDay(new Date(year + 1, month, day));
+    }
   }
-  return date.toISOString().split('T')[0];
 }
 
 /**
@@ -123,20 +172,59 @@ export async function processDueRecurringRules(): Promise<number> {
       continue;
     }
 
+    let deductions: Array<{ name: string; amount: number; cutoff?: string }> | undefined = undefined;
+    if (rule.deductions_json) {
+      try {
+        deductions = JSON.parse(rule.deductions_json);
+      } catch (e) {
+        // ignore parse errors
+      }
+    }
+
+    // For semi_monthly, check if this is the 1st cutoff or 2nd cutoff
+    let activeDeductions = deductions;
+    let cutoffPrefix = '';
+    if (rule.frequency === 'semi_monthly') {
+      const dueDay = parseInt(rule.next_due_date.split('-')[2], 10);
+      const day1 = rule.payout_day_1 ?? 15;
+      const day2 = rule.payout_day_2 ?? 30;
+      const isFirstCutoff = dueDay <= Math.floor((day1 + day2) / 2);
+      cutoffPrefix = isFirstCutoff ? '[1st Cutoff] ' : '[2nd Cutoff] ';
+
+      if (deductions && deductions.length > 0) {
+        activeDeductions = deductions.filter((d) => {
+          if (!d.cutoff || d.cutoff === 'both') return true;
+          return isFirstCutoff ? d.cutoff === 'first' : d.cutoff === 'second';
+        });
+      }
+    }
+
+    const cutoffDeductionsTotal = (activeDeductions || []).reduce((sum, d) => sum + d.amount, 0);
+    const transactionAmount = rule.gross_amount
+      ? Math.max(0, rule.gross_amount - cutoffDeductionsTotal)
+      : rule.amount;
+
     // Create recurring transaction
     await createTransaction({
       type: rule.type,
       account_id: rule.account_id,
       to_account_id: rule.to_account_id,
       category_id: rule.category_id,
-      amount: rule.amount,
+      amount: transactionAmount,
       date: rule.next_due_date,
-      notes: `[Auto-recurring] ${rule.notes || ''}`.trim(),
+      notes: `[Auto-recurring] ${cutoffPrefix}${rule.notes || ''}`.trim(),
+      gross_amount: rule.gross_amount ?? null,
+      deductions: activeDeductions,
       is_recurring: 1,
       recurring_rule_id: rule.id,
     });
 
-    const nextDue = computeNextDueDate(rule.next_due_date, rule.frequency);
+    const nextDue = computeNextDueDate(
+      rule.next_due_date,
+      rule.frequency,
+      rule.payout_day_1,
+      rule.payout_day_2
+    );
     await db.runAsync('UPDATE recurring_rules SET next_due_date = ? WHERE id = ?', [nextDue, rule.id]);
     processedCount++;
   }

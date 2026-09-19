@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, View, TouchableOpacity, Alert } from 'react-native';
+import { ScrollView, View, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
@@ -17,6 +17,9 @@ import {
   ArrowRightLeft,
   Trash2,
   Calendar as CalendarIcon,
+  Calculator,
+  Plus,
+  ShieldCheck,
 } from 'lucide-react-native';
 import { useFinance } from '../src/context/FinanceContext';
 import { createTransaction } from '../src/services/ledgerService';
@@ -90,6 +93,82 @@ export default function ModalTransactionScreen() {
     setNewDedAmount('');
   };
 
+  const handleAddPresetDeduction = (presetName: string) => {
+    const existingIndex = deductions.findIndex(
+      (d) => d.name.toLowerCase() === presetName.toLowerCase()
+    );
+    if (existingIndex >= 0) {
+      toast.show({
+        variant: 'info',
+        label: 'Already In List',
+        description: `${presetName} is already in your deductions list below.`,
+      });
+      return;
+    }
+    setDeductions([...deductions, { name: presetName, amount: 0 }]);
+  };
+
+  const handleAddCutoffPreset = (cutoff: 'first' | 'second') => {
+    const list =
+      cutoff === 'first'
+        ? ['SSS', 'PhilHealth']
+        : ['Withholding Tax', 'Pag-IBIG'];
+    const existing = new Set(deductions.map((d) => d.name.toLowerCase()));
+    const toAdd: Array<{ name: string; amount: number }> = [];
+    for (const name of list) {
+      if (!existing.has(name.toLowerCase())) {
+        toAdd.push({ name, amount: 0 });
+      }
+    }
+    if (toAdd.length === 0) {
+      toast.show({
+        variant: 'info',
+        label: 'Already In List',
+        description: `${cutoff === 'first' ? 'SSS and PhilHealth' : 'Tax and Pag-IBIG'} are already in your list.`,
+      });
+    } else {
+      setDeductions([...deductions, ...toAdd]);
+      toast.show({
+        variant: 'success',
+        label: `${cutoff === 'first' ? '1st Cutoff (SSS & PhilHealth)' : '2nd Cutoff (Tax & Pag-IBIG)'} Added`,
+        description: 'Enter deduction amounts in the fields below.',
+      });
+    }
+  };
+
+  const handleAddStandard4Deductions = () => {
+    const standard = ['Withholding Tax', 'SSS', 'PhilHealth', 'Pag-IBIG'];
+    const existing = new Set(deductions.map((d) => d.name.toLowerCase()));
+    const toAdd: Array<{ name: string; amount: number }> = [];
+    for (const name of standard) {
+      if (!existing.has(name.toLowerCase())) {
+        toAdd.push({ name, amount: 0 });
+      }
+    }
+    if (toAdd.length === 0) {
+      toast.show({
+        variant: 'info',
+        label: 'All Present',
+        description: 'Tax, SSS, PhilHealth, and Pag-IBIG are already in your list.',
+      });
+    } else {
+      setDeductions([...deductions, ...toAdd]);
+      toast.show({
+        variant: 'success',
+        label: 'Standard Deductions Added',
+        description: 'Enter the deduction amounts in the fields below.',
+      });
+    }
+  };
+
+  const handleUpdateDeductionAmount = (index: number, val: string) => {
+    const clean = cleanNumericString(val);
+    const num = parseFloat(clean) || 0;
+    const updated = [...deductions];
+    updated[index] = { ...updated[index], amount: num };
+    setDeductions(updated);
+  };
+
   const handleRemoveDeduction = (index: number) => {
     setDeductions(deductions.filter((_, i) => i !== index));
   };
@@ -97,6 +176,27 @@ export default function ModalTransactionScreen() {
   const totalDeductions = deductions.reduce((sum, d) => sum + d.amount, 0);
   const netAmountNum = parseFloat(cleanNumericString(amount)) || 0;
   const grossIncome = netAmountNum + totalDeductions;
+
+  const [grossInput, setGrossInput] = useState('');
+  const [showGrossHelper, setShowGrossHelper] = useState(false);
+
+  const handleComputeNetFromGross = () => {
+    const cleanGross = cleanNumericString(grossInput);
+    const grossNum = parseFloat(cleanGross);
+    if (isNaN(grossNum) || grossNum <= 0) {
+      Alert.alert('Invalid Gross Amount', 'Please enter a valid gross salary amount.');
+      return;
+    }
+    const computedNet = Math.max(0, grossNum - totalDeductions);
+    setAmount(computedNet.toFixed(2));
+    clearFieldError('amount');
+    setShowGrossHelper(false);
+    toast.show({
+      variant: 'success',
+      label: 'Net Pay Calculated',
+      description: `Net Take-Home Pay set to ${currency}${computedNet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`,
+    });
+  };
 
   const handleSubmit = async () => {
     const formData = {
@@ -383,61 +483,230 @@ export default function ModalTransactionScreen() {
         {/* Itemized Deductions (Income only) */}
         {type === 'income' && (
           <Card className="p-4 bg-card border border-border rounded-2xl gap-3">
-            <Text size="sm" weight="bold">
-              Itemized Deductions (Taxes & Contributions)
-            </Text>
-            <Text size="xs" muted>
-              Track taxes, healthcare, insurance, or company deductions withheld from your gross pay.
-            </Text>
-
-            {deductions.map((d, i) => (
-              <View
-                key={i}
-                className="flex-row justify-between items-center p-2 bg-muted/20 rounded-xl"
-              >
-                <View>
-                  <Text size="sm" weight="semibold">
-                    {d.name}
-                  </Text>
-                  <Text size="xs" muted>
-                    -{currency}{d.amount.toFixed(2)}
+            {/* Header: Title on left with flex-1, Gross Helper button on right */}
+            <View className="flex-row items-start justify-between gap-2">
+              <View className="flex-1 gap-0.5">
+                <View className="flex-row items-center gap-1.5">
+                  <ShieldCheck size={16} color="#10B981" />
+                  <Text size="sm" weight="bold">
+                    Itemized Deductions & Payslip
                   </Text>
                 </View>
-                <TouchableOpacity onPress={() => handleRemoveDeduction(i)}>
-                  <Trash2 size={16} color="#EF4444" />
-                </TouchableOpacity>
+                <Text size="xs" muted>
+                  Tax, SSS, PhilHealth, Pag-IBIG
+                </Text>
               </View>
-            ))}
 
-            <View className="flex-row gap-2 items-center pt-2 border-t border-border">
-              <Input
-                value={newDedName}
-                onChangeText={(val) => {
-                  setNewDedName(val);
-                  setDedError('');
-                }}
-                placeholder="e.g. Tax, SSS, Insurance"
-                className="flex-1"
-              />
-              <Input
-                value={newDedAmount}
-                onChangeText={(val) => {
-                  setNewDedAmount(val);
-                  setDedError('');
-                }}
-                placeholder="Amount"
-                keyboardType="decimal-pad"
-                className="w-24"
-              />
-              <Button size="sm" variant="outline" onPress={handleAddDeduction}>
-                Add
-              </Button>
+              <TouchableOpacity
+                onPress={() => setShowGrossHelper(!showGrossHelper)}
+                className="flex-row items-center gap-1 bg-primary/10 px-2.5 py-1.5 rounded-lg shrink-0 active:opacity-75"
+              >
+                <Calculator size={13} color="#4F46E5" />
+                <Text size="xs" weight="semibold" className="text-primary">
+                  {showGrossHelper ? 'Hide Helper' : 'Gross Helper'}
+                </Text>
+              </TouchableOpacity>
             </View>
-            {dedError ? (
-              <Text size="xs" className="text-destructive font-medium">
-                {dedError}
+
+            <Text size="xs" muted>
+              Track statutory government contributions (Tax, SSS, PhilHealth, Pag-IBIG) or employer deductions.
+            </Text>
+
+            {/* Quick Presets */}
+            <View className="gap-1.5 pt-1">
+              <Text size="xs" weight="semibold" muted className="uppercase tracking-wider">
+                Quick Presets
               </Text>
-            ) : null}
+              <View className="flex-row gap-2 flex-wrap">
+                <TouchableOpacity
+                  onPress={() => handleAddCutoffPreset('first')}
+                  className="bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1.5 rounded-lg flex-row items-center gap-1 active:opacity-75"
+                >
+                  <Plus size={12} color="#10B981" />
+                  <Text size="xs" weight="bold" className="text-emerald-700 dark:text-emerald-300">
+                    1st Cutoff (SSS & PhilHealth)
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleAddCutoffPreset('second')}
+                  className="bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-1.5 rounded-lg flex-row items-center gap-1 active:opacity-75"
+                >
+                  <Plus size={12} color="#6366F1" />
+                  <Text size="xs" weight="bold" className="text-indigo-700 dark:text-indigo-300">
+                    2nd Cutoff (Tax & Pag-IBIG)
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleAddStandard4Deductions}
+                  className="bg-muted/30 border border-border px-2.5 py-1.5 rounded-lg flex-row items-center gap-1 active:opacity-75"
+                >
+                  <Plus size={12} color="#6B7280" />
+                  <Text size="xs" weight="bold" className="text-foreground">
+                    All 4 (PH)
+                  </Text>
+                </TouchableOpacity>
+                <Chip onPress={() => handleAddPresetDeduction('Withholding Tax')}>
+                  Tax (BIR)
+                </Chip>
+                <Chip onPress={() => handleAddPresetDeduction('SSS')}>
+                  SSS
+                </Chip>
+                <Chip onPress={() => handleAddPresetDeduction('PhilHealth')}>
+                  PhilHealth
+                </Chip>
+                <Chip onPress={() => handleAddPresetDeduction('Pag-IBIG')}>
+                  Pag-IBIG
+                </Chip>
+              </View>
+            </View>
+
+            {/* Gross-to-Net Helper Modal/Box */}
+            {showGrossHelper && (
+              <View className="p-3 bg-primary/5 border border-primary/20 rounded-xl gap-2 mt-1">
+                <Text size="xs" weight="bold" className="text-primary">
+                  Calculate Net Pay from Gross Salary
+                </Text>
+                <Text size="xs" muted>
+                  Enter your contracted Gross Pay. The app will subtract total deductions ({currency}{totalDeductions.toFixed(2)}) and fill in your Net Take-Home Pay.
+                </Text>
+                <View className="flex-row gap-2 items-center">
+                  <View className="flex-1 bg-card border border-border rounded-xl px-3 py-2 flex-row items-center min-w-0">
+                    <Text size="xs" muted className="mr-1 font-semibold">
+                      {currency}
+                    </Text>
+                    <TextInput
+                      value={grossInput}
+                      onChangeText={setGrossInput}
+                      placeholder="e.g. 50000"
+                      placeholderTextColor="#9CA3AF"
+                      keyboardType="decimal-pad"
+                      className="flex-1 text-sm text-foreground py-0"
+                    />
+                  </View>
+                  <Button
+                    size="sm"
+                    onPress={handleComputeNetFromGross}
+                    className="shrink-0 px-3 min-w-[84px]"
+                  >
+                    Apply Net
+                  </Button>
+                </View>
+              </View>
+            )}
+
+            {/* Deductions List */}
+            {deductions.length > 0 && (
+              <View className="gap-2 pt-2 border-t border-border">
+                <Text size="xs" weight="semibold" muted className="uppercase tracking-wider">
+                  Configured Deductions ({deductions.length})
+                </Text>
+                {deductions.map((d, i) => (
+                  <View
+                    key={i}
+                    className="flex-row justify-between items-center p-2.5 bg-muted/20 border border-border/50 rounded-xl gap-2"
+                  >
+                    <View className="flex-1 min-w-0 pr-1">
+                      <Text size="sm" weight="semibold" numberOfLines={1}>
+                        {d.name}
+                      </Text>
+                    </View>
+                    <View className="flex-row items-center gap-2 shrink-0">
+                      <View className="bg-card border border-border rounded-lg px-2 py-1.5 flex-row items-center">
+                        <Text size="xs" muted className="mr-0.5">
+                          -{currency}
+                        </Text>
+                        <TextInput
+                          value={d.amount > 0 ? String(d.amount) : ''}
+                          onChangeText={(val) => handleUpdateDeductionAmount(i, val)}
+                          placeholder="0.00"
+                          placeholderTextColor="#9CA3AF"
+                          keyboardType="decimal-pad"
+                          className="w-20 text-right text-sm font-semibold text-foreground py-0"
+                        />
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => handleRemoveDeduction(i)}
+                        className="p-1.5 rounded-lg bg-rose-500/10 active:opacity-75"
+                      >
+                        <Trash2 size={15} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Custom Deduction Input */}
+            <View className="gap-1.5 pt-2 border-t border-border">
+              <Text size="xs" weight="semibold" muted className="uppercase tracking-wider">
+                Add Other / Custom Deduction
+              </Text>
+              <View className="flex-row gap-2 items-center">
+                <View className="flex-1 bg-card border border-border rounded-xl px-3 py-2 min-w-0">
+                  <TextInput
+                    value={newDedName}
+                    onChangeText={(val) => {
+                      setNewDedName(val);
+                      setDedError('');
+                    }}
+                    placeholder="Name (e.g. HMO, Loan)"
+                    placeholderTextColor="#9CA3AF"
+                    className="text-sm text-foreground py-0"
+                  />
+                </View>
+                <View className="w-24 bg-card border border-border rounded-xl px-2.5 py-2 flex-row items-center shrink-0">
+                  <Text size="xs" muted className="mr-0.5">
+                    {currency}
+                  </Text>
+                  <TextInput
+                    value={newDedAmount}
+                    onChangeText={(val) => {
+                      setNewDedAmount(val);
+                      setDedError('');
+                    }}
+                    placeholder="0.00"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="decimal-pad"
+                    className="flex-1 text-sm text-foreground text-right py-0"
+                  />
+                </View>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onPress={handleAddDeduction}
+                  className="shrink-0 px-3"
+                >
+                  Add
+                </Button>
+              </View>
+              {dedError ? (
+                <Text size="xs" className="text-destructive font-medium">
+                  {dedError}
+                </Text>
+              ) : null}
+            </View>
+
+            {/* Realtime Payslip Summary */}
+            {deductions.length > 0 && (
+              <View className="p-3 bg-muted/10 rounded-xl border border-border gap-1.5 mt-1">
+                <Text size="xs" weight="bold" className="text-foreground">
+                  Payslip Breakdown
+                </Text>
+                <View className="flex-row justify-between">
+                  <Text size="xs" muted>Gross Income:</Text>
+                  <Text size="xs" weight="semibold">{currency}{grossIncome.toFixed(2)}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text size="xs" muted>Total Deductions:</Text>
+                  <Text size="xs" weight="semibold" className="text-rose-500">-{currency}{totalDeductions.toFixed(2)}</Text>
+                </View>
+                <View className="h-px bg-border my-0.5" />
+                <View className="flex-row justify-between items-center">
+                  <Text size="xs" weight="bold">Net Take-Home Deposit:</Text>
+                  <Text size="sm" weight="bold" className="text-emerald-500">{currency}{netAmountNum.toFixed(2)}</Text>
+                </View>
+              </View>
+            )}
           </Card>
         )}
 

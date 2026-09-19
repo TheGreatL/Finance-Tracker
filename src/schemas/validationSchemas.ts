@@ -240,6 +240,23 @@ export const wishlistFormSchema = z.object({
 
 export type WishlistFormData = z.infer<typeof wishlistFormSchema>;
 
+// ==========================================
+// 6. Recurring Rule Validation Schema
+// ==========================================
+export const recurringRuleFormSchema = z.object({
+  title: z.string().trim().min(1, 'Title is required (e.g. Monthly Salary, Netflix)'),
+  type: z.enum(['income', 'expense']),
+  amount: positiveAmountSchema('Amount'),
+  frequency: z.enum(['daily', 'weekly', 'biweekly', 'semi_monthly', 'monthly', 'yearly']),
+  accountId: z.string().trim().min(1, 'Please select an account'),
+  categoryId: z.string().trim().optional(),
+  startDate: requiredDateSchema('First occurrence date'),
+  payoutDay1: z.number().int().min(1).max(31).optional(),
+  payoutDay2: z.number().int().min(1).max(31).optional(),
+});
+
+export type RecurringRuleFormData = z.infer<typeof recurringRuleFormSchema>;
+
 /**
  * Helper to validate form data against a Zod schema.
  * Returns { success: true, data } or { success: false, errors: { [fieldName]: string } }

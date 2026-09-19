@@ -23,11 +23,16 @@ import {
   AlertCircle,
   ExternalLink,
   CheckCircle2,
+  Repeat,
+  Trash2,
+  TrendingUp,
+  TrendingDown,
 } from 'lucide-react-native';
 import { useFinance } from '../../src/context/FinanceContext';
 import { contributeToGoal } from '../../src/services/goalService';
 import { recordLoanRepayment } from '../../src/services/loanService';
 import { updateWishlistItem } from '../../src/services/wishlistService';
+import { deleteRecurringRule } from '../../src/services/recurringService';
 
 export default function PlanningScreen() {
   const insets = useSafeAreaInsets();
@@ -38,11 +43,12 @@ export default function PlanningScreen() {
     loans,
     wishlist,
     accounts,
+    recurringRules,
     dashboardSummary,
     refreshAll,
   } = useFinance();
 
-  const [activeTab, setActiveTab] = useState<'goals' | 'loans' | 'wishlist'>('goals');
+  const [activeTab, setActiveTab] = useState<'goals' | 'recurring' | 'loans' | 'wishlist'>('goals');
   const [refreshing, setRefreshing] = useState(false);
 
   // Contribution Modal State
@@ -122,6 +128,29 @@ export default function PlanningScreen() {
     }
   };
 
+  const handleDeleteRecurring = async (id: string, name: string) => {
+    Alert.alert('Remove Rule', `Are you sure you want to remove recurring "${name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteRecurringRule(id);
+            await refreshAll();
+            toast.show({
+              variant: 'info',
+              label: 'Rule Removed',
+              description: `"${name}" removed from recurring schedule.`,
+            });
+          } catch (err: any) {
+            Alert.alert('Error', err?.message || 'Failed to delete rule');
+          }
+        },
+      },
+    ]);
+  };
+
   const getAffordabilityBadge = (cost: number) => {
     if (safeToSpend <= 0) {
       return (
@@ -186,6 +215,7 @@ export default function PlanningScreen() {
           <TouchableOpacity
             onPress={() => {
               if (activeTab === 'goals') router.push('/modal-goal');
+              else if (activeTab === 'recurring') router.push('/modal-recurring');
               else if (activeTab === 'loans') router.push('/modal-loan');
               else router.push('/modal-wishlist');
             }}
@@ -193,58 +223,81 @@ export default function PlanningScreen() {
           >
             <Plus size={16} color="#FFFFFF" />
             <Text size="sm" weight="semibold" className="text-white">
-              {activeTab === 'goals' ? 'New Goal' : activeTab === 'loans' ? 'New Loan' : 'New Wish'}
+              {activeTab === 'goals'
+                ? 'New Goal'
+                : activeTab === 'recurring'
+                ? 'New Rule'
+                : activeTab === 'loans'
+                ? 'New Loan'
+                : 'New Wish'}
             </Text>
           </TouchableOpacity>
         </View>
 
         {/* Segment Tabs */}
-        <View className="flex-row p-1 bg-card border border-border rounded-2xl gap-1">
-          <TouchableOpacity
-            onPress={() => setActiveTab('goals')}
-            className={`flex-1 py-2 rounded-xl items-center ${
-              activeTab === 'goals' ? 'bg-primary' : 'bg-transparent'
-            }`}
-          >
-            <Text
-              size="xs"
-              weight="semibold"
-              className={activeTab === 'goals' ? 'text-white' : 'text-muted-foreground'}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View className="flex-row p-1 bg-card border border-border rounded-2xl gap-1">
+            <TouchableOpacity
+              onPress={() => setActiveTab('goals')}
+              className={`px-3 py-2 rounded-xl items-center ${
+                activeTab === 'goals' ? 'bg-primary' : 'bg-transparent'
+              }`}
             >
-              Savings Goals ({savingsGoals.length})
-            </Text>
-          </TouchableOpacity>
+              <Text
+                size="xs"
+                weight="semibold"
+                className={activeTab === 'goals' ? 'text-white' : 'text-muted-foreground'}
+              >
+                Goals ({savingsGoals.length})
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => setActiveTab('loans')}
-            className={`flex-1 py-2 rounded-xl items-center ${
-              activeTab === 'loans' ? 'bg-primary' : 'bg-transparent'
-            }`}
-          >
-            <Text
-              size="xs"
-              weight="semibold"
-              className={activeTab === 'loans' ? 'text-white' : 'text-muted-foreground'}
+            <TouchableOpacity
+              onPress={() => setActiveTab('recurring')}
+              className={`px-3 py-2 rounded-xl items-center ${
+                activeTab === 'recurring' ? 'bg-primary' : 'bg-transparent'
+              }`}
             >
-              Loans & Debts ({loans.length})
-            </Text>
-          </TouchableOpacity>
+              <Text
+                size="xs"
+                weight="semibold"
+                className={activeTab === 'recurring' ? 'text-white' : 'text-muted-foreground'}
+              >
+                Recurring / Salary ({recurringRules.length})
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => setActiveTab('wishlist')}
-            className={`flex-1 py-2 rounded-xl items-center ${
-              activeTab === 'wishlist' ? 'bg-primary' : 'bg-transparent'
-            }`}
-          >
-            <Text
-              size="xs"
-              weight="semibold"
-              className={activeTab === 'wishlist' ? 'text-white' : 'text-muted-foreground'}
+            <TouchableOpacity
+              onPress={() => setActiveTab('loans')}
+              className={`px-3 py-2 rounded-xl items-center ${
+                activeTab === 'loans' ? 'bg-primary' : 'bg-transparent'
+              }`}
             >
-              Wishlist ({wishlist.length})
-            </Text>
-          </TouchableOpacity>
-        </View>
+              <Text
+                size="xs"
+                weight="semibold"
+                className={activeTab === 'loans' ? 'text-white' : 'text-muted-foreground'}
+              >
+                Loans ({loans.length})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setActiveTab('wishlist')}
+              className={`px-3 py-2 rounded-xl items-center ${
+                activeTab === 'wishlist' ? 'bg-primary' : 'bg-transparent'
+              }`}
+            >
+              <Text
+                size="xs"
+                weight="semibold"
+                className={activeTab === 'wishlist' ? 'text-white' : 'text-muted-foreground'}
+              >
+                Wishlist ({wishlist.length})
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
 
         {/* TAB 1: SAVINGS GOALS */}
         {activeTab === 'goals' && (
@@ -327,6 +380,153 @@ export default function PlanningScreen() {
                           </Text>
                         </View>
                       )}
+                    </View>
+                  </Card>
+                );
+              })
+            )}
+          </View>
+        )}
+
+        {/* TAB: RECURRING RULES & SALARY */}
+        {activeTab === 'recurring' && (
+          <View className="gap-3">
+            {recurringRules.length === 0 ? (
+              <Card className="p-8 bg-card border border-border rounded-xl items-center gap-3">
+                <Repeat size={32} color="#9CA3AF" />
+                <Text size="base" weight="semibold">
+                  No Recurring Salary or Bills Yet
+                </Text>
+                <Text size="xs" muted className="text-center px-4">
+                  Put your regular monthly salary or bills here! The app will automatically track your paydays and credit them to your ledger.
+                </Text>
+                <Button size="sm" onPress={() => router.push('/modal-recurring')}>
+                  Set Up Monthly Salary
+                </Button>
+              </Card>
+            ) : (
+              recurringRules.map((rule) => {
+                const isIncome = rule.type === 'income';
+                const nextDueDate = rule.next_due_date ? rule.next_due_date.split('T')[0] : '';
+                const getOrdinal = (n: number) => {
+                  const s = ['th', 'st', 'nd', 'rd'];
+                  const v = n % 100;
+                  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+                };
+
+                const freqLabel =
+                  rule.frequency === 'semi_monthly'
+                    ? `Twice a Month (${getOrdinal(rule.payout_day_1 ?? 15)} & ${getOrdinal(rule.payout_day_2 ?? 30)})`
+                    : rule.frequency === 'biweekly'
+                    ? 'Bi-Weekly (Every 2 Weeks)'
+                    : rule.frequency === 'monthly'
+                    ? 'Monthly'
+                    : rule.frequency === 'weekly'
+                    ? 'Weekly'
+                    : rule.frequency.toUpperCase();
+
+                let ruleDeductions: Array<{ name: string; amount: number; cutoff?: 'first' | 'second' | 'both' }> = [];
+                if (rule.deductions_json) {
+                  try {
+                    ruleDeductions = JSON.parse(rule.deductions_json);
+                  } catch (e) {}
+                }
+                const ruleDeductionsTotal = ruleDeductions.reduce((sum, d) => sum + d.amount, 0);
+
+                return (
+                  <Card key={rule.id} className="p-4 bg-card border border-border rounded-xl gap-3">
+                    <View className="flex-row items-center justify-between">
+                      <View className="flex-row items-center gap-2.5 flex-1">
+                        <View
+                          className={`w-9 h-9 rounded-full items-center justify-center ${
+                            isIncome ? 'bg-emerald-500/15' : 'bg-rose-500/15'
+                          }`}
+                        >
+                          {isIncome ? (
+                            <TrendingUp size={18} color="#10B981" />
+                          ) : (
+                            <TrendingDown size={18} color="#EF4444" />
+                          )}
+                        </View>
+                        <View className="flex-1">
+                          <Text size="sm" weight="bold">
+                            {rule.notes || (isIncome ? 'Recurring Salary' : 'Recurring Bill')}
+                          </Text>
+                          <Text size="xs" muted>
+                            {freqLabel} • Next: {nextDueDate}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View className="items-end gap-1">
+                        <Text
+                          size="base"
+                          weight="bold"
+                          className={isIncome ? 'text-emerald-500' : 'text-rose-500'}
+                        >
+                          {isIncome ? '+' : '-'}{formatMoney(rule.amount)}
+                        </Text>
+                        <Badge variant="outline">
+                          {rule.auto_create ? 'Auto-Post' : 'Reminder'}
+                        </Badge>
+                      </View>
+                    </View>
+
+                    {/* Payslip deduction breakdown if configured */}
+                    {isIncome && ruleDeductions.length > 0 && (
+                      <View className="bg-muted/20 p-2.5 rounded-lg gap-1.5 border border-border/50">
+                        <View className="flex-row justify-between items-center">
+                          <Text size="xs" muted>
+                            Gross: {formatMoney(rule.gross_amount ?? (rule.amount + ruleDeductionsTotal))}
+                          </Text>
+                          <Text size="xs" className="text-rose-500 font-medium">
+                            Total Deductions: -{formatMoney(ruleDeductionsTotal)}
+                          </Text>
+                        </View>
+                        <View className="flex-row flex-wrap gap-1">
+                          {ruleDeductions.map((d, dIdx) => {
+                            const cutoffBadge =
+                              rule.frequency === 'semi_monthly' && d.cutoff
+                                ? d.cutoff === 'first'
+                                  ? `[1st: ${getOrdinal(rule.payout_day_1 ?? 15)}]`
+                                  : d.cutoff === 'second'
+                                  ? `[2nd: ${getOrdinal(rule.payout_day_2 ?? 30)}]`
+                                  : '[Both Cutoffs]'
+                                : null;
+
+                            return (
+                              <View
+                                key={dIdx}
+                                className="bg-card/70 border border-border/40 px-2 py-0.5 rounded-md flex-row items-center gap-1"
+                              >
+                                {cutoffBadge && (
+                                  <Text size="xs" className="text-[10px] font-bold text-primary">
+                                    {cutoffBadge}
+                                  </Text>
+                                )}
+                                <Text size="xs" muted className="text-[11px]">
+                                  {d.name}:
+                                </Text>
+                                <Text size="xs" weight="semibold" className="text-[11px] text-rose-500">
+                                  -{formatMoney(d.amount)}
+                                </Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    )}
+
+                    <View className="flex-row items-center justify-between pt-2 border-t border-border">
+                      <Text size="xs" muted>
+                        Account: {accounts.find(a => a.id === rule.account_id)?.name || 'Linked Account'}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => handleDeleteRecurring(rule.id, rule.notes || 'Recurring Rule')}
+                        className="p-1 rounded-lg bg-rose-500/10 active:opacity-75"
+                      >
+                        <Trash2 size={15} color="#EF4444" />
+                      </TouchableOpacity>
                     </View>
                   </Card>
                 );

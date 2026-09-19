@@ -82,13 +82,17 @@ export async function initDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
       to_account_id TEXT DEFAULT NULL,
       category_id TEXT DEFAULT NULL,
       amount REAL NOT NULL,
-      frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'biweekly', 'monthly', 'yearly')),
+      frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'biweekly', 'semi_monthly', 'monthly', 'yearly')),
       start_date TEXT NOT NULL,
       end_date TEXT DEFAULT NULL,
       next_due_date TEXT NOT NULL,
       auto_create INTEGER NOT NULL DEFAULT 0,
       is_active INTEGER NOT NULL DEFAULT 1,
       notes TEXT DEFAULT '',
+      gross_amount REAL DEFAULT NULL,
+      deductions_json TEXT DEFAULT NULL,
+      payout_day_1 INTEGER DEFAULT NULL,
+      payout_day_2 INTEGER DEFAULT NULL,
       created_at TEXT NOT NULL
     );
 
@@ -147,7 +151,68 @@ export async function initDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id);
   `);
 
+  await migrateDatabaseIfNeeded(db);
   await seedDefaultsIfNeeded(db);
+}
+
+async function migrateDatabaseIfNeeded(db: SQLite.SQLiteDatabase): Promise<void> {
+  // Check if recurring_rules table needs columns or check constraint migration
+  const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(recurring_rules)');
+  const hasGross = columns.some((c) => c.name === 'gross_amount');
+  const hasDeductions = columns.some((c) => c.name === 'deductions_json');
+  const hasPayoutDay1 = columns.some((c) => c.name === 'payout_day_1');
+  const hasPayoutDay2 = columns.some((c) => c.name === 'payout_day_2');
+
+  if (!hasGross) {
+    await db.runAsync('ALTER TABLE recurring_rules ADD COLUMN gross_amount REAL DEFAULT NULL');
+  }
+  if (!hasDeductions) {
+    await db.runAsync('ALTER TABLE recurring_rules ADD COLUMN deductions_json TEXT DEFAULT NULL');
+  }
+  if (!hasPayoutDay1) {
+    await db.runAsync('ALTER TABLE recurring_rules ADD COLUMN payout_day_1 INTEGER DEFAULT NULL');
+  }
+  if (!hasPayoutDay2) {
+    await db.runAsync('ALTER TABLE recurring_rules ADD COLUMN payout_day_2 INTEGER DEFAULT NULL');
+  }
+
+  // Check if frequency check constraint supports semi_monthly
+  const tableSql = await db.getFirstAsync<{ sql: string }>(
+    "SELECT sql FROM sqlite_master WHERE type='table' AND name='recurring_rules'"
+  );
+  if (tableSql && tableSql.sql && !tableSql.sql.includes('semi_monthly')) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS recurring_rules_temp (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL CHECK(type IN ('income', 'expense', 'transfer')),
+        account_id TEXT NOT NULL,
+        to_account_id TEXT DEFAULT NULL,
+        category_id TEXT DEFAULT NULL,
+        amount REAL NOT NULL,
+        frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'biweekly', 'semi_monthly', 'monthly', 'yearly')),
+        start_date TEXT NOT NULL,
+        end_date TEXT DEFAULT NULL,
+        next_due_date TEXT NOT NULL,
+        auto_create INTEGER NOT NULL DEFAULT 0,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        notes TEXT DEFAULT '',
+        gross_amount REAL DEFAULT NULL,
+        deductions_json TEXT DEFAULT NULL,
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO recurring_rules_temp (
+        id, type, account_id, to_account_id, category_id, amount,
+        frequency, start_date, end_date, next_due_date, auto_create,
+        is_active, notes, gross_amount, deductions_json, created_at
+      )
+      SELECT id, type, account_id, to_account_id, category_id, amount,
+             frequency, start_date, end_date, next_due_date, auto_create,
+             is_active, notes, gross_amount, deductions_json, created_at
+      FROM recurring_rules;
+      DROP TABLE recurring_rules;
+      ALTER TABLE recurring_rules_temp RENAME TO recurring_rules;
+    `);
+  }
 }
 
 async function seedDefaultsIfNeeded(db: SQLite.SQLiteDatabase): Promise<void> {

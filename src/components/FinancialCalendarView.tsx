@@ -126,11 +126,65 @@ export default function FinancialCalendarView({ onSelectTransaction }: Financial
     for (const rule of recurringRules) {
       if (rule.is_active) {
         const nextDate = rule.next_due_date ? rule.next_due_date.split('T')[0] : '';
-        if (nextDate === fullDateStr) {
+        const daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
+        const startDay = rule.start_date ? parseInt(rule.start_date.split('-')[2], 10) : 1;
+
+        let isMatch = nextDate === fullDateStr;
+
+        if (!isMatch) {
+          if (rule.frequency === 'semi_monthly') {
+            const d1 = rule.payout_day_1 && rule.payout_day_1 >= 1 && rule.payout_day_1 <= 31 ? rule.payout_day_1 : 15;
+            const d2 = rule.payout_day_2 && rule.payout_day_2 >= 1 && rule.payout_day_2 <= 31 ? rule.payout_day_2 : 30;
+            const effectiveD2 = Math.min(d2, daysInCurrentMonth);
+            isMatch = dayNum === d1 || dayNum === effectiveD2;
+          } else if (rule.frequency === 'monthly') {
+            // Monthly matches start day of month (or last day if month is shorter)
+            const targetDay = Math.min(startDay, daysInCurrentMonth);
+            isMatch = dayNum === targetDay;
+          }
+        }
+
+        if (isMatch) {
+          let deductionsText = '';
+          let cutoffPrefix = '';
+          let displayAmount = rule.amount;
+
+          if (rule.frequency === 'semi_monthly') {
+            const d1 = rule.payout_day_1 && rule.payout_day_1 >= 1 && rule.payout_day_1 <= 31 ? rule.payout_day_1 : 15;
+            const isFirstCutoff = dayNum === d1;
+            cutoffPrefix = isFirstCutoff ? '[1st Cutoff] ' : '[2nd Cutoff] ';
+
+            if (rule.deductions_json) {
+              try {
+                const deds: Array<{ name: string; amount: number; cutoff?: string }> = JSON.parse(rule.deductions_json);
+                if (deds.length > 0) {
+                  const activeDeds = deds.filter(d => {
+                    if (!d.cutoff || d.cutoff === 'both') return true;
+                    return isFirstCutoff ? d.cutoff === 'first' : d.cutoff === 'second';
+                  });
+                  const activeTotal = activeDeds.reduce((s, d) => s + d.amount, 0);
+                  if (activeTotal > 0) {
+                    deductionsText = ` (Deductions: -${currency}${activeTotal.toLocaleString()})`;
+                  }
+                  if (rule.gross_amount) {
+                    displayAmount = Math.max(0, rule.gross_amount - activeTotal);
+                  }
+                }
+              } catch (e) {}
+            }
+          } else if (rule.deductions_json) {
+            try {
+              const deds: Array<{ name: string; amount: number }> = JSON.parse(rule.deductions_json);
+              if (deds.length > 0) {
+                deductionsText = ` (Deductions: -${currency}${deds.reduce((s, d) => s + d.amount, 0).toLocaleString()})`;
+              }
+            } catch (e) {}
+          }
+
           events.push({
-            title: rule.notes || (rule.type === 'income' ? 'Recurring Inflow' : 'Recurring Bill'),
+            title: `${cutoffPrefix}${rule.notes || (rule.type === 'income' ? 'Recurring Salary' : 'Recurring Bill')}`,
             type: 'recurring',
-            description: `${rule.type === 'income' ? 'Expected Income' : 'Recurring Bill'}: ${currency}${rule.amount.toLocaleString()}`,
+            description: `${rule.type === 'income' ? 'Take-Home Pay' : 'Recurring Bill'}: ${currency}${displayAmount.toLocaleString()}${deductionsText}`,
           });
         }
       }

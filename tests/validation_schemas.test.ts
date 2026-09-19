@@ -6,6 +6,7 @@ import {
   accountFormSchema,
   loanFormSchema,
   wishlistFormSchema,
+  recurringRuleFormSchema,
   validateForm,
   cleanNumericString,
 } from '../src/schemas/validationSchemas.ts';
@@ -115,4 +116,74 @@ test('wishlistFormSchema: rejects non-numeric cost and validates optional store 
   });
   assert.strictEqual(badUrl.success, false);
   assert.ok(badUrl.errors.url.includes('http:// or https://'));
+});
+
+test('recurringRuleFormSchema: validates semi_monthly, biweekly, and monthly salary frequencies', () => {
+  const semiMonthly = validateForm(recurringRuleFormSchema, {
+    title: 'Twice-a-Month Salary',
+    type: 'income',
+    amount: '25000',
+    frequency: 'semi_monthly',
+    accountId: 'acc-bank-1',
+    categoryId: 'cat-inc-salary',
+    startDate: '2026-09-15',
+  });
+  assert.strictEqual(semiMonthly.success, true);
+
+  const biweekly = validateForm(recurringRuleFormSchema, {
+    title: 'Bi-Weekly Pay',
+    type: 'income',
+    amount: '20000',
+    frequency: 'biweekly',
+    accountId: 'acc-bank-1',
+    startDate: '2026-09-15',
+  });
+  assert.strictEqual(biweekly.success, true);
+
+  const monthly = validateForm(recurringRuleFormSchema, {
+    title: 'Monthly Pay',
+    type: 'income',
+    amount: '50000',
+    frequency: 'monthly',
+    accountId: 'acc-bank-1',
+    startDate: '2026-09-30',
+  });
+  assert.strictEqual(monthly.success, true);
+
+  const invalidFreq = validateForm(recurringRuleFormSchema, {
+    title: 'Bad Frequency',
+    type: 'income',
+    amount: '50000',
+    frequency: 'triweekly',
+    accountId: 'acc-bank-1',
+    startDate: '2026-09-30',
+  });
+  assert.strictEqual(invalidFreq.success, false);
+  assert.ok(invalidFreq.errors.frequency != null);
+
+  const customDaysValid = validateForm(recurringRuleFormSchema, {
+    title: 'Custom Semi-Monthly',
+    type: 'income',
+    amount: '25000',
+    frequency: 'semi_monthly',
+    accountId: 'acc-bank-1',
+    startDate: '2026-09-10',
+    payoutDay1: 10,
+    payoutDay2: 25,
+  });
+  assert.strictEqual(customDaysValid.success, true);
+
+  const customDaysOutOfRange = validateForm(recurringRuleFormSchema, {
+    title: 'Custom Semi-Monthly Bad Days',
+    type: 'income',
+    amount: '25000',
+    frequency: 'semi_monthly',
+    accountId: 'acc-bank-1',
+    startDate: '2026-09-10',
+    payoutDay1: 0,
+    payoutDay2: 32,
+  });
+  assert.strictEqual(customDaysOutOfRange.success, false);
+  assert.ok(customDaysOutOfRange.errors.payoutDay1 != null);
+  assert.ok(customDaysOutOfRange.errors.payoutDay2 != null);
 });

@@ -339,8 +339,8 @@ export async function commitBackupData(
         `INSERT OR REPLACE INTO recurring_rules (
           id, type, account_id, to_account_id, category_id, amount,
           frequency, start_date, end_date, next_due_date, auto_create,
-          is_active, notes, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          is_active, notes, gross_amount, deductions_json, payout_day_1, payout_day_2, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           rule.id,
           rule.type,
@@ -355,6 +355,10 @@ export async function commitBackupData(
           rule.auto_create ?? 0,
           rule.is_active ?? 1,
           rule.notes ?? '',
+          rule.gross_amount ?? null,
+          rule.deductions_json ?? null,
+          rule.payout_day_1 ?? null,
+          rule.payout_day_2 ?? null,
           rule.created_at || new Date().toISOString(),
         ]
       );

@@ -70,7 +70,15 @@ export interface TransactionDeduction {
   amount: number;
 }
 
-export type FrequencyType = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly';
+export type DeductionCutoff = 'first' | 'second' | 'both';
+
+export interface RecurringDeduction {
+  name: string;
+  amount: number;
+  cutoff?: DeductionCutoff;
+}
+
+export type FrequencyType = 'daily' | 'weekly' | 'biweekly' | 'semi_monthly' | 'monthly' | 'yearly';
 
 export interface RecurringRule {
   id: string;
@@ -86,6 +94,10 @@ export interface RecurringRule {
   auto_create: number;
   is_active: number;
   notes?: string;
+  gross_amount?: number | null;
+  deductions_json?: string | null;
+  payout_day_1?: number | null;
+  payout_day_2?: number | null;
   created_at: string;
 }
 
