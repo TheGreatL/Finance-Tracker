@@ -1,16 +1,23 @@
 {
   "expo": {
-    "name": "temp-app",
-    "slug": "temp-app",
+    "name": "Finance Tracker",
+    "slug": "finance-tracker",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "tempapp",
+    "icon": "./assets/logo-light.png",
+    "scheme": "financetracker",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.financetracker.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo-light.png",
+        "backgroundColor": "#0F172A"
+      },
       "edgeToEdgeEnabled": true
     },
     "web": {
