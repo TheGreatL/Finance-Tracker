@@ -10,7 +10,7 @@ import {
   Chip,
   useToast,
 } from 'panelui-native';
-import { X } from 'lucide-react-native';
+import { X, Calendar as CalendarIcon } from 'lucide-react-native';
 import { useFinance } from '../src/context/FinanceContext';
 import { createLoan } from '../src/services/loanService';
 import { LoanType } from '../src/types/database';
@@ -19,6 +19,7 @@ import {
   validateForm,
   cleanNumericString,
 } from '../src/schemas/validationSchemas';
+import CalendarPickerModal from '../src/components/CalendarPickerModal';
 
 export default function ModalLoanScreen() {
   const insets = useSafeAreaInsets();
@@ -33,6 +34,7 @@ export default function ModalLoanScreen() {
   const [installment, setInstallment] = useState('');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = useState('');
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -231,6 +233,14 @@ export default function ModalLoanScreen() {
             }}
             errorMessage={errors.dueDate}
             placeholder="2027-12-31"
+            endContent={
+              <TouchableOpacity
+                onPress={() => setCalendarOpen(true)}
+                className="p-1 rounded-lg bg-primary/10 active:opacity-75"
+              >
+                <CalendarIcon size={18} color="#6366F1" />
+              </TouchableOpacity>
+            }
           />
 
           <Input
@@ -249,6 +259,17 @@ export default function ModalLoanScreen() {
           Save Loan Obligation
         </Button>
       </ScrollView>
+
+      <CalendarPickerModal
+        open={calendarOpen}
+        onOpenChange={setCalendarOpen}
+        selectedDate={dueDate}
+        onSelectDate={(newDate) => {
+          setDueDate(newDate);
+          clearFieldError('dueDate');
+        }}
+        title="Pick Final Due Date"
+      />
     </View>
   );
 }

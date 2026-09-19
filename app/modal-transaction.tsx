@@ -16,6 +16,7 @@ import {
   TrendingDown,
   ArrowRightLeft,
   Trash2,
+  Calendar as CalendarIcon,
 } from 'lucide-react-native';
 import { useFinance } from '../src/context/FinanceContext';
 import { createTransaction } from '../src/services/ledgerService';
@@ -25,10 +26,11 @@ import {
   validateForm,
   cleanNumericString,
 } from '../src/schemas/validationSchemas';
+import CalendarPickerModal from '../src/components/CalendarPickerModal';
 
 export default function ModalTransactionScreen() {
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ type?: string; to_account_id?: string }>();
+  const params = useLocalSearchParams<{ type?: string; to_account_id?: string; date?: string }>();
   const { toast } = useToast();
   const { currency, accounts, categories, loans, savingsGoals, refreshAll } = useFinance();
 
@@ -36,7 +38,7 @@ export default function ModalTransactionScreen() {
     (params.type as TransactionType) || 'expense'
   );
   const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(params.date || new Date().toISOString().split('T')[0]);
   const [accountId, setAccountId] = useState(accounts[0]?.id || '');
   const [toAccountId, setToAccountId] = useState(
     params.to_account_id || accounts.find(a => a.id !== accounts[0]?.id)?.id || ''
@@ -55,6 +57,7 @@ export default function ModalTransactionScreen() {
   const [dedError, setDedError] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const clearFieldError = (field: string) => {
@@ -501,6 +504,14 @@ export default function ModalTransactionScreen() {
             }}
             errorMessage={errors.date}
             placeholder="YYYY-MM-DD"
+            endContent={
+              <TouchableOpacity
+                onPress={() => setCalendarOpen(true)}
+                className="p-1 rounded-lg bg-primary/10 active:opacity-75"
+              >
+                <CalendarIcon size={18} color="#6366F1" />
+              </TouchableOpacity>
+            }
           />
 
           <Input
@@ -527,6 +538,17 @@ export default function ModalTransactionScreen() {
           Commit to Ledger
         </Button>
       </ScrollView>
+
+      <CalendarPickerModal
+        open={calendarOpen}
+        onOpenChange={setCalendarOpen}
+        selectedDate={date}
+        onSelectDate={(newDate) => {
+          setDate(newDate);
+          clearFieldError('date');
+        }}
+        title="Pick Transaction Date"
+      />
     </View>
   );
 }

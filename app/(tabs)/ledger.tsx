@@ -22,10 +22,12 @@ import {
   Calendar,
   Tag,
   Plus,
+  ReceiptText,
 } from 'lucide-react-native';
 import { useFinance } from '../../src/context/FinanceContext';
 import { deleteTransaction } from '../../src/services/ledgerService';
 import { TransactionWithDetails, TransactionType } from '../../src/types/database';
+import FinancialCalendarView from '../../src/components/FinancialCalendarView';
 
 export default function LedgerScreen() {
   const insets = useSafeAreaInsets();
@@ -40,6 +42,7 @@ export default function LedgerScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedAccount, setSelectedAccount] = useState<string>('all');
   const [selectedNature, setSelectedNature] = useState<string>('all');
@@ -141,7 +144,46 @@ export default function LedgerScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Search Bar */}
+        {/* View Mode Toggle */}
+        <View className="flex-row p-1 bg-card border border-border rounded-2xl gap-1">
+          <TouchableOpacity
+            onPress={() => setViewMode('list')}
+            className={`flex-1 py-2 rounded-xl flex-row items-center justify-center gap-1.5 ${
+              viewMode === 'list' ? 'bg-primary' : 'bg-transparent'
+            }`}
+          >
+            <ReceiptText size={16} color={viewMode === 'list' ? '#FFFFFF' : '#6B7280'} />
+            <Text
+              size="xs"
+              weight="semibold"
+              className={viewMode === 'list' ? 'text-white' : 'text-muted-foreground'}
+            >
+              Ledger Stream
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setViewMode('calendar')}
+            className={`flex-1 py-2 rounded-xl flex-row items-center justify-center gap-1.5 ${
+              viewMode === 'calendar' ? 'bg-primary' : 'bg-transparent'
+            }`}
+          >
+            <Calendar size={16} color={viewMode === 'calendar' ? '#FFFFFF' : '#6B7280'} />
+            <Text
+              size="xs"
+              weight="semibold"
+              className={viewMode === 'calendar' ? 'text-white' : 'text-muted-foreground'}
+            >
+              Calendar View
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {viewMode === 'calendar' ? (
+          <FinancialCalendarView onSelectTransaction={(tx) => setSelectedTx(tx)} />
+        ) : (
+          <>
+            {/* Search Bar */}
         <View className="flex-row items-center bg-card border border-border rounded-xl px-3 py-2 gap-2">
           <Search size={18} color="#9CA3AF" />
           <Input
@@ -331,6 +373,8 @@ export default function LedgerScreen() {
             })
           )}
         </View>
+        </>
+        )}
       </ScrollView>
 
       {/* Transaction Details Modal Dialog */}

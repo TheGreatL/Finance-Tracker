@@ -9,7 +9,7 @@ import {
   Button,
   useToast,
 } from 'panelui-native';
-import { X, Target } from 'lucide-react-native';
+import { X, Target, Calendar as CalendarIcon } from 'lucide-react-native';
 import { useFinance } from '../src/context/FinanceContext';
 import { createSavingsGoal } from '../src/services/goalService';
 import {
@@ -17,6 +17,7 @@ import {
   validateForm,
   cleanNumericString,
 } from '../src/schemas/validationSchemas';
+import CalendarPickerModal from '../src/components/CalendarPickerModal';
 
 export default function ModalGoalScreen() {
   const insets = useSafeAreaInsets();
@@ -27,6 +28,7 @@ export default function ModalGoalScreen() {
   const [targetAmount, setTargetAmount] = useState('');
   const [currentAmount, setCurrentAmount] = useState('0');
   const [targetDate, setTargetDate] = useState('');
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -177,6 +179,14 @@ export default function ModalGoalScreen() {
             onBlur={() => handleBlurField('targetDate')}
             errorMessage={errors.targetDate}
             placeholder="YYYY-MM-DD"
+            endContent={
+              <TouchableOpacity
+                onPress={() => setCalendarOpen(true)}
+                className="p-1 rounded-lg bg-primary/10 active:opacity-75"
+              >
+                <CalendarIcon size={18} color="#6366F1" />
+              </TouchableOpacity>
+            }
           />
         </Card>
 
@@ -188,6 +198,17 @@ export default function ModalGoalScreen() {
           Save Goal
         </Button>
       </ScrollView>
+
+      <CalendarPickerModal
+        open={calendarOpen}
+        onOpenChange={setCalendarOpen}
+        selectedDate={targetDate}
+        onSelectDate={(newDate) => {
+          setTargetDate(newDate);
+          clearFieldError('targetDate');
+        }}
+        title="Pick Target Completion Date"
+      />
     </View>
   );
 }
