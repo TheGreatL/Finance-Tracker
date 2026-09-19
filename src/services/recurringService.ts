@@ -88,6 +88,26 @@ export async function deleteRecurringRule(id: string): Promise<void> {
   await db.runAsync('DELETE FROM recurring_rules WHERE id = ?', [id]);
 }
 
+export async function getRecurringRuleById(id: string): Promise<RecurringRule | null> {
+  const db = await getDatabase();
+  return await db.getFirstAsync<RecurringRule>('SELECT * FROM recurring_rules WHERE id = ?', [id]);
+}
+
+export async function claimRecurringRule(ruleId: string): Promise<string> {
+  const db = await getDatabase();
+  const rule = await getRecurringRuleById(ruleId);
+  if (!rule) throw new Error('Recurring rule not found');
+
+  const nextDue = computeNextDueDate(
+    rule.next_due_date,
+    rule.frequency,
+    rule.payout_day_1,
+    rule.payout_day_2
+  );
+  await db.runAsync('UPDATE recurring_rules SET next_due_date = ? WHERE id = ?', [nextDue, rule.id]);
+  return nextDue;
+}
+
 function formatYearMonthDay(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');

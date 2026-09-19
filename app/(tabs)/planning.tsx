@@ -518,15 +518,39 @@ export default function PlanningScreen() {
                     )}
 
                     <View className="flex-row items-center justify-between pt-2 border-t border-border">
-                      <Text size="xs" muted>
-                        Account: {accounts.find(a => a.id === rule.account_id)?.name || 'Linked Account'}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() => handleDeleteRecurring(rule.id, rule.notes || 'Recurring Rule')}
-                        className="p-1 rounded-lg bg-rose-500/10 active:opacity-75"
-                      >
-                        <Trash2 size={15} color="#EF4444" />
-                      </TouchableOpacity>
+                      <View className="flex-1 min-w-0 pr-2">
+                        <Text size="xs" muted numberOfLines={1}>
+                          Account: {accounts.find(a => a.id === rule.account_id)?.name || 'Linked Account'}
+                        </Text>
+                      </View>
+
+                      <View className="flex-row items-center gap-2 shrink-0">
+                        {isIncome && (
+                          <TouchableOpacity
+                            onPress={() => {
+                              router.push({
+                                pathname: '/modal-transaction',
+                                params: {
+                                  type: 'income',
+                                  recurring_rule_id: rule.id,
+                                },
+                              });
+                            }}
+                            className="bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 rounded-lg flex-row items-center gap-1 active:opacity-75"
+                          >
+                            <Sparkles size={12} color="#10B981" />
+                            <Text size="xs" weight="bold" className="text-emerald-700 dark:text-emerald-300">
+                              Claim / Log Payday
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                          onPress={() => handleDeleteRecurring(rule.id, rule.notes || 'Recurring Rule')}
+                          className="p-1 rounded-lg bg-rose-500/10 active:opacity-75"
+                        >
+                          <Trash2 size={15} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </Card>
                 );

@@ -217,6 +217,35 @@ export async function updateTransaction(id: string, input: CreateTransactionInpu
   return await createTransaction({ ...input, id });
 }
 
+export async function getTransactionById(id: string): Promise<TransactionWithDetails | null> {
+  const db = await getDatabase();
+  const tx = await db.getFirstAsync<TransactionWithDetails>(
+    `SELECT 
+      t.*,
+      a.name as account_name,
+      ta.name as to_account_name,
+      c.name as category_name,
+      c.icon as category_icon,
+      c.color as category_color
+     FROM transactions t
+     LEFT JOIN accounts a ON t.account_id = a.id
+     LEFT JOIN accounts ta ON t.to_account_id = ta.id
+     LEFT JOIN categories c ON t.category_id = c.id
+     WHERE t.id = ?`,
+    [id]
+  );
+  if (!tx) return null;
+
+  if (tx.type === 'income') {
+    const deductions = await db.getAllAsync<TransactionDeduction>(
+      'SELECT * FROM transaction_deductions WHERE transaction_id = ?',
+      [id]
+    );
+    tx.deductions = deductions;
+  }
+  return tx;
+}
+
 export interface GetTransactionsFilter {
   accountId?: string;
   categoryId?: string;

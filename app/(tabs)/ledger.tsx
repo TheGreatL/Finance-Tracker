@@ -511,6 +511,20 @@ export default function LedgerScreen() {
 
             <View className="flex-row gap-2 pt-2 border-t border-border">
               <Button
+                variant="outline"
+                className="flex-1"
+                onPress={() => {
+                  const txId = selectedTx.id;
+                  setSelectedTx(null);
+                  router.push({
+                    pathname: '/modal-transaction',
+                    params: { editId: txId },
+                  });
+                }}
+              >
+                Edit / Adjust
+              </Button>
+              <Button
                 variant="destructive"
                 className="flex-1"
                 onPress={() => setDeleteConfirmOpen(true)}
@@ -518,8 +532,8 @@ export default function LedgerScreen() {
                 Delete
               </Button>
               <Button
-                variant="outline"
-                className="flex-1"
+                variant="ghost"
+                className="px-3"
                 onPress={() => setSelectedTx(null)}
               >
                 Close

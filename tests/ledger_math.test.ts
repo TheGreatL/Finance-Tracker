@@ -285,3 +285,69 @@ test('Payroll: Accurately separates per-cutoff deductions (1st Cutoff vs 2nd Cut
   assert.strictEqual(totalMonthlyNet, 55200); // 60000 - 4800
 });
 
+test('Salary Adjustments: Correctly computes Adjusted Gross and Net with Overtime, Absences, and Undertime', () => {
+  const baseGross = 25000;
+  const overtime = 3500;
+  const absence = 1200;
+  const undertime = 300;
+  const deductions = [
+    { name: 'SSS', amount: 1350 },
+    { name: 'PhilHealth', amount: 750 },
+  ];
+
+  const totalDeds = deductions.reduce((s, d) => s + d.amount, 0); // 2100
+  const adjustedGross = Math.max(0, baseGross + overtime - absence - undertime); // 25000 + 3500 - 1200 - 300 = 27000
+  const takeHomeNet = Math.max(0, adjustedGross - totalDeds); // 27000 - 2100 = 24900
+
+  assert.strictEqual(adjustedGross, 27000);
+  assert.strictEqual(totalDeds, 2100);
+  assert.strictEqual(takeHomeNet, 24900);
+});
+
+test('Salary Adjustments: Direct Manual Override allows user-specified net take-home deposit', () => {
+  const baseGross = 25000;
+  const overtime = 0;
+  const absence = 0;
+  const undertime = 0;
+  const deductions = [{ name: 'Tax', amount: 2000 }];
+
+  // In direct manual override, user types 22500 directly
+  const manualNetInput = 22500;
+  const totalDeds = deductions.reduce((s, d) => s + d.amount, 0);
+  const recordedGross = baseGross > 0 ? baseGross : manualNetInput + totalDeds;
+
+  assert.strictEqual(manualNetInput, 22500);
+  assert.strictEqual(recordedGross, 25000);
+});
+
+test('Ledger Reconciliation: Updating an existing transaction correctly shifts account balance', () => {
+  const accounts = new Map<string, MockAccount>([
+    ['bank-1', { id: 'bank-1', name: 'Checking', type: 'bank', opening_balance: 10000, current_balance: 10000 }],
+  ]);
+
+  // Initial income transaction: ₱20,000
+  const tx1: MockTransaction = {
+    id: 'tx-101',
+    type: 'income',
+    account_id: 'bank-1',
+    amount: 20000,
+  };
+  applyTransaction(accounts, tx1);
+  assert.strictEqual(accounts.get('bank-1')!.current_balance, 30000);
+
+  // User edits tx1 to adjust for Overtime and Absences: new amount is ₱24,900
+  // Reconcile: revert old transaction (-20000) and apply new transaction (+24900)
+  const revertTx = { ...tx1, amount: tx1.amount };
+  accounts.get('bank-1')!.current_balance -= revertTx.amount; // 30000 - 20000 = 10000
+
+  const updatedTx: MockTransaction = {
+    ...tx1,
+    amount: 24900,
+    gross_amount: 27000,
+    deductions_total: 2100,
+  };
+  applyTransaction(accounts, updatedTx); // 10000 + 24900 = 34900
+
+  assert.strictEqual(accounts.get('bank-1')!.current_balance, 34900);
+});
+

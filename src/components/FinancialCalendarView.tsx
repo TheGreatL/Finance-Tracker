@@ -19,6 +19,7 @@ import {
   Repeat,
   Plus,
   Clock,
+  Sparkles,
 } from 'lucide-react-native';
 import { useFinance } from '../context/FinanceContext';
 import { TransactionWithDetails } from '../types/database';
@@ -100,7 +101,14 @@ export default function FinancialCalendarView({ onSelectTransaction }: Financial
 
   // Find recurring & credit card due dates for any given day of month (1-31)
   const getDueEventsForDay = (dayNum: number, fullDateStr: string) => {
-    const events: Array<{ title: string; type: 'cutoff' | 'due' | 'recurring' | 'loan'; description: string }> = [];
+    const events: Array<{
+      title: string;
+      type: 'cutoff' | 'due' | 'recurring' | 'loan';
+      description: string;
+      ruleId?: string;
+      isSalary?: boolean;
+      cutoff?: 'first' | 'second';
+    }> = [];
 
     // Credit cards statement cutoffs and payment dues
     for (const acc of accounts) {
@@ -148,10 +156,12 @@ export default function FinancialCalendarView({ onSelectTransaction }: Financial
           let deductionsText = '';
           let cutoffPrefix = '';
           let displayAmount = rule.amount;
+          let chosenCutoff: 'first' | 'second' | undefined = undefined;
 
           if (rule.frequency === 'semi_monthly') {
             const d1 = rule.payout_day_1 && rule.payout_day_1 >= 1 && rule.payout_day_1 <= 31 ? rule.payout_day_1 : 15;
             const isFirstCutoff = dayNum === d1;
+            chosenCutoff = isFirstCutoff ? 'first' : 'second';
             cutoffPrefix = isFirstCutoff ? '[1st Cutoff] ' : '[2nd Cutoff] ';
 
             if (rule.deductions_json) {
@@ -185,6 +195,9 @@ export default function FinancialCalendarView({ onSelectTransaction }: Financial
             title: `${cutoffPrefix}${rule.notes || (rule.type === 'income' ? 'Recurring Salary' : 'Recurring Bill')}`,
             type: 'recurring',
             description: `${rule.type === 'income' ? 'Take-Home Pay' : 'Recurring Bill'}: ${currency}${displayAmount.toLocaleString()}${deductionsText}`,
+            ruleId: rule.id,
+            isSalary: rule.type === 'income',
+            cutoff: chosenCutoff,
           });
         }
       }
@@ -221,7 +234,14 @@ export default function FinancialCalendarView({ onSelectTransaction }: Financial
       hasIncome: boolean;
       hasExpense: boolean;
       hasTransfer: boolean;
-      dueEvents: Array<{ title: string; type: 'cutoff' | 'due' | 'recurring' | 'loan'; description: string }>;
+      dueEvents: Array<{
+        title: string;
+        type: 'cutoff' | 'due' | 'recurring' | 'loan';
+        description: string;
+        ruleId?: string;
+        isSalary?: boolean;
+        cutoff?: 'first' | 'second';
+      }>;
     }> = [];
 
     // Leading days from previous month
@@ -559,28 +579,54 @@ export default function FinancialCalendarView({ onSelectTransaction }: Financial
             {selectedDayData.dueEvents.map((evt, idx) => (
               <View
                 key={idx}
-                className="flex-row items-center justify-between p-2 rounded-xl bg-purple-500/10 border border-purple-500/20"
+                className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 gap-2"
               >
-                <View className="flex-row items-center gap-2 flex-1">
-                  {evt.type === 'cutoff' || evt.type === 'due' ? (
-                    <CreditCard size={16} color="#8B5CF6" />
-                  ) : evt.type === 'recurring' ? (
-                    <Repeat size={16} color="#8B5CF6" />
-                  ) : (
-                    <Clock size={16} color="#8B5CF6" />
-                  )}
-                  <View className="flex-1">
-                    <Text size="xs" weight="bold" className="text-foreground">
-                      {evt.title}
-                    </Text>
-                    <Text size="xs" muted>
-                      {evt.description}
-                    </Text>
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center gap-2 flex-1 min-w-0 mr-2">
+                    {evt.type === 'cutoff' || evt.type === 'due' ? (
+                      <CreditCard size={16} color="#8B5CF6" />
+                    ) : evt.type === 'recurring' ? (
+                      <Repeat size={16} color="#8B5CF6" />
+                    ) : (
+                      <Clock size={16} color="#8B5CF6" />
+                    )}
+                    <View className="flex-1 min-w-0">
+                      <Text size="xs" weight="bold" className="text-foreground" numberOfLines={1}>
+                        {evt.title}
+                      </Text>
+                      <Text size="xs" muted numberOfLines={1}>
+                        {evt.description}
+                      </Text>
+                    </View>
                   </View>
+                  <Badge variant="outline">
+                    {evt.type === 'cutoff' ? 'Cutoff' : evt.type === 'due' ? 'Payment' : 'Recurring'}
+                  </Badge>
                 </View>
-                <Badge variant="outline">
-                  {evt.type === 'cutoff' ? 'Cutoff' : evt.type === 'due' ? 'Payment' : 'Recurring'}
-                </Badge>
+
+                {evt.isSalary && evt.ruleId ? (
+                  <View className="flex-row justify-end pt-1.5 border-t border-purple-500/20">
+                    <TouchableOpacity
+                      onPress={() => {
+                        router.push({
+                          pathname: '/modal-transaction',
+                          params: {
+                            type: 'income',
+                            recurring_rule_id: evt.ruleId,
+                            cutoff: evt.cutoff,
+                            date: selectedDateStr,
+                          },
+                        });
+                      }}
+                      className="bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 rounded-lg flex-row items-center gap-1 active:opacity-75"
+                    >
+                      <Sparkles size={12} color="#10B981" />
+                      <Text size="xs" weight="bold" className="text-emerald-700 dark:text-emerald-300">
+                        Claim / Log Payday with Overtime & Absences
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
               </View>
             ))}
           </View>
