@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "temp-app",
+    "slug": "temp-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "tempapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-sharing"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

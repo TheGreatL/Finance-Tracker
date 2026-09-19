@@ -1,0 +1,464 @@
+import React, { useState } from 'react';
+import { ScrollView, View, TouchableOpacity, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams } from 'expo-router';
+import {
+  Text,
+  Card,
+  Input,
+  Button,
+  Badge,
+  Chip,
+  useToast,
+} from 'panelui-native';
+import {
+  X,
+  TrendingUp,
+  TrendingDown,
+  ArrowRightLeft,
+  Plus,
+  Trash2,
+  Calendar,
+} from 'lucide-react-native';
+import { useFinance } from '../src/context/FinanceContext';
+import { createTransaction } from '../src/services/ledgerService';
+import { TransactionType, ExpenseNature } from '../src/types/database';
+
+export default function ModalTransactionScreen() {
+  const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ type?: string; to_account_id?: string }>();
+  const { toast } = useToast();
+  const { currency, accounts, categories, loans, savingsGoals, refreshAll } = useFinance();
+
+  const [type, setType] = useState<TransactionType>(
+    (params.type as TransactionType) || 'expense'
+  );
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [accountId, setAccountId] = useState(accounts[0]?.id || '');
+  const [toAccountId, setToAccountId] = useState(
+    params.to_account_id || accounts.find(a => a.id !== accounts[0]?.id)?.id || ''
+  );
+  const [categoryId, setCategoryId] = useState('');
+  const [notes, setNotes] = useState('');
+  const [tags, setTags] = useState('');
+  const [expenseNature, setExpenseNature] = useState<ExpenseNature>('needs');
+  const [linkedLoanId, setLinkedLoanId] = useState<string>('');
+  const [linkedGoalId, setLinkedGoalId] = useState<string>('');
+
+  // Itemized Deductions for Income
+  const [deductions, setDeductions] = useState<Array<{ name: string; amount: number }>>([]);
+  const [newDedName, setNewDedName] = useState('');
+  const [newDedAmount, setNewDedAmount] = useState('');
+
+  const [submitting, setSubmitting] = useState(false);
+
+  // Filter categories by type
+  const relevantCategories = categories.filter(c => c.type === (type === 'income' ? 'income' : 'expense'));
+
+  const handleAddDeduction = () => {
+    const dedAmt = parseFloat(newDedAmount);
+    if (!newDedName.trim() || isNaN(dedAmt) || dedAmt <= 0) {
+      Alert.alert('Invalid Deduction', 'Please enter a deduction name and positive amount.');
+      return;
+    }
+    setDeductions([...deductions, { name: newDedName.trim(), amount: dedAmt }]);
+    setNewDedName('');
+    setNewDedAmount('');
+  };
+
+  const handleRemoveDeduction = (index: number) => {
+    setDeductions(deductions.filter((_, i) => i !== index));
+  };
+
+  const totalDeductions = deductions.reduce((sum, d) => sum + d.amount, 0);
+  const netAmountNum = parseFloat(amount) || 0;
+  const grossIncome = netAmountNum + totalDeductions;
+
+  const handleSubmit = async () => {
+    if (isNaN(netAmountNum) || netAmountNum <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid amount greater than zero.');
+      return;
+    }
+
+    if (!accountId) {
+      Alert.alert('Select Account', 'Please choose an account for this transaction.');
+      return;
+    }
+
+    if (type === 'transfer' && (!toAccountId || toAccountId === accountId)) {
+      Alert.alert('Invalid Destination', 'Please choose a different destination account.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await createTransaction({
+        type,
+        account_id: accountId,
+        to_account_id: type === 'transfer' ? toAccountId : null,
+        category_id: type !== 'transfer' ? categoryId || null : null,
+        amount: netAmountNum,
+        date,
+        notes: notes.trim(),
+        tags: tags.trim(),
+        expense_nature: type === 'expense' ? expenseNature : 'needs',
+        gross_amount: type === 'income' ? grossIncome : null,
+        deductions: type === 'income' ? deductions : [],
+        linked_loan_id: linkedLoanId || null,
+        linked_goal_id: linkedGoalId || null,
+      });
+
+      await refreshAll();
+      toast.show({
+        variant: 'success',
+        label: 'Transaction Saved',
+        description: 'Account balance updated in SQLite ledger.',
+      });
+      router.back();
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to save transaction');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <View className="flex-1 bg-background">
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
+          paddingTop: insets.top + 16,
+          paddingBottom: 40,
+          paddingHorizontal: 16,
+          gap: 18,
+        }}
+      >
+        {/* Modal Header */}
+        <View className="flex-row items-center justify-between">
+          <Text size="2xl" weight="bold">
+            Record Movement
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="p-2 rounded-full bg-muted/20 active:opacity-75"
+          >
+            <X size={20} color="#6B7280" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Segmented Type Toggle */}
+        <View className="flex-row p-1 bg-card border border-border rounded-2xl gap-1">
+          <TouchableOpacity
+            onPress={() => setType('expense')}
+            className={`flex-1 py-2.5 rounded-xl flex-row items-center justify-center gap-1.5 ${
+              type === 'expense' ? 'bg-rose-500' : 'bg-transparent'
+            }`}
+          >
+            <TrendingDown size={16} color={type === 'expense' ? '#FFFFFF' : '#EF4444'} />
+            <Text
+              size="xs"
+              weight="semibold"
+              className={type === 'expense' ? 'text-white' : 'text-muted-foreground'}
+            >
+              Expense
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setType('income')}
+            className={`flex-1 py-2.5 rounded-xl flex-row items-center justify-center gap-1.5 ${
+              type === 'income' ? 'bg-emerald-500' : 'bg-transparent'
+            }`}
+          >
+            <TrendingUp size={16} color={type === 'income' ? '#FFFFFF' : '#10B981'} />
+            <Text
+              size="xs"
+              weight="semibold"
+              className={type === 'income' ? 'text-white' : 'text-muted-foreground'}
+            >
+              Income
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setType('transfer')}
+            className={`flex-1 py-2.5 rounded-xl flex-row items-center justify-center gap-1.5 ${
+              type === 'transfer' ? 'bg-blue-500' : 'bg-transparent'
+            }`}
+          >
+            <ArrowRightLeft size={16} color={type === 'transfer' ? '#FFFFFF' : '#3B82F6'} />
+            <Text
+              size="xs"
+              weight="semibold"
+              className={type === 'transfer' ? 'text-white' : 'text-muted-foreground'}
+            >
+              Transfer
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Amount Input */}
+        <Card className="p-4 bg-card border border-border rounded-2xl gap-2">
+          <Text size="xs" weight="semibold" muted className="uppercase tracking-wider">
+            {type === 'income' ? 'Net Received Amount' : 'Amount'} ({currency})
+          </Text>
+          <Input
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="decimal-pad"
+            placeholder="0.00"
+            className="text-2xl font-bold"
+          />
+          {type === 'income' && totalDeductions > 0 ? (
+            <View className="flex-row justify-between pt-1 border-t border-border">
+              <Text size="xs" muted>
+                Gross Earnings: {currency}{grossIncome.toFixed(2)}
+              </Text>
+              <Text size="xs" muted className="text-rose-500">
+                Total Deductions: -{currency}{totalDeductions.toFixed(2)}
+              </Text>
+            </View>
+          ) : null}
+        </Card>
+
+        {/* Source Account Picker */}
+        <View className="gap-2">
+          <Text size="xs" weight="semibold" muted className="uppercase tracking-wider">
+            {type === 'income' ? 'Deposit To Account' : type === 'transfer' ? 'From Account' : 'Paid From Account'}
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View className="flex-row gap-2">
+              {accounts.map(acc => (
+                <Chip
+                  key={acc.id}
+                  selected={accountId === acc.id}
+                  onPress={() => setAccountId(acc.id)}
+                >
+                  {acc.name} ({currency}{acc.current_balance.toLocaleString()})
+                </Chip>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+
+        {/* Destination Account Picker (Transfer mode only) */}
+        {type === 'transfer' && (
+          <View className="gap-2">
+            <Text size="xs" weight="semibold" muted className="uppercase tracking-wider">
+              To Destination Account
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View className="flex-row gap-2">
+                {accounts
+                  .filter(a => a.id !== accountId)
+                  .map(acc => (
+                    <Chip
+                      key={acc.id}
+                      selected={toAccountId === acc.id}
+                      onPress={() => setToAccountId(acc.id)}
+                    >
+                      {acc.name} ({currency}{acc.current_balance.toLocaleString()})
+                    </Chip>
+                  ))}
+              </View>
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Categories (Income & Expense only) */}
+        {type !== 'transfer' && (
+          <View className="gap-2">
+            <Text size="xs" weight="semibold" muted className="uppercase tracking-wider">
+              Category
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View className="flex-row gap-2">
+                {relevantCategories.map(cat => (
+                  <Chip
+                    key={cat.id}
+                    selected={categoryId === cat.id}
+                    onPress={() => setCategoryId(cat.id)}
+                  >
+                    {cat.name}
+                  </Chip>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Needs vs Wants Nature (Expense only) */}
+        {type === 'expense' && (
+          <View className="gap-2">
+            <Text size="xs" weight="semibold" muted className="uppercase tracking-wider">
+              Expense Nature (Needs vs Wants)
+            </Text>
+            <View className="flex-row gap-2">
+              <Chip
+                selected={expenseNature === 'needs'}
+                onPress={() => setExpenseNature('needs')}
+              >
+                Needs (Essential)
+              </Chip>
+              <Chip
+                selected={expenseNature === 'wants'}
+                onPress={() => setExpenseNature('wants')}
+              >
+                Wants (Lifestyle)
+              </Chip>
+              <Chip
+                selected={expenseNature === 'obligation'}
+                onPress={() => setExpenseNature('obligation')}
+              >
+                Debt Obligation
+              </Chip>
+            </View>
+          </View>
+        )}
+
+        {/* Itemized Deductions (Income only) */}
+        {type === 'income' && (
+          <Card className="p-4 bg-card border border-border rounded-2xl gap-3">
+            <Text size="sm" weight="bold">
+              Itemized Deductions (Taxes & Contributions)
+            </Text>
+            <Text size="xs" muted>
+              Track taxes, healthcare, insurance, or company deductions withheld from your gross pay.
+            </Text>
+
+            {deductions.map((d, i) => (
+              <View
+                key={i}
+                className="flex-row justify-between items-center p-2 bg-muted/20 rounded-xl"
+              >
+                <View>
+                  <Text size="sm" weight="semibold">
+                    {d.name}
+                  </Text>
+                  <Text size="xs" muted>
+                    -{currency}{d.amount.toFixed(2)}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => handleRemoveDeduction(i)}>
+                  <Trash2 size={16} color="#EF4444" />
+                </TouchableOpacity>
+              </View>
+            ))}
+
+            <View className="flex-row gap-2 items-center pt-2 border-t border-border">
+              <Input
+                value={newDedName}
+                onChangeText={setNewDedName}
+                placeholder="e.g. Tax, SSS, Insurance"
+                className="flex-1"
+              />
+              <Input
+                value={newDedAmount}
+                onChangeText={setNewDedAmount}
+                placeholder="Amount"
+                keyboardType="decimal-pad"
+                className="w-24"
+              />
+              <Button size="sm" variant="outline" onPress={handleAddDeduction}>
+                Add
+              </Button>
+            </View>
+          </Card>
+        )}
+
+        {/* Link to Goal or Loan (Optional) */}
+        {type === 'expense' && (loans.length > 0 || savingsGoals.length > 0) ? (
+          <View className="gap-2">
+            <Text size="xs" weight="semibold" muted className="uppercase tracking-wider">
+              Link to Loan or Savings Goal (Optional)
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View className="flex-row gap-2">
+                <Chip
+                  selected={!linkedLoanId && !linkedGoalId}
+                  onPress={() => {
+                    setLinkedLoanId('');
+                    setLinkedGoalId('');
+                  }}
+                >
+                  None
+                </Chip>
+                {loans
+                  .filter(l => l.status === 'active')
+                  .map(l => (
+                    <Chip
+                      key={l.id}
+                      selected={linkedLoanId === l.id}
+                      onPress={() => {
+                        setLinkedLoanId(l.id);
+                        setLinkedGoalId('');
+                        setExpenseNature('obligation');
+                      }}
+                    >
+                      Loan: {l.title}
+                    </Chip>
+                  ))}
+                {savingsGoals
+                  .filter(g => g.status === 'active')
+                  .map(g => (
+                    <Chip
+                      key={g.id}
+                      selected={linkedGoalId === g.id}
+                      onPress={() => {
+                        setLinkedGoalId(g.id);
+                        setLinkedLoanId('');
+                      }}
+                    >
+                      Goal: {g.name}
+                    </Chip>
+                  ))}
+              </View>
+            </ScrollView>
+          </View>
+        ) : null}
+
+        {/* Date, Notes & Tags */}
+        <Card className="p-4 bg-card border border-border rounded-2xl gap-3">
+          <View className="gap-1">
+            <Text size="xs" muted>
+              Transaction Date (YYYY-MM-DD):
+            </Text>
+            <Input value={date} onChangeText={setDate} />
+          </View>
+
+          <View className="gap-1">
+            <Text size="xs" muted>
+              Notes / Description:
+            </Text>
+            <Input
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="e.g. Monthly salary, Groceries, Dinner"
+            />
+          </View>
+
+          <View className="gap-1">
+            <Text size="xs" muted>
+              Tags (comma separated):
+            </Text>
+            <Input
+              value={tags}
+              onChangeText={setTags}
+              placeholder="e.g. food, market, family"
+            />
+          </View>
+        </Card>
+
+        {/* Submit Action */}
+        <Button
+          loading={submitting}
+          onPress={handleSubmit}
+          className="mt-2"
+        >
+          Commit to Ledger
+        </Button>
+      </ScrollView>
+    </View>
+  );
+}

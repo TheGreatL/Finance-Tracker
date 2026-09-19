@@ -1,0 +1,10 @@
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+.DS_Store
+
+# Lockfiles are generated per project, not shipped with a template
+package-lock.json
+node_modules/

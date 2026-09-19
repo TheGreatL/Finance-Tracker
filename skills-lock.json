@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "logo-maker": {
+      "source": "panel-ui/PanelUI",
+      "sourceType": "github",
+      "skillPath": "skills/logo-maker/SKILL.md",
+      "computedHash": "d92694d12686847b0e2aa8512b88fdbd48a32cb39de863896e2add10709869e7"
+    },
+    "panelui": {
+      "source": "panel-ui/PanelUI",
+      "sourceType": "github",
+      "skillPath": "skills/panelui/SKILL.md",
+      "computedHash": "01e01a7c0440793d307a5dc31394694b8ba8b543f44c6f18819d7c776a488d9c"
+    },
+    "react-native-patterns": {
+      "source": "affaan-m/ECC",
+      "sourceType": "github",
+      "skillPath": "skills/react-native-patterns/SKILL.md",
+      "computedHash": "f109f2aabfaae343dd3b81195812f431d12a22ce63c32c0457515f9097fa38ea"
+    }
+  }
+}
