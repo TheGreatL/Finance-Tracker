@@ -10,17 +10,15 @@ import {
   Chip,
   useToast,
 } from 'panelui-native';
-import {
-  X,
-  Wallet,
-  Landmark,
-  Smartphone,
-  CreditCard,
-  Banknote,
-} from 'lucide-react-native';
+import { X } from 'lucide-react-native';
 import { useFinance } from '../src/context/FinanceContext';
 import { createAccount } from '../src/services/accountService';
 import { AccountType } from '../src/types/database';
+import {
+  accountFormSchema,
+  validateForm,
+  cleanNumericString,
+} from '../src/schemas/validationSchemas';
 
 export default function ModalAccountScreen() {
   const insets = useSafeAreaInsets();
@@ -34,15 +32,43 @@ export default function ModalAccountScreen() {
   const [statementDay, setStatementDay] = useState('');
   const [dueDay, setDueDay] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const clearFieldError = (field: string) => {
+    if (errors[field]) {
+      setErrors((prev) => {
+        const updated = { ...prev };
+        delete updated[field];
+        return updated;
+      });
+    }
+  };
 
   const handleSubmit = async () => {
-    if (!name.trim()) {
-      Alert.alert('Required', 'Please enter an account name.');
+    const formData = {
+      name,
+      type,
+      openingBalance,
+      creditLimit: type === 'credit_card' ? creditLimit : undefined,
+      statementDay: type === 'credit_card' ? statementDay : undefined,
+      dueDay: type === 'credit_card' ? dueDay : undefined,
+    };
+
+    const validation = validateForm(accountFormSchema, formData);
+    if (!validation.success) {
+      setErrors(validation.errors);
+      const firstError = Object.values(validation.errors)[0];
+      toast.show({
+        variant: 'destructive',
+        label: 'Validation Error',
+        description: firstError || 'Please check highlighted fields.',
+      });
       return;
     }
 
-    const openBal = parseFloat(openingBalance) || 0;
-    const limit = type === 'credit_card' ? parseFloat(creditLimit) || 0 : 0;
+    setErrors({});
+    const openBal = openingBalance ? parseFloat(cleanNumericString(openingBalance)) || 0 : 0;
+    const limit = type === 'credit_card' && creditLimit ? parseFloat(cleanNumericString(creditLimit)) || 0 : 0;
     const stmt = type === 'credit_card' && statementDay ? parseInt(statementDay, 10) : null;
     const due = type === 'credit_card' && dueDay ? parseInt(dueDay, 10) : null;
 
@@ -124,70 +150,75 @@ export default function ModalAccountScreen() {
         </View>
 
         {/* General Details */}
-        <Card className="p-4 bg-card border border-border rounded-2xl gap-3">
-          <View className="gap-1">
-            <Text size="xs" muted>
-              Account Name:
-            </Text>
-            <Input
-              value={name}
-              onChangeText={setName}
-              placeholder="e.g. BDO Checking, Maya, Visa Gold"
-            />
-          </View>
+        <Card className="p-4 bg-card border border-border rounded-2xl gap-4">
+          <Input
+            label="Account Name"
+            isRequired
+            value={name}
+            onChangeText={(val) => {
+              setName(val);
+              clearFieldError('name');
+            }}
+            errorMessage={errors.name}
+            placeholder="e.g. BDO Checking, Maya, Visa Gold"
+          />
 
-          <View className="gap-1">
-            <Text size="xs" muted>
-              {type === 'credit_card' ? 'Initial Outstanding Balance' : 'Opening Balance'} ({currency}):
-            </Text>
-            <Input
-              value={openingBalance}
-              onChangeText={setOpeningBalance}
-              keyboardType="decimal-pad"
-              placeholder="0.00"
-            />
-          </View>
+          <Input
+            label={`${type === 'credit_card' ? 'Initial Outstanding Balance' : 'Opening Balance'} (${currency})`}
+            value={openingBalance}
+            onChangeText={(val) => {
+              setOpeningBalance(val);
+              clearFieldError('openingBalance');
+            }}
+            errorMessage={errors.openingBalance}
+            keyboardType="decimal-pad"
+            placeholder="0.00"
+          />
         </Card>
 
         {/* Credit Card Specific Fields */}
         {type === 'credit_card' && (
-          <Card className="p-4 bg-card border border-border rounded-2xl gap-3">
+          <Card className="p-4 bg-card border border-border rounded-2xl gap-4">
             <Text size="sm" weight="bold">
               Credit Card Specifications
             </Text>
 
-            <View className="gap-1">
-              <Text size="xs" muted>
-                Credit Limit ({currency}):
-              </Text>
-              <Input
-                value={creditLimit}
-                onChangeText={setCreditLimit}
-                keyboardType="decimal-pad"
-                placeholder="50000.00"
-              />
-            </View>
+            <Input
+              label={`Credit Limit (${currency})`}
+              value={creditLimit}
+              onChangeText={(val) => {
+                setCreditLimit(val);
+                clearFieldError('creditLimit');
+              }}
+              errorMessage={errors.creditLimit}
+              keyboardType="decimal-pad"
+              placeholder="50000.00"
+            />
 
             <View className="flex-row gap-3">
-              <View className="flex-1 gap-1">
-                <Text size="xs" muted>
-                  Statement Cutoff Day (1-31):
-                </Text>
+              <View className="flex-1">
                 <Input
+                  label="Cutoff Day (1-31)"
                   value={statementDay}
-                  onChangeText={setStatementDay}
+                  onChangeText={(val) => {
+                    setStatementDay(val);
+                    clearFieldError('statementDay');
+                  }}
+                  errorMessage={errors.statementDay}
                   keyboardType="number-pad"
                   placeholder="15"
                 />
               </View>
 
-              <View className="flex-1 gap-1">
-                <Text size="xs" muted>
-                  Payment Due Day (1-31):
-                </Text>
+              <View className="flex-1">
                 <Input
+                  label="Due Day (1-31)"
                   value={dueDay}
-                  onChangeText={setDueDay}
+                  onChangeText={(val) => {
+                    setDueDay(val);
+                    clearFieldError('dueDay');
+                  }}
+                  errorMessage={errors.dueDay}
                   keyboardType="number-pad"
                   placeholder="5"
                 />

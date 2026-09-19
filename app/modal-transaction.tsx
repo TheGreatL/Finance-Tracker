@@ -7,7 +7,6 @@ import {
   Card,
   Input,
   Button,
-  Badge,
   Chip,
   useToast,
 } from 'panelui-native';
@@ -16,13 +15,16 @@ import {
   TrendingUp,
   TrendingDown,
   ArrowRightLeft,
-  Plus,
   Trash2,
-  Calendar,
 } from 'lucide-react-native';
 import { useFinance } from '../src/context/FinanceContext';
 import { createTransaction } from '../src/services/ledgerService';
 import { TransactionType, ExpenseNature } from '../src/types/database';
+import {
+  transactionFormSchema,
+  validateForm,
+  cleanNumericString,
+} from '../src/schemas/validationSchemas';
 
 export default function ModalTransactionScreen() {
   const insets = useSafeAreaInsets();
@@ -50,18 +52,36 @@ export default function ModalTransactionScreen() {
   const [deductions, setDeductions] = useState<Array<{ name: string; amount: number }>>([]);
   const [newDedName, setNewDedName] = useState('');
   const [newDedAmount, setNewDedAmount] = useState('');
+  const [dedError, setDedError] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const clearFieldError = (field: string) => {
+    if (errors[field]) {
+      setErrors((prev) => {
+        const updated = { ...prev };
+        delete updated[field];
+        return updated;
+      });
+    }
+  };
 
   // Filter categories by type
   const relevantCategories = categories.filter(c => c.type === (type === 'income' ? 'income' : 'expense'));
 
   const handleAddDeduction = () => {
-    const dedAmt = parseFloat(newDedAmount);
-    if (!newDedName.trim() || isNaN(dedAmt) || dedAmt <= 0) {
-      Alert.alert('Invalid Deduction', 'Please enter a deduction name and positive amount.');
+    const cleanAmt = cleanNumericString(newDedAmount);
+    const dedAmt = parseFloat(cleanAmt);
+    if (!newDedName.trim()) {
+      setDedError('Please enter a deduction name (e.g. Tax, SSS)');
       return;
     }
+    if (isNaN(dedAmt) || dedAmt <= 0) {
+      setDedError('Deduction amount must be a positive number');
+      return;
+    }
+    setDedError('');
     setDeductions([...deductions, { name: newDedName.trim(), amount: dedAmt }]);
     setNewDedName('');
     setNewDedAmount('');
@@ -72,24 +92,35 @@ export default function ModalTransactionScreen() {
   };
 
   const totalDeductions = deductions.reduce((sum, d) => sum + d.amount, 0);
-  const netAmountNum = parseFloat(amount) || 0;
+  const netAmountNum = parseFloat(cleanNumericString(amount)) || 0;
   const grossIncome = netAmountNum + totalDeductions;
 
   const handleSubmit = async () => {
-    if (isNaN(netAmountNum) || netAmountNum <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid amount greater than zero.');
+    const formData = {
+      type,
+      amount,
+      accountId,
+      toAccountId: type === 'transfer' ? toAccountId : undefined,
+      categoryId: type !== 'transfer' ? categoryId : undefined,
+      date,
+      notes,
+      tags,
+    };
+
+    const validation = validateForm(transactionFormSchema, formData);
+    if (!validation.success) {
+      setErrors(validation.errors);
+      const firstError = Object.values(validation.errors)[0];
+      toast.show({
+        variant: 'destructive',
+        label: 'Validation Error',
+        description: firstError || 'Please check the highlighted fields.',
+      });
       return;
     }
 
-    if (!accountId) {
-      Alert.alert('Select Account', 'Please choose an account for this transaction.');
-      return;
-    }
-
-    if (type === 'transfer' && (!toAccountId || toAccountId === accountId)) {
-      Alert.alert('Invalid Destination', 'Please choose a different destination account.');
-      return;
-    }
+    setErrors({});
+    const finalAmount = parseFloat(cleanNumericString(amount));
 
     setSubmitting(true);
     try {
@@ -98,7 +129,7 @@ export default function ModalTransactionScreen() {
         account_id: accountId,
         to_account_id: type === 'transfer' ? toAccountId : null,
         category_id: type !== 'transfer' ? categoryId || null : null,
-        amount: netAmountNum,
+        amount: finalAmount,
         date,
         notes: notes.trim(),
         tags: tags.trim(),
@@ -150,7 +181,10 @@ export default function ModalTransactionScreen() {
         {/* Segmented Type Toggle */}
         <View className="flex-row p-1 bg-card border border-border rounded-2xl gap-1">
           <TouchableOpacity
-            onPress={() => setType('expense')}
+            onPress={() => {
+              setType('expense');
+              clearFieldError('toAccountId');
+            }}
             className={`flex-1 py-2.5 rounded-xl flex-row items-center justify-center gap-1.5 ${
               type === 'expense' ? 'bg-rose-500' : 'bg-transparent'
             }`}
@@ -166,7 +200,10 @@ export default function ModalTransactionScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => setType('income')}
+            onPress={() => {
+              setType('income');
+              clearFieldError('toAccountId');
+            }}
             className={`flex-1 py-2.5 rounded-xl flex-row items-center justify-center gap-1.5 ${
               type === 'income' ? 'bg-emerald-500' : 'bg-transparent'
             }`}
@@ -200,12 +237,15 @@ export default function ModalTransactionScreen() {
 
         {/* Amount Input */}
         <Card className="p-4 bg-card border border-border rounded-2xl gap-2">
-          <Text size="xs" weight="semibold" muted className="uppercase tracking-wider">
-            {type === 'income' ? 'Net Received Amount' : 'Amount'} ({currency})
-          </Text>
           <Input
+            label={`${type === 'income' ? 'Net Received Amount' : 'Amount'} (${currency})`}
+            isRequired
             value={amount}
-            onChangeText={setAmount}
+            onChangeText={(val) => {
+              setAmount(val);
+              clearFieldError('amount');
+            }}
+            errorMessage={errors.amount}
             keyboardType="decimal-pad"
             placeholder="0.00"
             className="text-2xl font-bold"
@@ -224,16 +264,26 @@ export default function ModalTransactionScreen() {
 
         {/* Source Account Picker */}
         <View className="gap-2">
-          <Text size="xs" weight="semibold" muted className="uppercase tracking-wider">
-            {type === 'income' ? 'Deposit To Account' : type === 'transfer' ? 'From Account' : 'Paid From Account'}
-          </Text>
+          <View className="flex-row justify-between items-center">
+            <Text size="xs" weight="semibold" muted className="uppercase tracking-wider">
+              {type === 'income' ? 'Deposit To Account' : type === 'transfer' ? 'From Account' : 'Paid From Account'}
+            </Text>
+            {errors.accountId ? (
+              <Text size="xs" className="text-destructive font-medium">
+                {errors.accountId}
+              </Text>
+            ) : null}
+          </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View className="flex-row gap-2">
               {accounts.map(acc => (
                 <Chip
                   key={acc.id}
                   selected={accountId === acc.id}
-                  onPress={() => setAccountId(acc.id)}
+                  onPress={() => {
+                    setAccountId(acc.id);
+                    clearFieldError('accountId');
+                  }}
                 >
                   {acc.name} ({currency}{acc.current_balance.toLocaleString()})
                 </Chip>
@@ -245,9 +295,16 @@ export default function ModalTransactionScreen() {
         {/* Destination Account Picker (Transfer mode only) */}
         {type === 'transfer' && (
           <View className="gap-2">
-            <Text size="xs" weight="semibold" muted className="uppercase tracking-wider">
-              To Destination Account
-            </Text>
+            <View className="flex-row justify-between items-center">
+              <Text size="xs" weight="semibold" muted className="uppercase tracking-wider">
+                To Destination Account
+              </Text>
+              {errors.toAccountId ? (
+                <Text size="xs" className="text-destructive font-medium">
+                  {errors.toAccountId}
+                </Text>
+              ) : null}
+            </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View className="flex-row gap-2">
                 {accounts
@@ -256,7 +313,10 @@ export default function ModalTransactionScreen() {
                     <Chip
                       key={acc.id}
                       selected={toAccountId === acc.id}
-                      onPress={() => setToAccountId(acc.id)}
+                      onPress={() => {
+                        setToAccountId(acc.id);
+                        clearFieldError('toAccountId');
+                      }}
                     >
                       {acc.name} ({currency}{acc.current_balance.toLocaleString()})
                     </Chip>
@@ -349,13 +409,19 @@ export default function ModalTransactionScreen() {
             <View className="flex-row gap-2 items-center pt-2 border-t border-border">
               <Input
                 value={newDedName}
-                onChangeText={setNewDedName}
+                onChangeText={(val) => {
+                  setNewDedName(val);
+                  setDedError('');
+                }}
                 placeholder="e.g. Tax, SSS, Insurance"
                 className="flex-1"
               />
               <Input
                 value={newDedAmount}
-                onChangeText={setNewDedAmount}
+                onChangeText={(val) => {
+                  setNewDedAmount(val);
+                  setDedError('');
+                }}
                 placeholder="Amount"
                 keyboardType="decimal-pad"
                 className="w-24"
@@ -364,6 +430,11 @@ export default function ModalTransactionScreen() {
                 Add
               </Button>
             </View>
+            {dedError ? (
+              <Text size="xs" className="text-destructive font-medium">
+                {dedError}
+              </Text>
+            ) : null}
           </Card>
         )}
 
@@ -419,35 +490,32 @@ export default function ModalTransactionScreen() {
         ) : null}
 
         {/* Date, Notes & Tags */}
-        <Card className="p-4 bg-card border border-border rounded-2xl gap-3">
-          <View className="gap-1">
-            <Text size="xs" muted>
-              Transaction Date (YYYY-MM-DD):
-            </Text>
-            <Input value={date} onChangeText={setDate} />
-          </View>
+        <Card className="p-4 bg-card border border-border rounded-2xl gap-4">
+          <Input
+            label="Transaction Date"
+            isRequired
+            value={date}
+            onChangeText={(val) => {
+              setDate(val);
+              clearFieldError('date');
+            }}
+            errorMessage={errors.date}
+            placeholder="YYYY-MM-DD"
+          />
 
-          <View className="gap-1">
-            <Text size="xs" muted>
-              Notes / Description:
-            </Text>
-            <Input
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="e.g. Monthly salary, Groceries, Dinner"
-            />
-          </View>
+          <Input
+            label="Notes / Description"
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="e.g. Monthly salary, Groceries, Dinner"
+          />
 
-          <View className="gap-1">
-            <Text size="xs" muted>
-              Tags (comma separated):
-            </Text>
-            <Input
-              value={tags}
-              onChangeText={setTags}
-              placeholder="e.g. food, market, family"
-            />
-          </View>
+          <Input
+            label="Tags (comma separated)"
+            value={tags}
+            onChangeText={setTags}
+            placeholder="e.g. food, market, family"
+          />
         </Card>
 
         {/* Submit Action */}

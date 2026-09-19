@@ -10,10 +10,15 @@ import {
   Chip,
   useToast,
 } from 'panelui-native';
-import { X, Sparkles } from 'lucide-react-native';
+import { X } from 'lucide-react-native';
 import { useFinance } from '../src/context/FinanceContext';
 import { createWishlistItem } from '../src/services/wishlistService';
 import { WishlistPriority } from '../src/types/database';
+import {
+  wishlistFormSchema,
+  validateForm,
+  cleanNumericString,
+} from '../src/schemas/validationSchemas';
 
 export default function ModalWishlistScreen() {
   const insets = useSafeAreaInsets();
@@ -27,18 +32,41 @@ export default function ModalWishlistScreen() {
   const [url, setUrl] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const clearFieldError = (field: string) => {
+    if (errors[field]) {
+      setErrors((prev) => {
+        const updated = { ...prev };
+        delete updated[field];
+        return updated;
+      });
+    }
+  };
 
   const handleSubmit = async () => {
-    if (!title.trim()) {
-      Alert.alert('Required', 'Please enter a title for this wishlist item.');
+    const formData = {
+      title,
+      cost,
+      targetDate,
+      url,
+      notes,
+    };
+
+    const validation = validateForm(wishlistFormSchema, formData);
+    if (!validation.success) {
+      setErrors(validation.errors);
+      const firstError = Object.values(validation.errors)[0];
+      toast.show({
+        variant: 'destructive',
+        label: 'Validation Error',
+        description: firstError || 'Please check highlighted fields.',
+      });
       return;
     }
 
-    const costNum = parseFloat(cost);
-    if (isNaN(costNum) || costNum <= 0) {
-      Alert.alert('Invalid Cost', 'Please enter a valid estimated cost.');
-      return;
-    }
+    setErrors({});
+    const costNum = parseFloat(cleanNumericString(cost));
 
     setSubmitting(true);
     try {
@@ -118,62 +146,61 @@ export default function ModalWishlistScreen() {
           </View>
         </View>
 
-        <Card className="p-4 bg-card border border-border rounded-2xl gap-3">
-          <View className="gap-1">
-            <Text size="xs" muted>
-              Item Description:
-            </Text>
-            <Input
-              value={title}
-              onChangeText={setTitle}
-              placeholder="e.g. Sony WH-1000XM5, Espresso Machine"
-            />
-          </View>
+        <Card className="p-4 bg-card border border-border rounded-2xl gap-4">
+          <Input
+            label="Item Description"
+            isRequired
+            value={title}
+            onChangeText={(val) => {
+              setTitle(val);
+              clearFieldError('title');
+            }}
+            errorMessage={errors.title}
+            placeholder="e.g. Sony WH-1000XM5, Espresso Machine"
+          />
 
-          <View className="gap-1">
-            <Text size="xs" muted>
-              Estimated Price ({currency}):
-            </Text>
-            <Input
-              value={cost}
-              onChangeText={setCost}
-              keyboardType="decimal-pad"
-              placeholder="15000.00"
-            />
-          </View>
+          <Input
+            label={`Estimated Price (${currency})`}
+            isRequired
+            value={cost}
+            onChangeText={(val) => {
+              setCost(val);
+              clearFieldError('cost');
+            }}
+            errorMessage={errors.cost}
+            keyboardType="decimal-pad"
+            placeholder="15000.00"
+          />
 
-          <View className="gap-1">
-            <Text size="xs" muted>
-              Target Date (Optional, YYYY-MM-DD):
-            </Text>
-            <Input
-              value={targetDate}
-              onChangeText={setTargetDate}
-              placeholder="2026-12-25"
-            />
-          </View>
+          <Input
+            label="Target Date (Optional)"
+            description="Format: YYYY-MM-DD (e.g. 2026-12-25)"
+            value={targetDate}
+            onChangeText={(val) => {
+              setTargetDate(val);
+              clearFieldError('targetDate');
+            }}
+            errorMessage={errors.targetDate}
+            placeholder="2026-12-25"
+          />
 
-          <View className="gap-1">
-            <Text size="xs" muted>
-              Product URL / Store Link:
-            </Text>
-            <Input
-              value={url}
-              onChangeText={setUrl}
-              placeholder="https://..."
-            />
-          </View>
+          <Input
+            label="Product URL / Store Link"
+            value={url}
+            onChangeText={(val) => {
+              setUrl(val);
+              clearFieldError('url');
+            }}
+            errorMessage={errors.url}
+            placeholder="https://..."
+          />
 
-          <View className="gap-1">
-            <Text size="xs" muted>
-              Notes:
-            </Text>
-            <Input
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Color option, coupon discount, etc."
-            />
-          </View>
+          <Input
+            label="Notes"
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Color option, coupon discount, etc."
+          />
         </Card>
 
         <Button

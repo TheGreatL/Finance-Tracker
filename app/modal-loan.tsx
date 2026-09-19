@@ -10,15 +10,20 @@ import {
   Chip,
   useToast,
 } from 'panelui-native';
-import { X, HeartHandshake } from 'lucide-react-native';
+import { X } from 'lucide-react-native';
 import { useFinance } from '../src/context/FinanceContext';
 import { createLoan } from '../src/services/loanService';
 import { LoanType } from '../src/types/database';
+import {
+  loanFormSchema,
+  validateForm,
+  cleanNumericString,
+} from '../src/schemas/validationSchemas';
 
 export default function ModalLoanScreen() {
   const insets = useSafeAreaInsets();
   const { toast } = useToast();
-  const { currency, accounts, refreshAll } = useFinance();
+  const { currency, refreshAll } = useFinance();
 
   const [title, setTitle] = useState('');
   const [lender, setLender] = useState('');
@@ -30,21 +35,46 @@ export default function ModalLoanScreen() {
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const clearFieldError = (field: string) => {
+    if (errors[field]) {
+      setErrors((prev) => {
+        const updated = { ...prev };
+        delete updated[field];
+        return updated;
+      });
+    }
+  };
 
   const handleSubmit = async () => {
-    if (!title.trim() || !lender.trim()) {
-      Alert.alert('Required', 'Please enter a loan title and lender/borrower name.');
+    const formData = {
+      title,
+      lender,
+      principal,
+      installment,
+      interestRate,
+      startDate,
+      dueDate,
+      notes,
+    };
+
+    const validation = validateForm(loanFormSchema, formData);
+    if (!validation.success) {
+      setErrors(validation.errors);
+      const firstError = Object.values(validation.errors)[0];
+      toast.show({
+        variant: 'destructive',
+        label: 'Validation Error',
+        description: firstError || 'Please check highlighted fields.',
+      });
       return;
     }
 
-    const principalNum = parseFloat(principal);
-    if (isNaN(principalNum) || principalNum <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid principal loan amount.');
-      return;
-    }
-
-    const installmentNum = parseFloat(installment) || 0;
-    const rateNum = parseFloat(interestRate) || 0;
+    setErrors({});
+    const principalNum = parseFloat(cleanNumericString(principal));
+    const installmentNum = installment ? parseFloat(cleanNumericString(installment)) || 0 : 0;
+    const rateNum = interestRate ? parseFloat(cleanNumericString(interestRate)) || 0 : 0;
 
     setSubmitting(true);
     try {
@@ -123,88 +153,92 @@ export default function ModalLoanScreen() {
           </View>
         </View>
 
-        <Card className="p-4 bg-card border border-border rounded-2xl gap-3">
-          <View className="gap-1">
-            <Text size="xs" muted>
-              Loan Description / Item:
-            </Text>
-            <Input
-              value={title}
-              onChangeText={setTitle}
-              placeholder="e.g. Car Loan, Friend Loan, Appliance 0%"
-            />
-          </View>
+        <Card className="p-4 bg-card border border-border rounded-2xl gap-4">
+          <Input
+            label="Loan Description / Item"
+            isRequired
+            value={title}
+            onChangeText={(val) => {
+              setTitle(val);
+              clearFieldError('title');
+            }}
+            errorMessage={errors.title}
+            placeholder="e.g. Car Loan, Friend Loan, Appliance 0%"
+          />
 
-          <View className="gap-1">
-            <Text size="xs" muted>
-              {type === 'payable' ? 'Lender / Institution:' : 'Borrower Name:'}
-            </Text>
-            <Input
-              value={lender}
-              onChangeText={setLender}
-              placeholder="e.g. BPI, John Doe, Toyota Financial"
-            />
-          </View>
+          <Input
+            label={type === 'payable' ? 'Lender / Institution' : 'Borrower Name'}
+            isRequired
+            value={lender}
+            onChangeText={(val) => {
+              setLender(val);
+              clearFieldError('lender');
+            }}
+            errorMessage={errors.lender}
+            placeholder="e.g. BPI, John Doe, Toyota Financial"
+          />
 
-          <View className="gap-1">
-            <Text size="xs" muted>
-              Principal Amount ({currency}):
-            </Text>
-            <Input
-              value={principal}
-              onChangeText={setPrincipal}
-              keyboardType="decimal-pad"
-              placeholder="50000.00"
-            />
-          </View>
+          <Input
+            label={`Principal Amount (${currency})`}
+            isRequired
+            value={principal}
+            onChangeText={(val) => {
+              setPrincipal(val);
+              clearFieldError('principal');
+            }}
+            errorMessage={errors.principal}
+            keyboardType="decimal-pad"
+            placeholder="50000.00"
+          />
 
           <View className="flex-row gap-3">
-            <View className="flex-1 gap-1">
-              <Text size="xs" muted>
-                Monthly Installment:
-              </Text>
+            <View className="flex-1">
               <Input
+                label="Monthly Installment"
                 value={installment}
-                onChangeText={setInstallment}
+                onChangeText={(val) => {
+                  setInstallment(val);
+                  clearFieldError('installment');
+                }}
+                errorMessage={errors.installment}
                 keyboardType="decimal-pad"
                 placeholder="2500.00"
               />
             </View>
 
-            <View className="flex-1 gap-1">
-              <Text size="xs" muted>
-                Interest Rate (%/yr):
-              </Text>
+            <View className="flex-1">
               <Input
+                label="Interest Rate (%/yr)"
                 value={interestRate}
-                onChangeText={setInterestRate}
+                onChangeText={(val) => {
+                  setInterestRate(val);
+                  clearFieldError('interestRate');
+                }}
+                errorMessage={errors.interestRate}
                 keyboardType="decimal-pad"
                 placeholder="0"
               />
             </View>
           </View>
 
-          <View className="gap-1">
-            <Text size="xs" muted>
-              Final Due Date (YYYY-MM-DD):
-            </Text>
-            <Input
-              value={dueDate}
-              onChangeText={setDueDate}
-              placeholder="2027-12-31"
-            />
-          </View>
+          <Input
+            label="Final Due Date (Optional)"
+            description="Format: YYYY-MM-DD (e.g. 2027-12-31)"
+            value={dueDate}
+            onChangeText={(val) => {
+              setDueDate(val);
+              clearFieldError('dueDate');
+            }}
+            errorMessage={errors.dueDate}
+            placeholder="2027-12-31"
+          />
 
-          <View className="gap-1">
-            <Text size="xs" muted>
-              Notes:
-            </Text>
-            <Input
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Contract number, bank notes..."
-            />
-          </View>
+          <Input
+            label="Notes"
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Contract number, bank notes..."
+          />
         </Card>
 
         <Button

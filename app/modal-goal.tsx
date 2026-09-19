@@ -12,6 +12,11 @@ import {
 import { X, Target } from 'lucide-react-native';
 import { useFinance } from '../src/context/FinanceContext';
 import { createSavingsGoal } from '../src/services/goalService';
+import {
+  savingsGoalSchema,
+  validateForm,
+  cleanNumericString,
+} from '../src/schemas/validationSchemas';
 
 export default function ModalGoalScreen() {
   const insets = useSafeAreaInsets();
@@ -23,20 +28,51 @@ export default function ModalGoalScreen() {
   const [currentAmount, setCurrentAmount] = useState('0');
   const [targetDate, setTargetDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const clearFieldError = (field: string) => {
+    if (errors[field]) {
+      setErrors((prev) => {
+        const updated = { ...prev };
+        delete updated[field];
+        return updated;
+      });
+    }
+  };
+
+  const handleBlurField = (field: 'name' | 'targetAmount' | 'currentAmount' | 'targetDate') => {
+    const data = { name, targetAmount, currentAmount, targetDate };
+    const validation = validateForm(savingsGoalSchema, data);
+    if (!validation.success && validation.errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: validation.errors[field] }));
+    } else if (errors[field]) {
+      clearFieldError(field);
+    }
+  };
 
   const handleSubmit = async () => {
-    if (!name.trim()) {
-      Alert.alert('Required', 'Please enter a goal title.');
+    const formData = {
+      name,
+      targetAmount,
+      currentAmount,
+      targetDate,
+    };
+
+    const validation = validateForm(savingsGoalSchema, formData);
+    if (!validation.success) {
+      setErrors(validation.errors);
+      const firstError = Object.values(validation.errors)[0];
+      toast.show({
+        variant: 'destructive',
+        label: 'Validation Error',
+        description: firstError || 'Please check highlighted fields.',
+      });
       return;
     }
 
-    const target = parseFloat(targetAmount);
-    if (isNaN(target) || target <= 0) {
-      Alert.alert('Invalid Target', 'Please enter a valid target amount.');
-      return;
-    }
-
-    const current = parseFloat(currentAmount) || 0;
+    setErrors({});
+    const target = parseFloat(cleanNumericString(targetAmount));
+    const current = parseFloat(cleanNumericString(currentAmount)) || 0;
 
     setSubmitting(true);
     try {
@@ -89,52 +125,59 @@ export default function ModalGoalScreen() {
           </TouchableOpacity>
         </View>
 
-        <Card className="p-4 bg-card border border-border rounded-2xl gap-3">
-          <View className="gap-1">
-            <Text size="xs" muted>
-              Goal Name:
-            </Text>
-            <Input
-              value={name}
-              onChangeText={setName}
-              placeholder="e.g. Emergency Fund, New Laptop, House Downpayment"
-            />
-          </View>
+        <Card className="p-4 bg-card border border-border rounded-2xl gap-4">
+          <Input
+            label="Goal Title"
+            isRequired
+            value={name}
+            onChangeText={(val) => {
+              setName(val);
+              clearFieldError('name');
+            }}
+            onBlur={() => handleBlurField('name')}
+            errorMessage={errors.name}
+            placeholder="e.g. Emergency Fund, New Laptop, House Downpayment"
+          />
 
-          <View className="gap-1">
-            <Text size="xs" muted>
-              Target Amount ({currency}):
-            </Text>
-            <Input
-              value={targetAmount}
-              onChangeText={setTargetAmount}
-              keyboardType="decimal-pad"
-              placeholder="100000.00"
-            />
-          </View>
+          <Input
+            label={`Target Amount (${currency})`}
+            isRequired
+            value={targetAmount}
+            onChangeText={(val) => {
+              setTargetAmount(val);
+              clearFieldError('targetAmount');
+            }}
+            onBlur={() => handleBlurField('targetAmount')}
+            errorMessage={errors.targetAmount}
+            keyboardType="decimal-pad"
+            placeholder="100000.00"
+          />
 
-          <View className="gap-1">
-            <Text size="xs" muted>
-              Starting / Already Saved ({currency}):
-            </Text>
-            <Input
-              value={currentAmount}
-              onChangeText={setCurrentAmount}
-              keyboardType="decimal-pad"
-              placeholder="0.00"
-            />
-          </View>
+          <Input
+            label={`Starting / Already Saved (${currency})`}
+            value={currentAmount}
+            onChangeText={(val) => {
+              setCurrentAmount(val);
+              clearFieldError('currentAmount');
+            }}
+            onBlur={() => handleBlurField('currentAmount')}
+            errorMessage={errors.currentAmount}
+            keyboardType="decimal-pad"
+            placeholder="0.00"
+          />
 
-          <View className="gap-1">
-            <Text size="xs" muted>
-              Target Completion Date (Optional, YYYY-MM-DD):
-            </Text>
-            <Input
-              value={targetDate}
-              onChangeText={setTargetDate}
-              placeholder="2026-12-31"
-            />
-          </View>
+          <Input
+            label="Target Completion Date (Optional)"
+            description="Format: YYYY-MM-DD (e.g. 2026-12-31)"
+            value={targetDate}
+            onChangeText={(val) => {
+              setTargetDate(val);
+              clearFieldError('targetDate');
+            }}
+            onBlur={() => handleBlurField('targetDate')}
+            errorMessage={errors.targetDate}
+            placeholder="YYYY-MM-DD"
+          />
         </Card>
 
         <Button
