@@ -213,9 +213,27 @@ async function migrateDatabaseIfNeeded(db: SQLite.SQLiteDatabase): Promise<void>
       ALTER TABLE recurring_rules_temp RENAME TO recurring_rules;
     `);
   }
+
+  // Reset legacy dummy opening balances (25000, 2000, 3500) if no transactions have been recorded
+
+  const txCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM transactions');
+  if (txCount && txCount.count === 0) {
+    await db.runAsync(`
+      UPDATE accounts 
+      SET opening_balance = 0.0, current_balance = 0.0 
+      WHERE (id = 'acc-bank-1' AND opening_balance = 25000 AND current_balance = 25000)
+         OR (id = 'acc-cash-1' AND opening_balance = 2000 AND current_balance = 2000)
+         OR (id = 'acc-ewallet-1' AND opening_balance = 3500 AND current_balance = 3500)
+    `);
+    await db.runAsync(`
+      UPDATE accounts 
+      SET credit_limit = 0.0 
+      WHERE id = 'acc-card-1' AND credit_limit = 50000 AND opening_balance = 0 AND current_balance = 0
+    `);
+  }
 }
 
-async function seedDefaultsIfNeeded(db: SQLite.SQLiteDatabase): Promise<void> {
+export async function seedCategoriesIfNeeded(db: SQLite.SQLiteDatabase): Promise<void> {
   const catCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM categories');
   const now = new Date().toISOString();
 
@@ -256,17 +274,12 @@ async function seedDefaultsIfNeeded(db: SQLite.SQLiteDatabase): Promise<void> {
       );
     }
   }
+}
 
-  // Seed default settings if empty
-  const currencySetting = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', ['currency']);
-  if (!currencySetting) {
-    await db.runAsync('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', ['currency', '₱']);
-    await db.runAsync('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', ['currency_code', 'PHP']);
-    await db.runAsync('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', ['theme', 'panel']);
-  }
-
-  // Seed starter accounts if empty
+export async function seedStarterAccountsIfNeeded(db: SQLite.SQLiteDatabase): Promise<void> {
   const accountCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM accounts');
+  const now = new Date().toISOString();
+
   if (!accountCount || accountCount.count === 0) {
     const defaultAccounts = [
       {
@@ -274,8 +287,8 @@ async function seedDefaultsIfNeeded(db: SQLite.SQLiteDatabase): Promise<void> {
         name: 'Physical Cash',
         type: 'cash',
         currency: 'PHP',
-        opening_balance: 2000,
-        current_balance: 2000,
+        opening_balance: 0,
+        current_balance: 0,
         color: '#10B981',
         icon: 'banknote',
       },
@@ -284,8 +297,8 @@ async function seedDefaultsIfNeeded(db: SQLite.SQLiteDatabase): Promise<void> {
         name: 'Checking Bank Account',
         type: 'bank',
         currency: 'PHP',
-        opening_balance: 25000,
-        current_balance: 25000,
+        opening_balance: 0,
+        current_balance: 0,
         color: '#3B82F6',
         icon: 'landmark',
       },
@@ -294,8 +307,8 @@ async function seedDefaultsIfNeeded(db: SQLite.SQLiteDatabase): Promise<void> {
         name: 'GCash / eWallet',
         type: 'ewallet',
         currency: 'PHP',
-        opening_balance: 3500,
-        current_balance: 3500,
+        opening_balance: 0,
+        current_balance: 0,
         color: '#06B6D4',
         icon: 'smartphone',
       },
@@ -306,9 +319,9 @@ async function seedDefaultsIfNeeded(db: SQLite.SQLiteDatabase): Promise<void> {
         currency: 'PHP',
         opening_balance: 0,
         current_balance: 0,
-        credit_limit: 50000,
-        statement_day: 15,
-        due_day: 5,
+        credit_limit: 0,
+        statement_day: null,
+        due_day: null,
         color: '#8B5CF6',
         icon: 'credit-card',
       },
@@ -337,4 +350,39 @@ async function seedDefaultsIfNeeded(db: SQLite.SQLiteDatabase): Promise<void> {
     }
   }
 }
+
+export async function seedDefaultsIfNeeded(db: SQLite.SQLiteDatabase): Promise<void> {
+  await seedCategoriesIfNeeded(db);
+
+  // Seed default settings if empty
+  const currencySetting = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', ['currency']);
+  if (!currencySetting) {
+    await db.runAsync('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', ['currency', '₱']);
+    await db.runAsync('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', ['currency_code', 'PHP']);
+    await db.runAsync('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', ['theme', 'panel']);
+  }
+
+  await seedStarterAccountsIfNeeded(db);
+}
+
+export async function resetDatabase(mode: 'starter_zero' | 'blank' = 'starter_zero'): Promise<void> {
+  const db = await getDatabase();
+  await db.execAsync(`
+    DELETE FROM transaction_deductions;
+    DELETE FROM transactions;
+    DELETE FROM recurring_rules;
+    DELETE FROM savings_goals;
+    DELETE FROM loans;
+    DELETE FROM wishlist_items;
+    DELETE FROM accounts;
+    DELETE FROM categories;
+  `);
+
+  await seedCategoriesIfNeeded(db);
+
+  if (mode === 'starter_zero') {
+    await seedStarterAccountsIfNeeded(db);
+  }
+}
+
 

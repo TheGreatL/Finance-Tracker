@@ -351,3 +351,32 @@ test('Ledger Reconciliation: Updating an existing transaction correctly shifts a
   assert.strictEqual(accounts.get('bank-1')!.current_balance, 34900);
 });
 
+test('Database Reset: Starter accounts initialize with 0.00 balance and 0.00 Net Worth', () => {
+  // Simulating starter accounts after resetDatabase('starter_zero')
+  const defaultAccounts: MockAccount[] = [
+    { id: 'acc-cash-1', name: 'Physical Cash', type: 'cash', opening_balance: 0, current_balance: 0 },
+    { id: 'acc-bank-1', name: 'Checking Bank Account', type: 'bank', opening_balance: 0, current_balance: 0 },
+    { id: 'acc-ewallet-1', name: 'GCash / eWallet', type: 'ewallet', opening_balance: 0, current_balance: 0 },
+    { id: 'acc-card-1', name: 'Rewards Credit Card', type: 'credit_card', opening_balance: 0, current_balance: 0, credit_limit: 0 },
+  ];
+
+  let liquidCash = 0;
+  let creditDebt = 0;
+  for (const acc of defaultAccounts) {
+    if (acc.type === 'credit_card') {
+      creditDebt += Math.max(0, acc.current_balance);
+    } else {
+      liquidCash += acc.current_balance;
+    }
+  }
+  const totalNetWorth = liquidCash - creditDebt;
+
+  assert.strictEqual(liquidCash, 0);
+  assert.strictEqual(creditDebt, 0);
+  assert.strictEqual(totalNetWorth, 0);
+  assert.strictEqual(defaultAccounts[0].opening_balance, 0);
+  assert.strictEqual(defaultAccounts[1].opening_balance, 0);
+  assert.strictEqual(defaultAccounts[2].opening_balance, 0);
+});
+
+

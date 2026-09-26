@@ -32,7 +32,7 @@ import {
   commitBackupData,
   BackupInspectionSummary,
 } from '../../src/services/backupService';
-import { getDatabase } from '../../src/database/db';
+import { getDatabase, resetDatabase } from '../../src/database/db';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -117,27 +117,19 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleResetDatabase = async () => {
+  const handleResetDatabase = async (mode: 'starter_zero' | 'blank' = 'starter_zero') => {
     setResetting(true);
     try {
-      const db = await getDatabase();
-      await db.execAsync(`
-        DELETE FROM transaction_deductions;
-        DELETE FROM transactions;
-        DELETE FROM recurring_rules;
-        DELETE FROM savings_goals;
-        DELETE FROM loans;
-        DELETE FROM wishlist_items;
-        DELETE FROM accounts;
-        DELETE FROM categories;
-      `);
-      // Reload defaults
+      await resetDatabase(mode);
       await refreshAll();
       setResetConfirmOpen(false);
       toast.show({
         variant: 'info',
         label: 'Database Reset',
-        description: 'Starter accounts and default categories restored.',
+        description:
+          mode === 'starter_zero'
+            ? 'All data erased. Starter accounts restored with ₱0.00 balances.'
+            : 'All data and accounts erased. Ready for clean setup.',
       });
     } catch (err: any) {
       Alert.alert('Reset Failed', err?.message || 'Failed to reset database');
@@ -145,6 +137,7 @@ export default function SettingsScreen() {
       setResetting(false);
     }
   };
+
 
   return (
     <ScrollView
@@ -389,25 +382,42 @@ export default function SettingsScreen() {
 
       {/* Reset Confirmation Dialog */}
       <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
-        <Dialog.Content className="p-5 gap-3">
-          <Text size="lg" weight="bold" className="text-rose-500">
-            Confirm Reset Database
-          </Text>
+        <Dialog.Content className="p-5 gap-4">
+          <View className="flex-row items-center gap-2.5">
+            <View className="p-2 rounded-xl bg-rose-500/10">
+              <AlertTriangle size={20} color="#EF4444" />
+            </View>
+            <View className="flex-1">
+              <Text size="lg" weight="bold" className="text-rose-500">
+                Confirm Database Reset
+              </Text>
+              <Text size="xs" muted>
+                Irreversible action — wipes all records
+              </Text>
+            </View>
+          </View>
+
           <Text size="sm" muted>
-            This action will remove all recorded transactions, accounts, and plans from SQLite. Make sure you have exported a ZIP backup before proceeding.
+            All transactions, salary schedules, loans, savings goals, and wishlist items will be permanently erased. Choose your starting setup:
           </Text>
-          <View className="flex-row gap-2 pt-2">
+
+          <View className="gap-2 pt-1">
             <Button
               variant="destructive"
-              className="flex-1"
               loading={resetting}
-              onPress={handleResetDatabase}
+              onPress={() => handleResetDatabase('starter_zero')}
             >
-              Reset Everything
+              Reset with ₱0.00 Starter Accounts
             </Button>
             <Button
               variant="outline"
-              className="flex-1"
+              loading={resetting}
+              onPress={() => handleResetDatabase('blank')}
+            >
+              Wipe Completely (0 Accounts)
+            </Button>
+            <Button
+              variant="ghost"
               onPress={() => setResetConfirmOpen(false)}
             >
               Cancel
