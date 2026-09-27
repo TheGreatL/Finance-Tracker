@@ -2,7 +2,7 @@
   "expo": {
     "name": "Finance Tracker",
     "slug": "finance-tracker",
-    "version": "1.0.0",
+    "version": "1.0.0.2",
     "orientation": "portrait",
     "icon": "./assets/logo-light.png",
     "scheme": "financetracker",
@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.financetracker.app",
-      "versionCode": 1,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo-light.png",
         "backgroundColor": "#0F172A"
