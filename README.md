@@ -1,149 +1,226 @@
-# 💰 Offline-First Personal Finance Tracker
+# 💰 Personal Finance Tracker (Monorepo)
 
-A privacy-focused, offline-first personal finance tracker built with **React Native (Expo SDK 57)**, on-device **SQLite**, and **PanelUI** component system. It treats every money movement as an immutable ledger transaction while organizing accounts (Cash, Banks, eWallets, Credit Cards), income with deductions, expenses (needs vs. wants), recurring subscriptions, savings goals, loans/payables, and wishlist items.
-
----
-
-## 🌟 Key Features
-
-### 1. 📖 Source-of-Truth Financial Ledger
-- **Transfer Isolation**: Money transfers between your own accounts (e.g. Bank $\leftrightarrow$ eWallet or Bank $\leftrightarrow$ Credit Card payment) automatically adjust account balances without distorting your income or expense analytics.
-- **Income Deductions**: Track gross earnings, itemized deductions (withholding tax, social security/healthcare contributions, fees), and net received amount.
-- **Expense Categorization**: Classify spending by category and nature (Essential **Needs**, Lifestyle **Wants**, or Debt **Obligations**).
-- **Ledger Replay Reconciliation**: Atomic balance updates and reconciliation engine ensure 100% balance integrity without balance drift.
-
-### 2. 💳 Multi-Account & Credit Card Management
-- **Account Types**: Physical Cash, Bank Accounts, eWallets (GCash, Maya, etc.), and Credit Cards.
-- **Credit Card Billing**: Track credit limits, current outstanding debt, statement cutoff days, and payment due days.
-- **Credit Utilization Gauge**: Real-time per-card and aggregate utilization monitoring, alerting you when utilization exceeds the recommended 30% threshold.
-
-### 3. 🎯 Goals, Loans & Wishlist
-- **Savings Goals**: Set target amounts and dates, track accumulated funds with progress bars, and make contributions directly from any account.
-- **Loans & Debt Tracking**: Manage loans (money you owe or money owed to you), interest rates, monthly installments, and log repayments with automatic balance reduction.
-- **Wishlist with Live Affordability Scoring**: Prioritize items and assess whether purchasing now fits within your **Safe-to-Spend Runway** (*Confident Buy*, *Stretch Buy*, or *Exceeds Safe Cash*).
-
-### 4. 🧮 Data-Driven Interactive Calculators
-- **Safe-to-Spend Runway**: Real-time liquid cash minus upcoming active recurring bills, loan amortizations, and savings commitments, including a **Daily Discretionary Budget**.
-- **Savings Goal Projector**: Monthly contribution vs. completion timeline calculator.
-- **Debt Payoff Accelerator**: Calculates payoff duration, total interest, and comparison with accelerated monthly payments.
-- **Purchase Affordability Simulator**: Tests prospective purchases against future cash flow before buying.
-- **Credit Card Utilization Monitor**: Card-by-card and aggregate utilization analysis.
-
-### 5. 📦 Versioned ZIP-of-CSVs Backup & Restore Hub
-Because on-device SQLite databases are cleared when an app is uninstalled, this app provides complete, zero-data-loss backups:
-- **Export**: Exports a versioned `backup.zip` containing 8 normalized CSV files and a `manifest.csv` via the native OS share sheet (`expo-sharing`).
-- **Dry-Run Inspection**: Unpacks the ZIP in memory, validates headers, and previews incoming record counts before committing.
-- **Merge or Replace**: Choose to non-destructively merge incoming records or wipe and restore a fresh database in an atomic SQLite transaction.
-- **Bank CSV Import**: Support for importing standard external transaction CSV files from banking apps.
-
-```
-backup.zip
-├── manifest.csv             # Backup format version, export timestamp, record counts
-├── accounts.csv             # Cash, bank, eWallet, and credit card accounts
-├── categories.csv           # System & custom categories
-├── transactions.csv         # Immutable financial ledger records
-├── deductions.csv           # Itemized income deductions (tax, contributions)
-├── recurring_rules.csv      # Subscriptions and scheduled movements
-├── savings_goals.csv        # Goals and accumulated savings
-├── loans.csv                # Active and completed loans/debts
-└── wishlist.csv             # Planned purchases
-```
-
-### 6. 🎨 Theming & PanelUI Components
-- Built with [PanelUI](https://panelui.dev) and Tailwind CSS (Uniwind) on React Native Reanimated.
-- Supports 6 themes across 3 theme families (**Panel**, **Moon**, and **Grass**) in both **Light** and **Dark** modes.
-- Configurable currency symbols (`₱`, `$`, `€`, `£`, `¥`, `₹`, etc.).
+A private, full-stack personal finance tracker and ledger system architected as a **Turborepo monorepo** with **React Native** (mobile), **Next.js** (web), **FastAPI** (OCR & AI receipt parser), and **MySQL** orchestrated via **Docker**.
 
 ---
 
-## 📁 Project Structure
+## 🏗️ Architecture Overview
 
+```mermaid
+graph TD
+    subgraph Clients ["Apps (Frontends)"]
+        Mobile["📱 apps/mobile<br/>(React Native / Expo SDK 57)"]
+        Web["💻 apps/web<br/>(Next.js App Router / Tailwind)"]
+    end
+
+    subgraph Backend ["Backend & Services"]
+        API["⚡ apps/api<br/>(FastAPI / Python 3.11 / Uvicorn)"]
+        OCR["🔍 OCR / AI Engine<br/>(Receipt Parsing & Extraction)"]
+    end
+
+    subgraph Data ["Database & Infrastructure"]
+        DB[("🐬 MySQL 8.x<br/>(Docker Container)")]
+        Volume[("💾 Persistent Docker Volume<br/>(mysql_data)")]
+    end
+
+    Mobile -->|"REST / JSON"| API
+    Web -->|"REST / SSR"| API
+    API --> OCR
+    API -->|"SQLAlchemy / PyMySQL"| DB
+    DB --- Volume
 ```
+
+### 1. `apps/mobile` (React Native / Expo)
+- **Daily Financial Logging**: Quick income, expense, and transfer recording with tactile UI.
+- **Camera Receipt Capture**: Capture receipt images directly from mobile and dispatch to FastAPI OCR.
+- **Edge-to-Edge Navigation**: Clean 5-tab navigation bar with safe-area clearance for Android gesture/button bars and iOS Home indicator.
+- **PanelUI & Tailwind Design**: Themeable (Panel, Moon, Grass) in both Light and Dark modes.
+
+### 2. `apps/web` (Next.js)
+- **Desktop Command Center**: Wide-screen dashboard with monthly cashflow trends, ledger analytics, and savings goal projections.
+- **Bulk Ledger Management**: Search, multi-criteria filtering, and batch classification of transactions.
+- **Receipt Verification Workspace**: Side-by-side view of scanned receipt image and extracted OCR transaction fields before confirming into ledger.
+
+### 3. `apps/api` (FastAPI / Python)
+- **Core Financial REST API**: Full CRUD endpoints for accounts, transactions, recurring rules, budgets, and loans.
+- **OCR Receipt Parser (`POST /ocr/receipt`)**:
+  - Image preprocessing and OCR text extraction.
+  - Automatic parsing of vendor name, date, total amount, VAT/tax, and line items.
+  - Heuristic/AI classification into Essential **Needs**, Lifestyle **Wants**, or Debt **Obligations**.
+- **Database Engine**: SQLAlchemy / SQLModel connection pool managing transactions with MySQL.
+
+### 4. `docker-compose.yml` (Infrastructure)
+- Containerizes **MySQL 8.x** and the **FastAPI service** for 1-command startup.
+- Keeps your local Windows machine clean with zero manual MySQL server or C++ OCR dependency installation.
+
+---
+
+## 📁 Monorepo Workspace Structure
+
+```text
 finance-tracker/
-├── app/
-│   ├── _layout.tsx              # Root layout, ThemeProvider, PanelUIProvider, FinanceProvider
-│   ├── (tabs)/
-│   │   ├── _layout.tsx          # Expo Router bottom tabs configuration
-│   │   ├── index.tsx            # Dashboard (Net Worth, Safe-to-Spend, Cashflow, Quick Actions)
-│   │   ├── ledger.tsx           # Full Transactions Ledger with search and filters
-│   │   ├── accounts.tsx         # Accounts & Credit Cards with utilization tracking
-│   │   ├── planning.tsx         # Savings Goals, Loans & Repayments, and Wishlist
-│   │   ├── calculators.tsx      # Interactive financial calculators
-│   │   └── settings.tsx         # Settings, Theme selector, and Backup/Restore hub
-│   ├── modal-transaction.tsx    # Modal: Add/Edit movement (Income/Expense/Transfer)
-│   ├── modal-account.tsx        # Modal: Add new account or credit card
-│   ├── modal-goal.tsx           # Modal: Create savings goal
-│   ├── modal-loan.tsx           # Modal: Record new loan / payable obligation
-│   └── modal-wishlist.tsx       # Modal: Add wishlist item
-├── src/
-│   ├── database/
-│   │   └── db.ts                # SQLite client, schema DDL, indexes, and starter seeds
-│   ├── services/
-│   │   ├── ledgerService.ts     # Core ledger transactions & atomic balance management
-│   │   ├── accountService.ts    # Account CRUD and balance calculations
-│   │   ├── categoryService.ts  # Category management
-│   │   ├── recurringService.ts  # Subscription and recurring rules engine
-│   │   ├── goalService.ts       # Savings goals and contribution transactions
-│   │   ├── loanService.ts       # Loans, debt tracking, and repayment transactions
-│   │   ├── wishlistService.ts   # Wishlist items & affordability assessment
-│   │   ├── calculatorService.ts # Safe-to-spend, savings projector, debt payoff math
-│   │   └── backupService.ts     # ZIP-of-CSVs export, inspection, and atomic restore
-│   ├── context/
-│   │   └── FinanceContext.tsx   # Reactive state provider synchronizing screens with SQLite
-│   └── types/
-│       └── database.ts          # TypeScript interfaces and data models
-└── tests/
-    ├── pure_calculators.test.ts # Unit tests for savings projection, debt payoff, and ZIP packing
-    └── ledger_math.test.ts      # Unit tests for transfer isolation, deductions, and card debt
+├── apps/
+│   ├── mobile/                  # React Native / Expo Mobile Client
+│   │   ├── app/                 # Expo Router tabs & modal screens
+│   │   ├── src/                 # Mobile context, UI helpers, hooks
+│   │   └── package.json
+│   │
+│   ├── web/                     # Next.js Web Client
+│   │   ├── app/                 # Next.js App Router pages
+│   │   ├── components/          # Web-tailored dashboard & ledger tables
+│   │   └── package.json
+│   │
+│   └── api/                     # FastAPI Backend & AI Service
+│       ├── app/
+│       │   ├── main.py          # FastAPI application entrypoint
+│       │   ├── config.py        # Environment variables & DB settings
+│       │   ├── database.py      # SQLAlchemy engine & session manager
+│       │   ├── models/          # SQLAlchemy table models (MySQL)
+│       │   ├── schemas/         # Pydantic request/response schemas
+│       │   ├── routes/          # Endpoints: /transactions, /accounts, /ocr
+│       │   └── services/
+│       │       ├── ocr.py       # Receipt image processing & text extraction
+│       │       └── ledger.py    # Double-entry balance calculation math
+│       ├── requirements.txt     # Python dependencies (FastAPI, uvicorn, PyMySQL, etc.)
+│       └── Dockerfile           # FastAPI container definition
+│
+├── packages/
+│   └── shared/                  # Shared TypeScript types, Zod schemas, ledger math
+│       ├── src/
+│       │   ├── types.ts         # Shared interfaces (Transaction, Account, Goal)
+│       │   └── calculations.ts  # Safe-to-spend, savings projection, amortization
+│       └── package.json
+│
+├── docker/
+│   └── mysql/
+│       └── init.sql             # Initial database schema DDL & seed data
+│
+├── docker-compose.yml           # MySQL 8.x + FastAPI orchestration
+├── turbo.json                   # Turborepo build pipeline
+└── package.json                 # Monorepo root workspace configuration
 ```
+
+---
+
+## 🐬 Database Schema (MySQL)
+
+All tables run in MySQL with strict referential integrity (`InnoDB` engine) and UTF-8 collation (`utf8mb4_unicode_ci`):
+
+| Table | Description |
+| :--- | :--- |
+| `accounts` | Cash, checking banks, eWallets, credit cards with credit limits and cutoff days |
+| `categories` | Income and expense categories with colors and default icons |
+| `transactions` | Immutable ledger records with transfer isolation and expense nature |
+| `transaction_deductions` | Itemized income deductions (withholding tax, statutory contributions) |
+| `recurring_rules` | Scheduled subscriptions and salary rules with automatic cutoff cycle |
+| `savings_goals` | Financial targets, accumulated deposits, and target completion dates |
+| `loans` | Receivables and payables with interest and remaining balances |
+| `wishlist_items` | Planned purchases with live affordability assessment |
+| `receipt_scans` | Stored receipt image metadata, raw OCR text, and matched transaction ID |
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (running on Windows with WSL2 backend)
 - [Node.js](https://nodejs.org/) v20 or later
-- npm or pnpm or bun
-- [Expo Go](https://expo.dev/go) app on your mobile device (iOS/Android) or an emulator/simulator
-
-### Installation
-
-1. **Clone or navigate to the project directory**:
-   ```bash
-   cd finance-tracker
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Start the development server**:
-   ```bash
-   npx expo start
-   ```
-   - Scan the QR code with the **Expo Go** app on Android or the Camera app on iOS.
-   - Or press `w` to open in a web browser.
+- [Python](https://www.python.org/) 3.11+ (if running FastAPI outside Docker)
 
 ---
 
-## 🧪 Verification & Testing
+### Step 1: Start the Backend & Database (Docker)
 
-### TypeScript Type Checking
-Run the TypeScript compiler to ensure 100% type safety across the entire application:
+Spin up MySQL and the FastAPI service with one command from the project root:
+
 ```bash
-npm run typecheck
+docker compose up -d
 ```
 
-### Automated Unit Tests
-Run the automated test suite verifying ledger accounting, transfer isolation, deduction math, financial calculators, and ZIP backup integrity:
+- **MySQL**: Running at `localhost:3306` with persistent volume `mysql_data`.
+- **FastAPI**: Running at `http://localhost:8000`.
+- **Interactive API Docs (Swagger UI)**: Open `http://localhost:8000/docs` in your browser.
+
+To stop the containers:
 ```bash
+docker compose down
+```
+
+---
+
+### Step 2: Install Node Monorepo Dependencies
+
+```bash
+npm install
+```
+
+---
+
+### Step 3: Run the Web App (Next.js)
+
+```bash
+npm run dev --filter=web
+# or: cd apps/web && npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) to view the Web dashboard.
+
+---
+
+### Step 4: Run the Mobile App (React Native)
+
+```bash
+npm run start --filter=mobile
+# or: cd apps/mobile && npm start
+```
+
+- **Local Android Emulator**: Press `a` in the terminal to launch on the emulator.
+- **Physical Device**: Build the standalone APK via `npm run build:apk` (or install development client) so custom native modules (`react-native-keyboard-controller`) run properly without crashing.
+
+---
+
+## 🔍 OCR Receipt Scanning Flow
+
+```text
+[ Mobile / Web Camera ]
+         │
+         ▼ (Multipart Image Upload)
+[ POST /ocr/receipt ]
+         │
+         ├── 1. Preprocess image (contrast enhancement, deskew)
+         ├── 2. Extract raw text & bounding boxes (OCR Engine)
+         ├── 3. Parse total amount, vendor, date, and tax with Regex / NLP
+         └── 4. Classify nature: Needs (Groceries/Utilities) vs. Wants (Dining/Entertainment)
+         │
+         ▼ (JSON Response)
+{
+  "vendor": "Supermarket Corp",
+  "date": "2026-10-22",
+  "amount": 1450.50,
+  "tax": 155.41,
+  "suggested_category": "Groceries",
+  "suggested_nature": "needs"
+}
+```
+
+The user reviews the pre-filled modal on Mobile or Web and taps **Confirm** to commit the immutable transaction into MySQL.
+
+---
+
+## 🧪 Testing & Code Quality
+
+```bash
+# Typecheck all TypeScript packages & apps
+npm run typecheck
+
+# Run unit tests (ledger math, calculators, Zod schemas)
 node --test tests/*.test.ts
 ```
 
 ---
 
-## 🔒 Privacy & Offline First
+## 🔒 Personal Use & Privacy
 
-All your financial data stays strictly on your device inside a local SQLite database (`finance_tracker.db`). No servers, analytics trackers, or third-party APIs have access to your money movements. Use the **ZIP Export** feature in Settings periodically to keep offline backups of your data.
-
+This setup is tailored for self-hosted personal usage:
+- MySQL data remains strictly local in your Docker container volume.
+- Receipt images and financial logs are processed on your local FastAPI microservice without third-party cloud data selling.
+- Nightly or weekly database dumps can be taken via `docker exec -i finance-tracker-db mysqldump -u root -p finance_tracker > backup.sql`.
