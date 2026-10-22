@@ -137,7 +137,7 @@ Spin up MySQL and the FastAPI service with one command from the project root:
 docker compose up -d
 ```
 
-- **MySQL**: Running at `localhost:3306` with persistent volume `mysql_data`.
+- **MySQL**: Running at `localhost:3307` (mapped to internal `3306` to prevent conflicts with local MySQL instances) with persistent volume `mysql_data`.
 - **FastAPI**: Running at `http://localhost:8000`.
 - **Interactive API Docs (Swagger UI)**: Open `http://localhost:8000/docs` in your browser.
 

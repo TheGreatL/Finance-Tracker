@@ -1,0 +1,23 @@
+{
+  "name": "finance-tracker-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "mobile": "npm run start --workspace=@finance-tracker/mobile",
+    "mobile:android": "npm run android --workspace=@finance-tracker/mobile",
+    "mobile:build": "npm run build:apk --workspace=@finance-tracker/mobile"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.4"
+  },
+  "packageManager": "npm@11.19.0"
+}
