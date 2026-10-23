@@ -1,5 +1,7 @@
 # Philippine Bank & E-Wallet Accounts with Nested Pockets & Transaction CRUD Design
 
+**Created:** 2026-10-23 05:45 (Local Time)
+
 ## Intent & Why
 Personal finance in the Philippines commonly involves multiple financial institutions—such as Maya, GoTyme, SeaBank, GCash, BPI, BDO, UnionBank, and physical cash. Users frequently hold both an everyday spending "Wallet" balance and an interest-earning "Savings" pocket (e.g. 4.0%–4.5% p.a. digital bank savings) within the same institution.
 

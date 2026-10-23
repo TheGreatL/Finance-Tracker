@@ -1,6 +1,8 @@
 # Philippine Accounts, Nested Pockets & Transaction CRUD Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.
+
+**Created:** 2026-10-23 05:52 (Local Time)
 
 **Goal:** Implement a local SQLite account management system grouping Philippine banks and e-wallets into institution cards with nested pockets (wallets and interest-bearing savings), full transaction CRUD with atomic balance recalculations, and a development data reset tool.
 
@@ -8,7 +10,7 @@
 
 **Tech Stack:** React Native 0.88 / Expo SDK 58, `expo-sqlite`, PanelUI (`panelui-native`), Uniwind v4 / Tailwind CSS, Lucide Icons, TypeScript 5+.
 
-**Spec:** `docs/superpowers/specs/2026-10-23-accounts-and-transactions-design.md`
+**Spec:** `docs/superpowers/specs/2026-10-23-0545-accounts-and-transactions-design.md`
 
 ## Global Constraints
 

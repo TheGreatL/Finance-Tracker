@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Created:** 2026-10-22 22:58 (Local Time)
+
 **Goal:** Transform the project into a Turborepo monorepo with `apps/mobile` (Expo React Native), `apps/web` (Next.js placeholder), `apps/api` (FastAPI placeholder), `packages/shared`, and a Dockerized MySQL setup on port `3307` to avoid host port 3306 conflicts.
 
 **Architecture:** Monorepo using npm/Turborepo workspaces (`apps/*`, `packages/*`). Mobile app is restored from commit `e7c816c` directly into `apps/mobile/`. Root orchestration includes `docker-compose.yml` with MySQL exposed on host port `3307` (mapping to internal `3306`) and `.env.example`.
