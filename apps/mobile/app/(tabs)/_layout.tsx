@@ -1,55 +1,42 @@
-import { SymbolView } from 'expo-symbols';
-import { Link, Tabs } from 'expo-router';
-import { Platform, Pressable } from 'react-native';
+import React from 'react';
+import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { LayoutDashboard, ReceiptText } from 'lucide-react-native';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme].tint,
-        headerShown: useClientOnlyValue(false, true),
+        headerShown: false,
+        tabBarActiveTintColor: '#18342B',
+        tabBarInactiveTintColor: '#5C6E63',
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+          marginTop: -2,
+        },
         tabBarStyle: {
+          backgroundColor: '#FFFFFF',
+          borderTopColor: '#E0E7DC',
+          borderTopWidth: 1,
           height: 56 + Math.max(insets.bottom, 8),
           paddingBottom: Math.max(insets.bottom, 6),
           paddingTop: 6,
         },
-      }}>
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Dashboard',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: 'house.fill',
-                android: 'home',
-                web: 'home',
-              }}
-              tintColor={color}
-              size={26}
+          tabBarIcon: ({ color, focused }) => (
+            <LayoutDashboard
+              size={22}
+              color={color}
+              strokeWidth={focused ? 2.5 : 2}
             />
-          ),
-          headerRight: () => (
-            <Link href="/modal" asChild>
-              <Pressable style={{ marginRight: 15 }}>
-                {({ pressed }) => (
-                  <SymbolView
-                    name={{ ios: 'info.circle', android: 'info', web: 'info' }}
-                    size={24}
-                    tintColor={Colors[colorScheme].text}
-                    style={{ opacity: pressed ? 0.5 : 1 }}
-                  />
-                )}
-              </Pressable>
-            </Link>
           ),
         }}
       />
@@ -57,15 +44,11 @@ export default function TabLayout() {
         name="two"
         options={{
           title: 'Ledger',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: 'list.bullet.rectangle',
-                android: 'receipt',
-                web: 'receipt',
-              }}
-              tintColor={color}
-              size={26}
+          tabBarIcon: ({ color, focused }) => (
+            <ReceiptText
+              size={22}
+              color={color}
+              strokeWidth={focused ? 2.5 : 2}
             />
           ),
         }}
