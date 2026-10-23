@@ -1,0 +1,54 @@
+@import 'tailwindcss';
+@import 'uniwind';
+@import 'panelui-native/theme.css';
+
+@source './node_modules/panelui-native/src';
+@source '../../node_modules/panelui-native/src';
+
+@layer theme {
+  :root {
+    @variant light {
+      --color-background: #F9FAF7;
+      --color-foreground: #18342B;
+      --color-card: #FFFFFF;
+      --color-card-foreground: #18342B;
+      --color-popover: #FFFFFF;
+      --color-popover-foreground: #18342B;
+      --color-primary: #BBD583;
+      --color-primary-foreground: #18342B;
+      --color-secondary: #18342B;
+      --color-secondary-foreground: #F9FAF7;
+      --color-muted: #EBF0E6;
+      --color-muted-foreground: #5C6E63;
+      --color-accent: #E5EFD0;
+      --color-accent-foreground: #18342B;
+      --color-destructive: #D97757;
+      --color-destructive-foreground: #FFFFFF;
+      --color-border: #E0E7DC;
+      --color-input: #E0E7DC;
+      --color-ring: #BBD583;
+    }
+    @variant dark {
+      --color-background: #0E1B16;
+      --color-foreground: #EBF0E6;
+      --color-card: #14251F;
+      --color-card-foreground: #EBF0E6;
+      --color-popover: #14251F;
+      --color-popover-foreground: #EBF0E6;
+      --color-primary: #BBD583;
+      --color-primary-foreground: #18342B;
+      --color-secondary: #213C32;
+      --color-secondary-foreground: #EBF0E6;
+      --color-muted: #1B2F27;
+      --color-muted-foreground: #8FA295;
+      --color-accent: #233F34;
+      --color-accent-foreground: #BBD583;
+      --color-destructive: #D97757;
+      --color-destructive-foreground: #FFFFFF;
+      --color-border: #1F362D;
+      --color-input: #1F362D;
+      --color-ring: #BBD583;
+    }
+  }
+}
+
