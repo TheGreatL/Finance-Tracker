@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS account_pockets (
 -- 3. Transactions
 CREATE TABLE IF NOT EXISTS transactions (
   id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,               -- e.g. 'Whole Foods Market', 'Salary Deposit'
   pocket_id TEXT NOT NULL,           -- Source pocket (for expense, transfer, or income destination)
   to_pocket_id TEXT DEFAULT NULL,    -- Destination pocket (for transfer)
   type TEXT NOT NULL CHECK(type IN ('income', 'expense', 'transfer')),
@@ -131,6 +132,17 @@ A typed catalog of popular Philippine providers:
   - `cash`: Physical Cash / Personal Wallet (Color: `#10B981`)
   - `custom`: Other / Custom Bank (Color: `#5C6E63`)
 
+## Business Logic & Technical Rules (Builder Calls)
+
+1. **Transaction Title**: `title TEXT NOT NULL` is explicitly included in the `transactions` schema and form, matching `TransactionItem.tsx`.
+2. **Atomic Balance Updates & Reversal**:
+   - Creating an expense decreases pocket balance; creating income increases pocket balance; transfer moves from source to destination.
+   - Deleting or editing a transaction atomically reverses the previous amount before applying the new values inside a single SQLite transaction (`db.withTransactionAsync`).
+3. **Archiving Invariant**:
+   - A pocket cannot be archived if its balance is greater than ₱0.00 (users must transfer funds out first). Archived pockets are excluded from active picker dropdowns and the main carousel.
+4. **CRUD Scope**:
+   - Includes Add Transaction modal, Edit/Delete Transaction action with automatic balance adjustment, Dashboard recent list integration, and the full Ledger tab (`(tabs)/two.tsx`).
+
 ---
 
 ## UI Components & User Flow
@@ -157,3 +169,4 @@ A typed catalog of popular Philippine providers:
    - Located in Settings or quick action on Dashboard:
    - Wipes all tables, leaving 0 institutions, 0 pockets, and 0 transactions.
    - Prompts confirmation dialog before resetting.
+
