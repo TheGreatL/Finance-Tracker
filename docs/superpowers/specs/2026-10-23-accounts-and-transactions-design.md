@@ -147,26 +147,37 @@ A typed catalog of popular Philippine providers:
 
 ## UI Components & User Flow
 
-1. **Dashboard Accounts Carousel / Grid**:
+1. **Unified "Add Account" Creation Flow (Option A)**:
+   - When tapping `+ Add Account`, the user selects an institution from the Philippine Catalog (e.g. *Maya*, *BPI*, *Cash*).
+   - In the same modal, the user immediately configures its initial pocket (e.g., Pocket Name: *"Main Wallet"*, Starting Base Money: *₱5,000*).
+   - This ensures every institution card always holds at least 1 pocket with an initial base balance. Additional pockets (e.g. high-yield savings) can be added anytime.
+
+2. **Dashboard Accounts Carousel / Grid**:
    - Shows summary cards for each active institution with logo, brand color bar, total balance (sum of all pockets), and pocket count badge (e.g. *"2 pockets"*).
    - Tap opens the **Institution Detail Sheet**.
-2. **Institution Detail Modal / Sheet**:
+
+3. **Institution Detail Modal / Sheet**:
    - Lists the pockets belonging to this institution:
      - **Wallet Pocket Card**: Balance, quick "Add Expense" button.
      - **Savings Pocket Card**: Balance, Interest Badge (`4.5% p.a.`), and savings details note.
    - Button to `+ Add Pocket` (e.g., add a second savings goal or stash).
-3. **Add / Edit Pocket Modal**:
+
+4. **Add / Edit Pocket Modal**:
    - Select pocket type (`Wallet / Everyday` vs `Savings / Interest`).
    - If Savings selected: reveals `Interest Rate (%)` field and `Savings Details / Notes` input.
    - Input initial base money (`Starting Balance`).
-4. **Add Transaction Modal (CRUD)**:
+
+5. **Add Transaction Modal (CRUD)**:
    - Type selector: `Expense` | `Income` | `Transfer`.
    - Amount keypad/input with currency symbol.
+   - Payee / Merchant `Title` input (e.g. *"Whole Foods Market"*).
    - Category picker (Food, Groceries, Salary, Utilities, etc.).
    - Source Pocket picker (organized by Institution > Pocket).
    - If Transfer: Destination Pocket picker.
-5. **Database Reset Feature**:
+
+6. **Database Reset Feature**:
    - Located in Settings or quick action on Dashboard:
    - Wipes all tables, leaving 0 institutions, 0 pockets, and 0 transactions.
    - Prompts confirmation dialog before resetting.
+
 
