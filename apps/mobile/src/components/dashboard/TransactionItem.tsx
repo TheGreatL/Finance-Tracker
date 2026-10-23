@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import React, { memo } from 'react';
+import { View, Text, Pressable } from 'react-native';
 import {
   ShoppingBag,
   Utensils,
@@ -9,9 +9,8 @@ import {
   Repeat,
   Tag,
   ArrowUpRight,
-  ArrowDownLeft,
 } from 'lucide-react-native';
-import { formatCurrency, formatRelativeDate } from '../../utils/formatters';
+import { formatSignedCurrency, formatRelativeDate } from '../../utils/formatters';
 
 export interface TransactionItemData {
   id: string;
@@ -40,7 +39,7 @@ function getCategoryIcon(category: string, type: 'income' | 'expense' | 'transfe
   return Tag;
 }
 
-export function TransactionItem({
+export const TransactionItem = memo(function TransactionItem({
   transaction,
   currency = '₱',
   onPress,
@@ -51,25 +50,27 @@ export function TransactionItem({
   const isIncome = type === 'income';
   const isExpense = type === 'expense';
 
+  // High-contrast semantic colors meeting WCAG AA
   const amountColor = isIncome
     ? 'text-[#18342B]'
     : isExpense
-    ? 'text-[#D97757]'
+    ? 'text-[#C2410C]' // Deep terracotta with 4.8:1+ contrast on white card
     : 'text-foreground';
 
   const iconBg = isIncome
     ? 'bg-primary/40'
     : isExpense
-    ? 'bg-[#D97757]/15'
+    ? 'bg-[#C2410C]/15'
     : 'bg-muted/70';
 
-  const iconColor = isIncome ? '#18342B' : isExpense ? '#D97757' : '#5C6E63';
+  const iconColor = isIncome ? '#18342B' : isExpense ? '#C2410C' : '#5C6E63';
 
   return (
-    <TouchableOpacity
-      activeOpacity={onPress ? 0.7 : 1}
+    <Pressable
       onPress={onPress}
-      className="flex-row items-center justify-between p-3.5 mb-2 bg-card rounded-2xl border border-border/50"
+      accessibilityRole="button"
+      accessibilityLabel={`${title}, ${formatSignedCurrency(amount, type, currency)}`}
+      className="flex-row items-center justify-between p-3.5 mb-2 bg-card rounded-2xl border border-border/50 active:opacity-75"
     >
       <View className="flex-row items-center flex-1 mr-3">
         {/* Category Icon */}
@@ -88,13 +89,12 @@ export function TransactionItem({
         </View>
       </View>
 
-      {/* Amount */}
+      {/* Amount with guarded sign formatting */}
       <View className="items-end">
         <Text className={`text-sm font-bold ${amountColor}`}>
-          {isIncome ? '+' : isExpense ? '-' : ''}
-          {formatCurrency(amount, currency)}
+          {formatSignedCurrency(amount, type, currency)}
         </Text>
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
-}
+});

@@ -14,10 +14,41 @@ export function formatCurrency(amount: number, currency: string = '₱'): string
 }
 
 /**
+ * Formats an amount with an explicit sign based on transaction type.
+ * Ensures expenses do not display as double negatives (--₱X) and zero amounts do not display with negative signs (-₱0.00).
+ */
+export function formatSignedCurrency(
+  amount: number,
+  type: 'income' | 'expense' | 'transfer',
+  currency: string = '₱'
+): string {
+  const absAmount = Math.abs(amount);
+  const formatted = formatCurrency(absAmount, currency);
+
+  if (absAmount === 0) {
+    return formatted;
+  }
+
+  if (type === 'income') {
+    return `+${formatted}`;
+  }
+
+  if (type === 'expense') {
+    return `-${formatted}`;
+  }
+
+  return formatted;
+}
+
+/**
  * Returns a human-friendly relative date string ("Today", "Yesterday", or formatted month/day).
  */
 export function formatRelativeDate(dateString: string): string {
   const date = new Date(dateString);
+  if (isNaN(date.getTime())) {
+    return 'Invalid date';
+  }
+
   const now = new Date();
 
   const isToday =
@@ -45,4 +76,3 @@ export function formatRelativeDate(dateString: string): string {
     day: 'numeric',
   });
 }
-

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { ReceiptText } from 'lucide-react-native';
 import { TransactionItem, TransactionItemData } from './TransactionItem';
 
@@ -24,11 +24,16 @@ export function RecentTransactionsList({
           Recent Activity
         </Text>
         {onSeeAllPress && transactions.length > 0 && (
-          <TouchableOpacity activeOpacity={0.7} onPress={onSeeAllPress}>
-            <Text className="text-xs font-semibold text-secondary">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="See all transactions"
+            onPress={onSeeAllPress}
+            className="py-1 px-2 rounded-lg active:opacity-70"
+          >
+            <Text className="text-xs font-bold text-primary">
               See All
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         )}
       </View>
 

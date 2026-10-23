@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { ArrowDownLeft, ArrowUpRight, Repeat, Camera } from 'lucide-react-native';
+import { useColorScheme } from '@/components/useColorScheme';
 
 export interface QuickActionsBarProps {
   onAddExpense?: () => void;
@@ -15,28 +16,32 @@ export function QuickActionsBar({
   onTransfer,
   onScanReceipt,
 }: QuickActionsBarProps) {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const neutralIconColor = isDark ? '#EBF0E6' : '#18342B';
+
   const actions = [
     {
       id: 'expense',
       label: 'Expense',
       icon: ArrowDownLeft,
-      iconColor: '#D97757',
-      bgColor: 'bg-[#D97757]/15',
+      iconColor: '#C2410C',
+      bgColor: 'bg-[#C2410C]/15',
       onPress: onAddExpense,
     },
     {
       id: 'income',
       label: 'Income',
       icon: ArrowUpRight,
-      iconColor: '#18342B',
-      bgColor: 'bg-primary/50',
+      iconColor: isDark ? '#BBD583' : '#18342B',
+      bgColor: 'bg-primary/40',
       onPress: onAddIncome,
     },
     {
       id: 'transfer',
       label: 'Transfer',
       icon: Repeat,
-      iconColor: '#18342B',
+      iconColor: neutralIconColor,
       bgColor: 'bg-muted/70',
       onPress: onTransfer,
     },
@@ -44,7 +49,7 @@ export function QuickActionsBar({
       id: 'scan',
       label: 'Scan OCR',
       icon: Camera,
-      iconColor: '#18342B',
+      iconColor: neutralIconColor,
       bgColor: 'bg-muted/70',
       onPress: onScanReceipt,
     },
@@ -56,11 +61,12 @@ export function QuickActionsBar({
         {actions.map((action) => {
           const IconComponent = action.icon;
           return (
-            <TouchableOpacity
+            <Pressable
               key={action.id}
-              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={action.label}
               onPress={action.onPress}
-              className="items-center justify-center flex-1"
+              className="items-center justify-center flex-1 active:opacity-75"
             >
               <View className={`w-12 h-12 rounded-full items-center justify-center mb-1.5 ${action.bgColor}`}>
                 <IconComponent size={20} color={action.iconColor} />
@@ -68,7 +74,7 @@ export function QuickActionsBar({
               <Text className="text-xs font-semibold text-foreground">
                 {action.label}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           );
         })}
       </View>

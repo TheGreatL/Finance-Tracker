@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { Bell, ScanLine } from 'lucide-react-native';
+import { useColorScheme } from '@/components/useColorScheme';
 
 export interface DashboardHeaderProps {
   userName?: string;
@@ -13,6 +14,9 @@ export function DashboardHeader({
   onNotificationPress,
   onScanPress,
 }: DashboardHeaderProps) {
+  const colorScheme = useColorScheme();
+  const iconColor = colorScheme === 'dark' ? '#EBF0E6' : '#18342B';
+
   const currentDate = new Date().toLocaleDateString('en-US', {
     month: 'long',
     year: 'numeric',
@@ -31,21 +35,23 @@ export function DashboardHeader({
 
       <View className="flex-row items-center gap-2">
         {onScanPress && (
-          <TouchableOpacity
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Scan receipt OCR"
             onPress={onScanPress}
-            activeOpacity={0.7}
-            className="items-center justify-center w-10 h-10 rounded-full bg-muted/60"
+            className="items-center justify-center w-10 h-10 rounded-full bg-muted/60 active:opacity-70"
           >
-            <ScanLine size={18} color="#18342B" />
-          </TouchableOpacity>
+            <ScanLine size={18} color={iconColor} />
+          </Pressable>
         )}
-        <TouchableOpacity
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Notifications"
           onPress={onNotificationPress}
-          activeOpacity={0.7}
-          className="items-center justify-center w-10 h-10 rounded-full bg-muted/60"
+          className="items-center justify-center w-10 h-10 rounded-full bg-muted/60 active:opacity-70"
         >
-          <Bell size={18} color="#18342B" />
-        </TouchableOpacity>
+          <Bell size={18} color={iconColor} />
+        </Pressable>
       </View>
     </View>
   );
