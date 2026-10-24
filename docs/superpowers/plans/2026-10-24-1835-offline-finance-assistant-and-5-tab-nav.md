@@ -32,7 +32,7 @@
 - Create: [`apps/mobile/src/services/chatEngine.ts`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/src/services/chatEngine.ts)
 - Create: [`apps/mobile/tests/chat_engine.test.ts`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/tests/chat_engine.test.ts)
 
-- [ ] **Step 1: Write unit tests for `chatEngine.ts`**
+- [x] **Step 1: Write unit tests for `chatEngine.ts`**
   - Test `parseAmount`: `"5000"`, `"₱12,500"`, `"15k"`, `"2.5k"`, `"php 3500"`, and invalid inputs.
   - Test `detectIntent`: `"can i afford 5000"` -> `affordability`, `"how much will i have if 3000"` -> `projection`, `"how much do i owe"` -> `debt`, `"how much money in gcash"` -> `institution_balance`, `"total balance"` -> `balance`.
   - Test `evaluateChatPrompt`:
@@ -43,18 +43,18 @@
     - Debt summary reporting active loans and next due date.
     - Institution-specific balance reporting.
 
-- [ ] **Step 2: Implement `parseAmount` and `detectIntent` in `chatEngine.ts`**
+- [x] **Step 2: Implement `parseAmount` and `detectIntent` in `chatEngine.ts`**
   - Regular expressions for extracting numerical values, currency signs, and multipliers (`k`, `m`).
   - Intent classification using keyword tokens.
 
-- [ ] **Step 3: Implement `evaluateChatPrompt` in `chatEngine.ts`**
+- [x] **Step 3: Implement `evaluateChatPrompt` in `chatEngine.ts`**
   - Integrate with `getAllActivePockets`, `getLoansSummary`, and `getActiveLoans`.
   - Construct markdown-formatted conversational response strings with status indicators (`safe` | `tight` | `unaffordable` | `info`).
 
-- [ ] **Step 4: Run tests and typecheck**
+- [x] **Step 4: Run tests and typecheck**
   Run `npm test --workspace=@finance-tracker/mobile` and `npx turbo run typecheck`.
 
-- [ ] **Step 5: Commit changes**
+- [x] **Step 5: Commit changes**
   Commit as: `feat(mobile): implement offline chatEngine with intent parsing and financial calculations`
 
 ---
@@ -64,17 +64,17 @@
 **Files:**
 - Modify: [`apps/mobile/app/(tabs)/_layout.tsx`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/app/(tabs)/_layout.tsx)
 
-- [ ] **Step 1: Configure 5 tabs in `_layout.tsx`**
+- [x] **Step 1: Configure 5 tabs in `_layout.tsx`**
   - Tab 1: `index` (Dashboard) — `LayoutDashboard`
   - Tab 2: `accounts` (Accounts & Loans) — `WalletCards`
   - Tab 3: `assistant` (Advisor) — Raised center pill with `Bot` / `Sparkles` icon, Pistachio `#BBD583` background, and Deep Pine `#18342B` tint.
   - Tab 4: `two` (Ledger) — `ReceiptText`
   - Tab 5: `analytics` (Analytics) — `PieChart` or `BarChart3`
 
-- [ ] **Step 2: Verify typecheck**
+- [x] **Step 2: Verify typecheck**
   Run `npx turbo run typecheck`.
 
-- [ ] **Step 3: Commit changes**
+- [x] **Step 3: Commit changes**
   Commit as: `feat(mobile): update bottom navigation to 5-tab layout with elevated center assistant`
 
 ---
@@ -86,24 +86,24 @@
 - Create: [`apps/mobile/src/components/chat/PromptSuggestionChips.tsx`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/src/components/chat/PromptSuggestionChips.tsx)
 - Create: [`apps/mobile/app/(tabs)/assistant.tsx`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/app/(tabs)/assistant.tsx)
 
-- [ ] **Step 1: Build `ChatMessageBubble.tsx`**
+- [x] **Step 1: Build `ChatMessageBubble.tsx`**
   - Distinguish user vs bot messages.
   - Support formatted responses, bullet points, and colored verdict banners.
 
-- [ ] **Step 2: Build `PromptSuggestionChips.tsx`**
+- [x] **Step 2: Build `PromptSuggestionChips.tsx`**
   - Horizontal scroll of quick prompt chips.
   - Tapping emits prompt to parent screen.
 
-- [ ] **Step 3: Build `apps/mobile/app/(tabs)/assistant.tsx`**
+- [x] **Step 3: Build `apps/mobile/app/(tabs)/assistant.tsx`**
   - Message state initialized with a friendly welcome message.
   - Chat list with auto-scroll on new message.
   - Text input with submit action calling `evaluateChatPrompt`.
   - "Clear Chat" action in header.
 
-- [ ] **Step 4: Verify typecheck**
+- [x] **Step 4: Verify typecheck**
   Run `npx turbo run typecheck`.
 
-- [ ] **Step 5: Commit changes**
+- [x] **Step 5: Commit changes**
   Commit as: `feat(mobile): add conversational assistant screen and prompt suggestion chips`
 
 ---
@@ -114,35 +114,35 @@
 - Create: [`apps/mobile/src/services/analyticsService.ts`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/src/services/analyticsService.ts)
 - Create: [`apps/mobile/app/(tabs)/analytics.tsx`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/app/(tabs)/analytics.tsx)
 
-- [ ] **Step 1: Implement `analyticsService.ts`**
+- [x] **Step 1: Implement `analyticsService.ts`**
   - Calculate category breakdown from current month's transactions.
   - Calculate total inflow vs outflow.
   - Calculate asset distribution (Banks vs E-Wallets vs Cash).
 
-- [ ] **Step 2: Build `apps/mobile/app/(tabs)/analytics.tsx`**
+- [x] **Step 2: Build `apps/mobile/app/(tabs)/analytics.tsx`**
   - Monthly Cash Flow card (Income vs Expense).
   - Category spending progress bars with percentages.
   - Asset distribution card.
 
-- [ ] **Step 3: Run tests and typecheck**
+- [x] **Step 3: Run tests and typecheck**
   Run `npm test --workspace=@finance-tracker/mobile` and `npx turbo run typecheck`.
 
-- [ ] **Step 4: Commit changes**
+- [x] **Step 4: Commit changes**
   Commit as: `feat(mobile): implement analytics screen with category spending and cash flow`
 
 ---
 
 ### Task 5: Final Verification & Manual Testing Walkthrough
 
-- [ ] **Step 1: Run complete test suite and monorepo typecheck**
+- [x] **Step 1: Run complete test suite and monorepo typecheck**
   - `npm test --workspace=@finance-tracker/mobile`
   - `npx turbo run typecheck`
 
-- [ ] **Step 2: Test chatbot scenarios**
+- [x] **Step 2: Test chatbot scenarios**
   - Test `"can i afford 5000"`
   - Test `"how much will i have if i buy this for 2500"`
   - Test `"how much do i owe?"`
   - Test `"how much in GCash?"`
   - Test tapping suggestion chips.
 
-- [ ] **Step 3: Verify 5-tab navigation on mobile**
+- [x] **Step 3: Verify 5-tab navigation on mobile**
