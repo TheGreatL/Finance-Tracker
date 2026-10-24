@@ -16,6 +16,7 @@ import { InstitutionDetailSheet } from '@/src/components/accounts/InstitutionDet
 import { TransactionFormModal } from '@/src/components/transactions/TransactionFormModal';
 import { TransactionDetailSheet } from '@/src/components/transactions/TransactionDetailSheet';
 import { DatabaseResetDialog } from '@/src/components/dev/DatabaseResetDialog';
+import { ActiveLoansBanner } from '@/src/components/loans/ActiveLoansBanner';
 
 import { getDatabase, closeDatabase } from '@/src/database/db';
 import { seedDevData, resetDatabase } from '@/src/database/seed';
@@ -33,12 +34,14 @@ import {
   deleteTransaction,
   type CreateTransactionInput,
 } from '@/src/services/transactionService';
+import { getLoansSummary } from '@/src/services/loanService';
 import type {
   Institution,
   AccountPocket,
   TransactionRecord,
   TransactionType,
   PocketType,
+  LoanRecord,
 } from '@/src/types/database';
 
 export default function DashboardScreen() {
@@ -55,6 +58,15 @@ export default function DashboardScreen() {
     })[]
   >([]);
   const [recentTransactions, setRecentTransactions] = useState<TransactionRecord[]>([]);
+  const [loansSummary, setLoansSummary] = useState<{
+    totalLoanBalance: number;
+    nextDueLoan: LoanRecord | null;
+    activeCount: number;
+  }>({
+    totalLoanBalance: 0,
+    nextDueLoan: null,
+    activeCount: 0,
+  });
 
   // Modals state
   const [addAccountVisible, setAddAccountVisible] = useState(false);
@@ -73,14 +85,16 @@ export default function DashboardScreen() {
       if (__DEV__) {
         await seedDevData(db);
       }
-      const [insts, pocks, txs] = await Promise.all([
+      const [insts, pocks, txs, loansSum] = await Promise.all([
         getInstitutionsWithBalances(db),
         getAllActivePockets(db),
         getRecentTransactions(db, 20),
+        getLoansSummary(db),
       ]);
       setInstitutions(insts);
       setAllPockets(pocks);
       setRecentTransactions(txs);
+      setLoansSummary(loansSum);
 
       // If an institution sheet is open, refresh its pockets
       if (selectedInstitution) {
@@ -96,14 +110,16 @@ export default function DashboardScreen() {
           const db = await getDatabase();
           await resetDatabase(db);
           await seedDevData(db);
-          const [insts, pocks, txs] = await Promise.all([
+          const [insts, pocks, txs, loansSum] = await Promise.all([
             getInstitutionsWithBalances(db),
             getAllActivePockets(db),
             getRecentTransactions(db, 20),
+            getLoansSummary(db),
           ]);
           setInstitutions(insts);
           setAllPockets(pocks);
           setRecentTransactions(txs);
+          setLoansSummary(loansSum);
         } catch (recoverErr) {
           console.error('Database auto-recovery failed:', recoverErr);
         }
@@ -252,6 +268,13 @@ export default function DashboardScreen() {
           totalIncome={totalIncome}
           totalExpense={totalExpense}
           currency="₱"
+        />
+
+        {/* Active Loans & Debt Summary Banner */}
+        <ActiveLoansBanner
+          totalLoanBalance={loansSummary.totalLoanBalance}
+          nextDueLoan={loansSummary.nextDueLoan}
+          onPress={() => router.push({ pathname: '/(tabs)/accounts', params: { tab: 'loans' } })}
         />
 
         {/* Philippine Institution Accounts 2-Column Grid */}
