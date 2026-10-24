@@ -2,7 +2,7 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LayoutDashboard, ReceiptText } from 'lucide-react-native';
+import { LayoutDashboard, WalletCards, ReceiptText } from 'lucide-react-native';
 import { useColorScheme } from '@/components/useColorScheme';
 
 export default function TabLayout() {
@@ -46,6 +46,24 @@ export default function TabLayout() {
                 <View className="w-5 h-0.5 rounded-full bg-primary mb-1 -mt-1" />
               )}
               <LayoutDashboard
+                size={22}
+                color={color}
+                strokeWidth={focused ? 2.5 : 2}
+              />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="accounts"
+        options={{
+          title: 'Accounts',
+          tabBarIcon: ({ color, focused }) => (
+            <View className="items-center">
+              {focused && (
+                <View className="w-5 h-0.5 rounded-full bg-primary mb-1 -mt-1" />
+              )}
+              <WalletCards
                 size={22}
                 color={color}
                 strokeWidth={focused ? 2.5 : 2}

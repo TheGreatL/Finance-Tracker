@@ -8,43 +8,66 @@ interface InstitutionGridProps {
   institutions: Institution[];
   onSelectInstitution: (institution: Institution) => void;
   onAddAccount: () => void;
+  onSeeAll?: () => void;
+  limit?: number;
+  hideHeader?: boolean;
 }
 
 export function InstitutionGrid({
   institutions,
   onSelectInstitution,
   onAddAccount,
+  onSeeAll,
+  limit,
+  hideHeader = false,
 }: InstitutionGridProps) {
   // Chunk institutions into pairs of 2 for a clean 2-column grid
+  const displayed = limit ? institutions.slice(0, limit) : institutions;
   const rows: Institution[][] = [];
-  for (let i = 0; i < institutions.length; i += 2) {
-    rows.push(institutions.slice(i, i + 2));
+  for (let i = 0; i < displayed.length; i += 2) {
+    rows.push(displayed.slice(i, i + 2));
   }
 
   return (
     <View className="mb-6">
       {/* Section Header */}
-      <View className="flex-row items-center justify-between px-5 mb-3">
-        <View className="flex-row items-center">
-          <Text className="text-base font-bold text-stone-900 mr-2">Accounts</Text>
-          <View className="bg-stone-200/80 px-2 py-0.5 rounded-full">
-            <Text className="text-[11px] font-bold text-stone-700">
-              {institutions.length}
-            </Text>
+      {!hideHeader && (
+        <View className="flex-row items-center justify-between px-5 mb-3">
+          <View className="flex-row items-center">
+            <Text className="text-base font-bold text-stone-900 mr-2">Accounts</Text>
+            <View className="bg-stone-200/80 px-2 py-0.5 rounded-full">
+              <Text className="text-[11px] font-bold text-stone-700">
+                {institutions.length}
+              </Text>
+            </View>
+          </View>
+
+          <View className="flex-row items-center gap-2">
+            {onSeeAll && institutions.length > (limit ?? 0) ? (
+              <Pressable
+                onPress={onSeeAll}
+                accessibilityRole="button"
+                accessibilityLabel="See all accounts"
+                hitSlop={8}
+                pressRetentionOffset={20}
+                className="py-1 px-2 rounded-lg active:opacity-70">
+                <Text className="text-xs font-bold text-[#18342B]">See All →</Text>
+              </Pressable>
+            ) : null}
+
+            <Pressable
+              onPress={onAddAccount}
+              accessibilityRole="button"
+              accessibilityLabel="Add Account"
+              hitSlop={8}
+              pressRetentionOffset={20}
+              className="flex-row items-center bg-[#BBD583] px-3 py-1.5 rounded-xl active:opacity-80">
+              <Plus size={14} color="#18342B" />
+              <Text className="text-xs font-bold text-[#18342B] ml-1">Add Account</Text>
+            </Pressable>
           </View>
         </View>
-
-        <Pressable
-          onPress={onAddAccount}
-          accessibilityRole="button"
-          accessibilityLabel="Add Account"
-          hitSlop={8}
-          pressRetentionOffset={20}
-          className="flex-row items-center bg-[#BBD583] px-3 py-1.5 rounded-xl active:opacity-80">
-          <Plus size={14} color="#18342B" />
-          <Text className="text-xs font-bold text-[#18342B] ml-1">Add Account</Text>
-        </Pressable>
-      </View>
+      )}
 
       {/* Empty State */}
       {institutions.length === 0 ? (

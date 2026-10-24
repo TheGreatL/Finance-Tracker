@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ScrollView, RefreshControl, View, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router, useFocusEffect } from 'expo-router';
 
 import { DashboardHeader } from '@/src/components/dashboard/DashboardHeader';
 import { BalanceHeroCard } from '@/src/components/dashboard/BalanceHeroCard';
@@ -24,6 +25,7 @@ import {
   getAllActivePockets,
   createInstitutionWithPocket,
   addPocket,
+  updateInstitutionNotes,
 } from '@/src/services/accountService';
 import {
   getRecentTransactions,
@@ -112,6 +114,18 @@ export default function DashboardScreen() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
+  const handleUpdateNotes = async (institutionId: string, notes: string) => {
+    const db = await getDatabase();
+    await updateInstitutionNotes(db, institutionId, notes);
+    await loadData();
+  };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -243,6 +257,8 @@ export default function DashboardScreen() {
         {/* Philippine Institution Accounts 2-Column Grid */}
         <InstitutionGrid
           institutions={institutions}
+          limit={4}
+          onSeeAll={() => router.push('/(tabs)/accounts')}
           onSelectInstitution={handleSelectInstitution}
           onAddAccount={() => setAddAccountVisible(true)}
         />
@@ -276,6 +292,7 @@ export default function DashboardScreen() {
         pockets={selectedInstPockets}
         onClose={() => setSelectedInstitution(null)}
         onAddPocket={() => setAddPocketVisible(true)}
+        onUpdateNotes={handleUpdateNotes}
         onQuickExpense={(pocket) => {
           setSelectedInstitution(null);
           handleOpenTransactionModal('expense', pocket.id);
