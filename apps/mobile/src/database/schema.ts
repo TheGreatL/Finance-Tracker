@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS institutions (
   code TEXT NOT NULL,
   color TEXT NOT NULL,
   icon TEXT NOT NULL,
+  notes TEXT DEFAULT '',
   is_archived INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL

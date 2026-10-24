@@ -53,6 +53,16 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
   }
 
   await db.execAsync(SCHEMA_SQL);
+
+  // 4. Ensure notes column exists in institutions table without wiping user data
+  try {
+    await db.getFirstAsync('SELECT notes FROM institutions LIMIT 1;');
+  } catch (err: any) {
+    const msg = String(err?.message || err);
+    if (msg.includes('no such column')) {
+      await db.execAsync("ALTER TABLE institutions ADD COLUMN notes TEXT DEFAULT '';");
+    }
+  }
 }
 
 export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {

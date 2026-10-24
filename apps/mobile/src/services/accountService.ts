@@ -5,6 +5,7 @@ import { getInstitutionConfig } from '../constants/institutions';
 export interface CreateAccountInput {
   code: string;
   customName?: string;
+  notes?: string;
   pocketName?: string;
   pocketType?: PocketType;
   startingBalance?: number;
@@ -31,6 +32,7 @@ export async function createInstitutionWithPocket(
   const now = new Date().toISOString();
 
   const instName = input.customName?.trim() || config.name;
+  const notes = input.notes?.trim() || '';
   const pocketName = input.pocketName?.trim() || config.defaultPocketName;
   const pocketType = input.pocketType || (config.supportsInterest ? 'savings' : 'wallet');
   const startingBalance = input.startingBalance ?? 0.0;
@@ -43,9 +45,9 @@ export async function createInstitutionWithPocket(
   await db.withTransactionAsync(async () => {
     // 1. Insert Institution
     await db.runAsync(
-      `INSERT INTO institutions (id, name, type, code, color, icon, is_archived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-      [instId, instName, config.type, config.code, config.color, config.icon, now, now]
+      `INSERT INTO institutions (id, name, type, code, color, icon, notes, is_archived, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      [instId, instName, config.type, config.code, config.color, config.icon, notes, now, now]
     );
 
     // 2. Insert Initial Pocket
@@ -75,6 +77,7 @@ export async function createInstitutionWithPocket(
       code: config.code,
       color: config.color,
       icon: config.icon,
+      notes,
       is_archived: 0,
       created_at: now,
       updated_at: now,
@@ -218,5 +221,17 @@ export async function archivePocket(db: SQLite.SQLiteDatabase, pocketId: string)
     now,
     pocketId,
   ]);
+}
+
+export async function updateInstitutionNotes(
+  db: SQLite.SQLiteDatabase,
+  institutionId: string,
+  notes: string
+): Promise<void> {
+  const now = new Date().toISOString();
+  await db.runAsync(
+    `UPDATE institutions SET notes = ?, updated_at = ? WHERE id = ?`,
+    [notes.trim(), now, institutionId]
+  );
 }
 
