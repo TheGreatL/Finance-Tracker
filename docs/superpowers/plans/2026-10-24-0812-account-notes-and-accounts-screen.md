@@ -23,16 +23,16 @@
 - Modify: [`apps/mobile/src/services/accountService.ts`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/src/services/accountService.ts)
 - Create: [`apps/mobile/tests/account_notes.test.ts`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/tests/account_notes.test.ts)
 
-- [ ] **Step 1: Write unit test for `updateInstitutionNotes` and notes persistence**
+- [x] **Step 1: Write unit test for `updateInstitutionNotes` and notes persistence**
   Create `apps/mobile/tests/account_notes.test.ts` testing:
   - `notes` field is returned by `getInstitutionConfig` or custom input.
   - `updateInstitutionNotes` issues SQL `UPDATE institutions SET notes = ?, updated_at = ? WHERE id = ?`.
   - Formatters or helper functions handle empty/undefined notes cleanly.
 
-- [ ] **Step 2: Run test to observe baseline**
+- [x] **Step 2: Run test to observe baseline**
   Run `npm test --workspace=@finance-tracker/mobile` and verify test execution.
 
-- [ ] **Step 3: Update database types and schema**
+- [x] **Step 3: Update database types and schema**
   - Add `notes?: string` to `Institution` in `types/database.ts`.
   - Add `notes TEXT DEFAULT ''` to `institutions` table creation in `schema.ts`.
   - In `db.ts`, add migration probe:
@@ -46,17 +46,17 @@
     }
     ```
 
-- [ ] **Step 4: Update `accountService.ts`**
+- [x] **Step 4: Update `accountService.ts`**
   - Add optional `notes?: string` to `CreateAccountInput`.
   - In `createInstitutionWithPocket`, insert `notes` into `institutions` table (`notes || ''`).
   - Implement and export `updateInstitutionNotes(db, institutionId, notes)`.
 
-- [ ] **Step 5: Run unit tests and typecheck**
+- [x] **Step 5: Run unit tests and typecheck**
   Run:
   - `npm test --workspace=@finance-tracker/mobile`
   - `npx turbo run typecheck`
 
-- [ ] **Step 6: Commit changes**
+- [x] **Step 6: Commit changes**
   Commit as: `feat(mobile): add notes column to institutions and updateInstitutionNotes service`
 
 ---
@@ -68,14 +68,14 @@
 - Modify: [`apps/mobile/src/components/accounts/InstitutionCard.tsx`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/src/components/accounts/InstitutionCard.tsx)
 - Modify: [`apps/mobile/src/components/accounts/InstitutionDetailSheet.tsx`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/src/components/accounts/InstitutionDetailSheet.tsx)
 
-- [ ] **Step 1: Update `AddAccountModal.tsx`**
+- [x] **Step 1: Update `AddAccountModal.tsx`**
   - Add state `notes` (string, default `''`).
   - Add text input in modal:
     - Label: `"Account Note / Description (Optional)"`
     - Placeholder: `"e.g. Payroll account, Joint savings, Card #1234"`
   - Pass `notes: notes.trim() || undefined` in `onSubmit`.
 
-- [ ] **Step 2: Update `InstitutionCard.tsx`**
+- [x] **Step 2: Update `InstitutionCard.tsx`**
   - If `institution.notes` is present and non-empty:
     Render as subtitle right under `institution.name`:
     ```tsx
@@ -84,16 +84,16 @@
     </Text>
     ```
 
-- [ ] **Step 3: Update `InstitutionDetailSheet.tsx`**
+- [x] **Step 3: Update `InstitutionDetailSheet.tsx`**
   - Accept `onUpdateNotes?: (institutionId: string, notes: string) => Promise<void>` prop.
   - Display the note in the header card with an Edit pencil button.
   - In edit mode, display a text input with Save and Cancel buttons.
   - On save, await `onUpdateNotes` and exit edit mode.
 
-- [ ] **Step 4: Verify typecheck and tests**
+- [x] **Step 4: Verify typecheck and tests**
   Run `npx turbo run typecheck` and `npm test --workspace=@finance-tracker/mobile`.
 
-- [ ] **Step 5: Commit changes**
+- [x] **Step 5: Commit changes**
   Commit as: `feat(mobile): add note field in AddAccountModal, InstitutionCard subtitle, and in-sheet editing`
 
 ---
@@ -106,13 +106,13 @@
 - Modify: [`apps/mobile/app/(tabs)/_layout.tsx`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/app/(tabs)/_layout.tsx)
 - Modify: [`apps/mobile/app/(tabs)/index.tsx`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/app/(tabs)/index.tsx)
 
-- [ ] **Step 1: Update `InstitutionGrid.tsx` for header actions & limits**
+- [x] **Step 1: Update `InstitutionGrid.tsx` for header actions & limits**
   - Add optional prop `onSeeAll?: () => void`.
   - Add optional prop `limit?: number`.
   - If `limit` is provided, slice `institutions.slice(0, limit)` for display.
   - Render a `"See All (N) →"` button next to the Accounts section header when `onSeeAll` is provided.
 
-- [ ] **Step 2: Create dedicated `apps/mobile/app/(tabs)/accounts.tsx`**
+- [x] **Step 2: Create dedicated `apps/mobile/app/(tabs)/accounts.tsx`**
   - Load accounts using `getInstitutionsWithTotals`.
   - Include search bar filtering by name, code, or notes.
   - Filter pills: `All`, `Banks`, `E-Wallets`, `Cash`.
@@ -121,36 +121,36 @@
   - Support `onSelectInstitution`, `onAddAccount`, and `onUpdateNotes`.
   - Include `AddAccountModal`, `InstitutionDetailSheet`, and `AddPocketModal`.
 
-- [ ] **Step 3: Update `(tabs)/_layout.tsx` for 3-Tab Bar**
+- [x] **Step 3: Update `(tabs)/_layout.tsx` for 3-Tab Bar**
   - Import `WalletCards` from `lucide-react-native`.
   - Insert `accounts` tab between `index` (Dashboard) and `two` (Ledger):
     - Tab 1: `index` (Dashboard, LayoutDashboard)
     - Tab 2: `accounts` (Accounts, WalletCards)
     - Tab 3: `two` (Ledger, ReceiptText)
 
-- [ ] **Step 4: Update `(tabs)/index.tsx` Dashboard preview**
+- [x] **Step 4: Update `(tabs)/index.tsx` Dashboard preview**
   - Pass `limit={4}` and `onSeeAll={() => router.push('/(tabs)/accounts')}` to `InstitutionGrid`.
   - Wire `handleUpdateNotes` to `updateInstitutionNotes` and reload dashboard data.
 
-- [ ] **Step 5: Verify typecheck and unit tests**
+- [x] **Step 5: Verify typecheck and unit tests**
   Run:
   - `npm test --workspace=@finance-tracker/mobile`
   - `npx turbo run typecheck`
 
-- [ ] **Step 6: Commit changes**
+- [x] **Step 6: Commit changes**
   Commit as: `feat(mobile): add dedicated accounts screen, 3-tab navigation, and dashboard preview`
 
 ---
 
 ### Task 4: Final Verification & Integration Testing
 
-- [ ] **Step 1: Full unit test suite verification**
+- [x] **Step 1: Full unit test suite verification**
   Run `npm test --workspace=@finance-tracker/mobile` to verify all unit tests pass.
 
-- [ ] **Step 2: Full monorepo typecheck**
+- [x] **Step 2: Full monorepo typecheck**
   Run `npx turbo run typecheck` across the monorepo.
 
-- [ ] **Step 3: Provide testing guide to user**
+- [x] **Step 3: Provide testing guide to user**
   Explain how to reload Expo Metro (`r`) and test:
   1. Adding an account with notes (e.g. "BDO" with note "Payroll").
   2. Viewing the subtitle on the Dashboard card and the dedicated Accounts tab.
