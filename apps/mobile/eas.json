@@ -1,7 +1,6 @@
 {
   "cli": {
-    "version": ">= 12.0.0",
-    "packageManager": "npm"
+    "version": ">= 12.0.0"
   },
   "build": {
     "development": {
@@ -10,7 +9,6 @@
     },
     "preview": {
       "distribution": "internal",
-      "npm": "latest",
       "android": {
         "buildType": "apk"
       }
