@@ -69,6 +69,8 @@ export const TransactionItem = memo(function TransactionItem({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
+      hitSlop={6}
+      pressRetentionOffset={16}
       accessibilityLabel={`${title}, ${formatSignedCurrency(amount, type, currency)}`}
       className="flex-row items-center justify-between p-3.5 mb-2 bg-card rounded-2xl border border-border/50 active:opacity-75"
     >

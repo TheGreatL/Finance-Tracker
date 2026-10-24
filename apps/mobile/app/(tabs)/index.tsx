@@ -1,87 +1,222 @@
-import React, { useState, useCallback } from 'react';
-import { ScrollView, RefreshControl, View } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ScrollView, RefreshControl, View, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DashboardHeader } from '@/src/components/dashboard/DashboardHeader';
 import { BalanceHeroCard } from '@/src/components/dashboard/BalanceHeroCard';
 import { QuickActionsBar } from '@/src/components/dashboard/QuickActionsBar';
-import {
-  RecentTransactionsList,
-} from '@/src/components/dashboard/RecentTransactionsList';
-import { TransactionItemData } from '@/src/components/dashboard/TransactionItem';
-import { calculateNetBalance } from '@/src/utils/calculations';
+import { RecentTransactionsList } from '@/src/components/dashboard/RecentTransactionsList';
+import type { TransactionItemData } from '@/src/components/dashboard/TransactionItem';
 
-// Initial demo transaction records showcasing the Pistachio & Pine palette
-const INITIAL_TRANSACTIONS: TransactionItemData[] = [
-  {
-    id: 'tx-1',
-    title: 'Salary Deposit (Tech Corp)',
-    category: 'Salary',
-    amount: 45000.0,
-    type: 'income',
-    date: new Date().toISOString(),
-    accountName: 'BPI Checking',
-  },
-  {
-    id: 'tx-2',
-    title: 'Whole Foods Market',
-    category: 'Groceries',
-    amount: 3250.75,
-    type: 'expense',
-    date: new Date().toISOString(),
-    accountName: 'Credit Card',
-  },
-  {
-    id: 'tx-3',
-    title: 'Blue Bottle Coffee',
-    category: 'Dining & Drinks',
-    amount: 280.0,
-    type: 'expense',
-    date: new Date(Date.now() - 86400000).toISOString(),
-    accountName: 'GCash',
-  },
-  {
-    id: 'tx-4',
-    title: 'Freelance Design Project',
-    category: 'Freelance',
-    amount: 12500.0,
-    type: 'income',
-    date: new Date(Date.now() - 172800000).toISOString(),
-    accountName: 'BDO Savings',
-  },
-  {
-    id: 'tx-5',
-    title: 'Meralco Electric Utility',
-    category: 'Bills & Utilities',
-    amount: 4120.5,
-    type: 'expense',
-    date: new Date(Date.now() - 259200000).toISOString(),
-    accountName: 'BPI Checking',
-  },
-];
+import { InstitutionGrid } from '@/src/components/accounts/InstitutionGrid';
+import { AddAccountModal } from '@/src/components/accounts/AddAccountModal';
+import { AddPocketModal } from '@/src/components/accounts/AddPocketModal';
+import { InstitutionDetailSheet } from '@/src/components/accounts/InstitutionDetailSheet';
+import { TransactionFormModal } from '@/src/components/transactions/TransactionFormModal';
+import { TransactionDetailSheet } from '@/src/components/transactions/TransactionDetailSheet';
+import { DatabaseResetDialog } from '@/src/components/dev/DatabaseResetDialog';
+
+import { getDatabase, closeDatabase } from '@/src/database/db';
+import { seedDevData, resetDatabase } from '@/src/database/seed';
+import {
+  getInstitutionsWithBalances,
+  getPocketsByInstitution,
+  getAllActivePockets,
+  createInstitutionWithPocket,
+  addPocket,
+} from '@/src/services/accountService';
+import {
+  getRecentTransactions,
+  createTransaction,
+  deleteTransaction,
+  type CreateTransactionInput,
+} from '@/src/services/transactionService';
+import type {
+  Institution,
+  AccountPocket,
+  TransactionRecord,
+  TransactionType,
+  PocketType,
+} from '@/src/types/database';
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
-  const [transactions, setTransactions] = useState<TransactionItemData[]>(INITIAL_TRANSACTIONS);
 
-  const onRefresh = useCallback(() => {
+  // Data state
+  const [institutions, setInstitutions] = useState<Institution[]>([]);
+  const [allPockets, setAllPockets] = useState<
+    (AccountPocket & {
+      institution_name: string;
+      institution_code: string;
+      institution_color: string;
+    })[]
+  >([]);
+  const [recentTransactions, setRecentTransactions] = useState<TransactionRecord[]>([]);
+
+  // Modals state
+  const [addAccountVisible, setAddAccountVisible] = useState(false);
+  const [selectedInstitution, setSelectedInstitution] = useState<Institution | null>(null);
+  const [selectedInstPockets, setSelectedInstPockets] = useState<AccountPocket[]>([]);
+  const [addPocketVisible, setAddPocketVisible] = useState(false);
+  const [txModalVisible, setTxModalVisible] = useState(false);
+  const [txModalType, setTxModalType] = useState<TransactionType>('expense');
+  const [preselectedPocketId, setPreselectedPocketId] = useState<string | undefined>();
+  const [detailTx, setDetailTx] = useState<TransactionRecord | null>(null);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+
+  const loadData = useCallback(async () => {
+    try {
+      const db = await getDatabase();
+      if (__DEV__) {
+        await seedDevData(db);
+      }
+      const [insts, pocks, txs] = await Promise.all([
+        getInstitutionsWithBalances(db),
+        getAllActivePockets(db),
+        getRecentTransactions(db, 20),
+      ]);
+      setInstitutions(insts);
+      setAllPockets(pocks);
+      setRecentTransactions(txs);
+
+      // If an institution sheet is open, refresh its pockets
+      if (selectedInstitution) {
+        const updatedPockets = await getPocketsByInstitution(db, selectedInstitution.id);
+        setSelectedInstPockets(updatedPockets);
+      }
+    } catch (err: any) {
+      console.error('Failed to load dashboard data:', err);
+      // Auto-recover if a legacy schema error occurs
+      if (String(err?.message || err).includes('no such column')) {
+        try {
+          await closeDatabase();
+          const db = await getDatabase();
+          await resetDatabase(db);
+          await seedDevData(db);
+          const [insts, pocks, txs] = await Promise.all([
+            getInstitutionsWithBalances(db),
+            getAllActivePockets(db),
+            getRecentTransactions(db, 20),
+          ]);
+          setInstitutions(insts);
+          setAllPockets(pocks);
+          setRecentTransactions(txs);
+        } catch (recoverErr) {
+          console.error('Database auto-recovery failed:', recoverErr);
+        }
+      }
+    }
+  }, [selectedInstitution]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 800);
-  }, []);
+    await loadData();
+    setRefreshing(false);
+  }, [loadData]);
 
-  const { totalBalance, totalIncome, totalExpense } = calculateNetBalance(transactions);
+  // Handle Institution Card tap
+  const handleSelectInstitution = async (inst: Institution) => {
+    const db = await getDatabase();
+    const pocks = await getPocketsByInstitution(db, inst.id);
+    setSelectedInstitution(inst);
+    setSelectedInstPockets(pocks);
+  };
+
+  // Quick Action Triggers
+  const handleOpenTransactionModal = (type: TransactionType, pocketId?: string) => {
+    setTxModalType(type);
+    setPreselectedPocketId(pocketId);
+    setTxModalVisible(true);
+  };
+
+  // Create Account handler
+  const handleCreateAccount = async (data: {
+    code: string;
+    customName?: string;
+    pocketName: string;
+    pocketType: PocketType;
+    startingBalance: number;
+    interestRate?: number | null;
+    savingsDetails?: string;
+  }) => {
+    const db = await getDatabase();
+    await createInstitutionWithPocket(db, data);
+    await loadData();
+  };
+
+  // Add Pocket handler
+  const handleAddPocket = async (data: {
+    institutionId: string;
+    name: string;
+    pocketType: PocketType;
+    startingBalance?: number;
+    interestRate?: number | null;
+    savingsDetails?: string;
+  }) => {
+    const db = await getDatabase();
+    await addPocket(db, data);
+    if (selectedInstitution) {
+      const updated = await getPocketsByInstitution(db, selectedInstitution.id);
+      setSelectedInstPockets(updated);
+    }
+    await loadData();
+  };
+
+  // Create Transaction handler
+  const handleCreateTransaction = async (input: CreateTransactionInput) => {
+    const db = await getDatabase();
+    await createTransaction(db, input);
+    await loadData();
+  };
+
+  // Delete Transaction handler
+  const handleDeleteTransaction = async (id: string) => {
+    const db = await getDatabase();
+    await deleteTransaction(db, id);
+    await loadData();
+  };
+
+  // Reset database handler
+  const handleResetConfirm = async () => {
+    const db = await getDatabase();
+    await resetDatabase(db);
+    setSelectedInstitution(null);
+    setSelectedInstPockets([]);
+    await loadData();
+    Alert.alert('Reset Complete', 'Database has been cleared to 0.');
+  };
+
+  // Compute total aggregates
+  const totalBalance = allPockets.reduce((sum, p) => sum + p.current_balance, 0);
+  const totalIncome = recentTransactions
+    .filter((t) => t.type === 'income')
+    .reduce((sum, t) => sum + t.amount, 0);
+  const totalExpense = recentTransactions
+    .filter((t) => t.type === 'expense')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  // Map to dashboard recent items format
+  const formattedRecentTransactions: TransactionItemData[] = recentTransactions.slice(0, 8).map((t) => ({
+    id: t.id,
+    title: t.title,
+    category: t.category,
+    amount: t.amount,
+    type: t.type,
+    date: t.date,
+    accountName: t.institution_name ? `${t.institution_name} • ${t.pocket_name || 'Wallet'}` : t.pocket_name || 'Wallet',
+  }));
 
   return (
-    <View
-      className="flex-1 bg-background"
-      style={{ paddingTop: Math.max(insets.top, 12) }}
-    >
+    <View className="flex-1 bg-stone-50" style={{ paddingTop: Math.max(insets.top, 12) }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 32 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -89,16 +224,15 @@ export default function DashboardScreen() {
             tintColor="#BBD583"
             colors={['#18342B', '#BBD583']}
           />
-        }
-      >
-        {/* Header with greeting and date */}
+        }>
+        {/* Header with greeting and Reset tool */}
         <DashboardHeader
           userName="Personal Ledger"
-          onNotificationPress={() => {}}
-          onScanPress={() => {}}
+          onNotificationPress={() => setResetDialogOpen(true)}
+          onScanPress={() => handleOpenTransactionModal('expense')}
         />
 
-        {/* Hero Card with Pistachio primary color & Deep Pine text */}
+        {/* Hero Card with Pistachio & Deep Pine */}
         <BalanceHeroCard
           totalBalance={totalBalance}
           totalIncome={totalIncome}
@@ -106,21 +240,77 @@ export default function DashboardScreen() {
           currency="₱"
         />
 
-        {/* Quick action buttons: Expense, Income, Transfer, Scan OCR */}
-        <QuickActionsBar
-          onAddExpense={() => {}}
-          onAddIncome={() => {}}
-          onTransfer={() => {}}
-          onScanReceipt={() => {}}
+        {/* Philippine Institution Accounts 2-Column Grid */}
+        <InstitutionGrid
+          institutions={institutions}
+          onSelectInstitution={handleSelectInstitution}
+          onAddAccount={() => setAddAccountVisible(true)}
         />
 
-        {/* Recent transactions list */}
+        {/* Quick action buttons: Expense, Income, Transfer */}
+        <QuickActionsBar
+          onAddExpense={() => handleOpenTransactionModal('expense')}
+          onAddIncome={() => handleOpenTransactionModal('income')}
+          onTransfer={() => handleOpenTransactionModal('transfer')}
+          onScanReceipt={() => handleOpenTransactionModal('expense')}
+        />
+
+        {/* Recent Transactions List */}
         <RecentTransactionsList
-          transactions={transactions}
+          transactions={formattedRecentTransactions}
           currency="₱"
           onSeeAllPress={() => {}}
         />
       </ScrollView>
+
+      {/* Modals & Sheets */}
+      <AddAccountModal
+        visible={addAccountVisible}
+        onClose={() => setAddAccountVisible(false)}
+        onSubmit={handleCreateAccount}
+      />
+
+      <InstitutionDetailSheet
+        visible={!!selectedInstitution}
+        institution={selectedInstitution}
+        pockets={selectedInstPockets}
+        onClose={() => setSelectedInstitution(null)}
+        onAddPocket={() => setAddPocketVisible(true)}
+        onQuickExpense={(pocket) => {
+          setSelectedInstitution(null);
+          handleOpenTransactionModal('expense', pocket.id);
+        }}
+      />
+
+      <AddPocketModal
+        visible={addPocketVisible}
+        institutionId={selectedInstitution?.id || ''}
+        institutionName={selectedInstitution?.name || 'Account'}
+        onClose={() => setAddPocketVisible(false)}
+        onSubmit={handleAddPocket}
+      />
+
+      <TransactionFormModal
+        visible={txModalVisible}
+        initialType={txModalType}
+        preselectedPocketId={preselectedPocketId}
+        pockets={allPockets}
+        onClose={() => setTxModalVisible(false)}
+        onSubmit={handleCreateTransaction}
+      />
+
+      <TransactionDetailSheet
+        visible={!!detailTx}
+        transaction={detailTx}
+        onClose={() => setDetailTx(null)}
+        onDelete={handleDeleteTransaction}
+      />
+
+      <DatabaseResetDialog
+        visible={resetDialogOpen}
+        onClose={() => setResetDialogOpen(false)}
+        onConfirmReset={handleResetConfirm}
+      />
     </View>
   );
 }

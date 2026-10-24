@@ -66,6 +66,8 @@ export function QuickActionsBar({
               accessibilityRole="button"
               accessibilityLabel={action.label}
               onPress={action.onPress}
+              hitSlop={8}
+              pressRetentionOffset={20}
               className="items-center justify-center flex-1 active:opacity-75"
             >
               <View className={`w-12 h-12 rounded-full items-center justify-center mb-1.5 ${action.bgColor}`}>

@@ -39,6 +39,8 @@ export function DashboardHeader({
             accessibilityRole="button"
             accessibilityLabel="Scan receipt OCR"
             onPress={onScanPress}
+            hitSlop={8}
+            pressRetentionOffset={20}
             className="items-center justify-center w-10 h-10 rounded-full bg-muted/60 active:opacity-70"
           >
             <ScanLine size={18} color={iconColor} />
@@ -48,6 +50,8 @@ export function DashboardHeader({
           accessibilityRole="button"
           accessibilityLabel="Notifications"
           onPress={onNotificationPress}
+          hitSlop={8}
+          pressRetentionOffset={20}
           className="items-center justify-center w-10 h-10 rounded-full bg-muted/60 active:opacity-70"
         >
           <Bell size={18} color={iconColor} />
