@@ -8,12 +8,15 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/*.test.ts"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
+    "@react-native-masked-view/masked-view": "0.3.2",
     "expo": "~58.0.17",
     "expo-constants": "~58.0.13",
     "expo-font": "~58.0.9",
+    "expo-linear-gradient": "~58.0.3",
     "expo-linking": "~58.0.14",
     "expo-router": "~58.0.25",
     "expo-splash-screen": "~58.0.11",
@@ -39,7 +42,9 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/react": "~19.3.0",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "vite": "^6.4.5",
+    "vitest": "^3.2.7"
   },
   "private": true
 }
