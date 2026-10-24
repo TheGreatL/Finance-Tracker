@@ -77,5 +77,17 @@ CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id TEXT PRIMARY KEY,
+  sender TEXT NOT NULL CHECK(sender IN ('user', 'bot')),
+  text TEXT NOT NULL,
+  status TEXT DEFAULT 'info',
+  source TEXT DEFAULT 'offline' CHECK(source IN ('gemini', 'offline')),
+  timestamp TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at);
 `;
 
