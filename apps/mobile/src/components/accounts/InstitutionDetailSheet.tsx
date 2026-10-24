@@ -1,6 +1,6 @@
-import React from 'react';
-import { Modal, View, Text, ScrollView, Pressable } from 'react-native';
-import { X, Plus } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { Modal, View, Text, ScrollView, Pressable, TextInput } from 'react-native';
+import { X, Plus, Pencil, Check } from 'lucide-react-native';
 import type { Institution, AccountPocket } from '../../types/database';
 import { formatCurrency } from '../../utils/formatters';
 import { PocketCard } from './PocketCard';
@@ -13,6 +13,7 @@ interface InstitutionDetailSheetProps {
   onClose: () => void;
   onAddPocket: () => void;
   onQuickExpense?: (pocket: AccountPocket) => void;
+  onUpdateNotes?: (institutionId: string, notes: string) => Promise<void>;
 }
 
 export function InstitutionDetailSheet({
@@ -22,10 +23,33 @@ export function InstitutionDetailSheet({
   onClose,
   onAddPocket,
   onQuickExpense,
+  onUpdateNotes,
 }: InstitutionDetailSheetProps) {
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+
+  useEffect(() => {
+    if (institution) {
+      setNoteText(institution.notes || '');
+      setIsEditingNote(false);
+    }
+  }, [institution]);
+
   if (!institution) return null;
 
   const totalBalance = pockets.reduce((sum, p) => sum + p.current_balance, 0);
+
+  const handleSaveNote = async () => {
+    if (!institution || !onUpdateNotes) return;
+    try {
+      setSavingNote(true);
+      await onUpdateNotes(institution.id, noteText.trim());
+      setIsEditingNote(false);
+    } finally {
+      setSavingNote(false);
+    }
+  };
 
   return (
     <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
@@ -66,6 +90,62 @@ export function InstitutionDetailSheet({
                 <Plus size={14} color="#FFFFFF" />
                 <Text className="text-xs font-bold text-white ml-1">Add Pocket</Text>
               </Pressable>
+            </View>
+
+            {/* Account Note / Details banner */}
+            <View className="mt-3 pt-3 border-t border-stone-100 flex-row items-center justify-between">
+              {isEditingNote ? (
+                <View className="flex-1 flex-row items-center">
+                  <TextInput
+                    value={noteText}
+                    onChangeText={setNoteText}
+                    placeholder="Add details (e.g. Payroll, Card #1234)"
+                    placeholderTextColor="#A8A29E"
+                    className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs text-stone-900 mr-2"
+                    autoFocus
+                  />
+                  <Pressable
+                    onPress={handleSaveNote}
+                    disabled={savingNote}
+                    hitSlop={8}
+                    pressRetentionOffset={20}
+                    className="bg-[#18342B] px-3 py-1.5 rounded-xl mr-1.5 items-center justify-center">
+                    <Check size={14} color="#FFFFFF" />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      setNoteText(institution.notes || '');
+                      setIsEditingNote(false);
+                    }}
+                    hitSlop={8}
+                    pressRetentionOffset={20}
+                    className="bg-stone-200 px-2.5 py-1.5 rounded-xl items-center justify-center">
+                    <X size={14} color="#57534E" />
+                  </Pressable>
+                </View>
+              ) : (
+                <View className="flex-1 flex-row items-center justify-between">
+                  <View className="flex-1 mr-2">
+                    <Text className="text-[10px] font-semibold uppercase tracking-wider text-stone-400">
+                      Account Note
+                    </Text>
+                    <Text className="text-xs text-stone-700 font-medium mt-0.5">
+                      {institution.notes || 'No note added'}
+                    </Text>
+                  </View>
+                  {onUpdateNotes && (
+                    <Pressable
+                      onPress={() => setIsEditingNote(true)}
+                      hitSlop={8}
+                      pressRetentionOffset={20}
+                      accessibilityLabel="Edit note"
+                      className="p-1.5 px-2.5 rounded-lg bg-stone-100 active:bg-stone-200 flex-row items-center">
+                      <Pencil size={12} color="#57534E" />
+                      <Text className="text-[11px] font-semibold text-stone-600 ml-1">Edit</Text>
+                    </Pressable>
+                  )}
+                </View>
+              )}
             </View>
           </View>
 

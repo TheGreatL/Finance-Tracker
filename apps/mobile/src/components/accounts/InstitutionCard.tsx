@@ -46,9 +46,16 @@ export function InstitutionCard({ institution, onPress, className }: Institution
       </View>
 
       {/* Institution Name */}
-      <Text className="text-xs font-medium text-stone-500 mb-0.5" numberOfLines={1}>
+      <Text className="text-xs font-semibold text-stone-700 mb-0.5" numberOfLines={1}>
         {institution.name}
       </Text>
+
+      {/* Optional Note Subtitle */}
+      {institution.notes ? (
+        <Text className="text-[11px] text-stone-500 font-normal italic mb-1" numberOfLines={1}>
+          {institution.notes}
+        </Text>
+      ) : null}
 
       {/* Aggregate Balance */}
       <Text className="text-[15px] font-bold text-stone-900 tracking-tight" numberOfLines={1}>

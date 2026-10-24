@@ -24,6 +24,7 @@ interface AddAccountModalProps {
   onSubmit: (data: {
     code: string;
     customName?: string;
+    notes?: string;
     pocketName: string;
     pocketType: PocketType;
     startingBalance: number;
@@ -35,6 +36,7 @@ interface AddAccountModalProps {
 export function AddAccountModal({ visible, onClose, onSubmit }: AddAccountModalProps) {
   const [selectedCode, setSelectedCode] = useState<string>('maya');
   const [customName, setCustomName] = useState('');
+  const [notes, setNotes] = useState('');
   const [pocketName, setPocketName] = useState('Main Wallet');
   const [pocketType, setPocketType] = useState<PocketType>('wallet');
   const [startingBalanceStr, setStartingBalanceStr] = useState('');
@@ -71,6 +73,7 @@ export function AddAccountModal({ visible, onClose, onSubmit }: AddAccountModalP
       await onSubmit({
         code: selectedCode,
         customName: customName.trim() || undefined,
+        notes: notes.trim() || undefined,
         pocketName: pocketName.trim(),
         pocketType,
         startingBalance: rawAmount,
@@ -81,6 +84,7 @@ export function AddAccountModal({ visible, onClose, onSubmit }: AddAccountModalP
       // Reset
       setStartingBalanceStr('');
       setCustomName('');
+      setNotes('');
       setSavingsDetails('');
       onClose();
     } catch (err: any) {
@@ -152,6 +156,20 @@ export function AddAccountModal({ visible, onClose, onSubmit }: AddAccountModalP
                 value={customName}
                 onChangeText={setCustomName}
                 placeholder={`e.g. My Primary ${selectedConfig.name}`}
+                placeholderTextColor="#A8A29E"
+                className="bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-sm text-stone-900"
+              />
+            </View>
+
+            {/* Account Note / Description (Optional) */}
+            <View className="mb-4">
+              <Text className="text-xs font-medium text-stone-600 mb-1">
+                Account Note / Details (Optional)
+              </Text>
+              <TextInput
+                value={notes}
+                onChangeText={setNotes}
+                placeholder="e.g. Payroll account, Joint savings, Card #1234"
                 placeholderTextColor="#A8A29E"
                 className="bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-sm text-stone-900"
               />
