@@ -52,6 +52,27 @@ CREATE INDEX IF NOT EXISTS idx_transactions_pocket ON transactions(pocket_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_to_pocket ON transactions(to_pocket_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date DESC);
 
+CREATE TABLE IF NOT EXISTS loans (
+  id TEXT PRIMARY KEY,
+  institution_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  total_amount REAL NOT NULL,
+  remaining_balance REAL NOT NULL,
+  monthly_payment REAL NOT NULL,
+  due_date TEXT NOT NULL,
+  interest_rate REAL DEFAULT NULL,
+  attachment_path TEXT DEFAULT '',
+  attachment_name TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'paid', 'defaulted')),
+  notes TEXT DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (institution_id) REFERENCES institutions(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_loans_institution ON loans(institution_id);
+CREATE INDEX IF NOT EXISTS idx_loans_status ON loans(status);
+
 CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL

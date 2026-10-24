@@ -53,3 +53,47 @@ export interface TransactionRecord {
   to_institution_name?: string;
 }
 
+export type LoanStatus = 'active' | 'paid' | 'defaulted';
+
+export interface LoanRecord {
+  id: string;
+  institution_id: string;
+  title: string;
+  total_amount: number;
+  remaining_balance: number;
+  monthly_payment: number;
+  due_date: string;
+  interest_rate?: number | null;
+  attachment_path?: string;
+  attachment_name?: string;
+  status: LoanStatus;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  // Joined fields
+  institution_name?: string;
+  institution_code?: string;
+  institution_color?: string;
+}
+
+export interface CreateLoanInput {
+  institutionId: string;
+  title: string;
+  totalAmount: number;
+  remainingBalance?: number;
+  monthlyPayment: number;
+  dueDate: string;
+  interestRate?: number | null;
+  attachmentPath?: string;
+  attachmentName?: string;
+  notes?: string;
+}
+
+export interface RecordLoanPaymentInput {
+  loanId: string;
+  pocketId: string;
+  amount: number;
+  date: string;
+  notes?: string;
+}
+

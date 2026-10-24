@@ -63,6 +63,36 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
       await db.execAsync("ALTER TABLE institutions ADD COLUMN notes TEXT DEFAULT '';");
     }
   }
+
+  // 5. Ensure loans table exists
+  try {
+    await db.getFirstAsync('SELECT id FROM loans LIMIT 1;');
+  } catch (err: any) {
+    const msg = String(err?.message || err);
+    if (msg.includes('no such table')) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS loans (
+          id TEXT PRIMARY KEY,
+          institution_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          total_amount REAL NOT NULL,
+          remaining_balance REAL NOT NULL,
+          monthly_payment REAL NOT NULL,
+          due_date TEXT NOT NULL,
+          interest_rate REAL DEFAULT NULL,
+          attachment_path TEXT DEFAULT '',
+          attachment_name TEXT DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'paid', 'defaulted')),
+          notes TEXT DEFAULT '',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (institution_id) REFERENCES institutions(id) ON DELETE RESTRICT
+        );
+        CREATE INDEX IF NOT EXISTS idx_loans_institution ON loans(institution_id);
+        CREATE INDEX IF NOT EXISTS idx_loans_status ON loans(status);
+      `);
+    }
+  }
 }
 
 export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
