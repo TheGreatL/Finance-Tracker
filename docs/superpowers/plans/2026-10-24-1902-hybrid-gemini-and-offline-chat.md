@@ -29,24 +29,24 @@
 - Create: [`apps/mobile/src/services/chatStorageService.ts`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/src/services/chatStorageService.ts)
 - Create: [`apps/mobile/tests/chat_storage.test.ts`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/tests/chat_storage.test.ts)
 
-- [ ] **Step 1: Write unit tests for `chatStorageService.ts`**
+- [x] **Step 1: Write unit tests for `chatStorageService.ts`**
   - Test saving user message and bot message.
   - Test retrieving messages in chronological order.
   - Test clearing messages.
 
-- [ ] **Step 2: Update SQLite schema in `schema.ts` and `db.ts`**
+- [x] **Step 2: Update SQLite schema in `schema.ts` and `db.ts`**
   - Add `CREATE TABLE IF NOT EXISTS chat_messages`.
   - Add automatic table probe/creation in `db.ts`.
 
-- [ ] **Step 3: Implement `chatStorageService.ts`**
+- [x] **Step 3: Implement `chatStorageService.ts`**
   - `saveChatMessage(db, message): Promise<void>`
   - `getStoredChatMessages(db, limit = 50): Promise<ChatMessage[]>`
   - `clearChatStorage(db): Promise<void>`
 
-- [ ] **Step 4: Run tests and typecheck**
+- [x] **Step 4: Run tests and typecheck**
   Run `npm test --workspace=@finance-tracker/mobile` and `npx turbo run typecheck`.
 
-- [ ] **Step 5: Commit changes**
+- [x] **Step 5: Commit changes**
   Commit as: `feat(mobile): add SQLite chat storage service for persistent conversation history`
 
 ---
@@ -58,23 +58,23 @@
 - Create: [`apps/mobile/src/services/geminiService.ts`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/src/services/geminiService.ts)
 - Create: [`apps/mobile/tests/gemini_service.test.ts`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/tests/gemini_service.test.ts)
 
-- [ ] **Step 1: Write unit tests for `geminiService.ts`**
+- [x] **Step 1: Write unit tests for `geminiService.ts`**
   - Test building system financial context string from pockets and loans.
   - Test successful Gemini response parsing.
   - Test timeout / network error handling.
 
-- [ ] **Step 2: Implement `config.ts`**
+- [x] **Step 2: Implement `config.ts`**
   - Export `GEMINI_API_KEY` from `process.env.EXPO_PUBLIC_GEMINI_API_KEY` or provided key.
 
-- [ ] **Step 3: Implement `geminiService.ts`**
+- [x] **Step 3: Implement `geminiService.ts`**
   - `buildFinancialSystemContext(db): Promise<string>`
   - `queryGeminiAdvisor(db, prompt): Promise<{ text: string; status: ChatStatus }>`
   - Use `AbortController` with 8000ms timeout.
 
-- [ ] **Step 4: Run tests and typecheck**
+- [x] **Step 4: Run tests and typecheck**
   Run `npm test --workspace=@finance-tracker/mobile` and `npx turbo run typecheck`.
 
-- [ ] **Step 5: Commit changes**
+- [x] **Step 5: Commit changes**
   Commit as: `feat(mobile): implement geminiService with live financial context and timeout handling`
 
 ---
@@ -85,11 +85,11 @@
 - Modify: [`apps/mobile/src/components/chat/ChatMessageBubble.tsx`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/src/components/chat/ChatMessageBubble.tsx)
 - Modify: [`apps/mobile/app/(tabs)/assistant.tsx`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/app/(tabs)/assistant.tsx)
 
-- [ ] **Step 1: Update `ChatMessageBubble.tsx`**
+- [x] **Step 1: Update `ChatMessageBubble.tsx`**
   - Add `source?: 'gemini' | 'offline'` to `ChatMessage`.
   - Render `✨ Gemini AI` badge when `source === 'gemini'` and `⚡ Offline Engine` badge when `source === 'offline'`.
 
-- [ ] **Step 2: Update `assistant.tsx`**
+- [x] **Step 2: Update `assistant.tsx`**
   - On mount, load stored messages via `getStoredChatMessages(db)`.
   - On send:
     1. Save user message to SQLite via `saveChatMessage`.
@@ -98,16 +98,16 @@
     4. Save bot message to SQLite with its source badge.
   - On clear history: call `clearChatStorage(db)`.
 
-- [ ] **Step 3: Run full tests and monorepo typecheck**
+- [x] **Step 3: Run full tests and monorepo typecheck**
   Run `npm test --workspace=@finance-tracker/mobile` and `npx turbo run typecheck`.
 
-- [ ] **Step 4: Commit changes**
+- [x] **Step 4: Commit changes**
   Commit as: `feat(mobile): integrate hybrid online/offline assistant with SQLite chat caching`
 
 ---
 
 ### Task 5: Final Verification
 
-- [ ] **Step 1: Verify all unit tests pass**
-- [ ] **Step 2: Verify typecheck passes**
-- [ ] **Step 3: Provide testing instructions to user**
+- [x] **Step 1: Verify all unit tests pass**
+- [x] **Step 2: Verify typecheck passes**
+- [x] **Step 3: Provide testing instructions to user**
