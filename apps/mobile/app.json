@@ -7,11 +7,16 @@
     "icon": "./assets/images/icon.png",
     "scheme": "financetracker",
     "userInterfaceStyle": "automatic",
+    "extra": {
+      "eas": {
+        "projectId": "f95c60b1-c792-489d-9e49-6bf2f1e64623"
+      }
+    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
-      "package": "com.thegreatl.financetracker",
+      "package": "com.kenth3great.financetrackermonorepo",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

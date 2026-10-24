@@ -35,6 +35,5 @@ apps/mobile/ios/
 *.keystore
 local.properties
 
-# Lockfiles & Generated types
-package-lock.json
+# Generated types
 expo-env.d.ts
