@@ -27,7 +27,22 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
     }
   }
 
-  // 3. Check PRAGMA user_version
+  // 3. Probe if legacy loans table exists without institution_id column
+  try {
+    await db.getFirstAsync('SELECT institution_id FROM loans LIMIT 1;');
+  } catch (err: any) {
+    const msg = String(err?.message || err);
+    if (msg.includes('no such column')) {
+      console.log('[SQLite] Legacy loans table detected without institution_id column. Dropping old table...');
+      await db.execAsync(`
+        DROP INDEX IF EXISTS idx_loans_institution;
+        DROP INDEX IF EXISTS idx_loans_status;
+        DROP TABLE IF EXISTS loans;
+      `);
+    }
+  }
+
+  // 4. Check PRAGMA user_version
   try {
     const vResult = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
     if (!vResult || (vResult.user_version ?? 0) < 2) {
@@ -46,6 +61,13 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
       DROP TABLE IF EXISTS institutions;
       DROP TABLE IF EXISTS accounts;
       DROP TABLE IF EXISTS categories;
+      DROP TABLE IF EXISTS loans;
+      DROP TABLE IF EXISTS chat_messages;
+      DROP TABLE IF EXISTS transaction_deductions;
+      DROP TABLE IF EXISTS recurring_rules;
+      DROP TABLE IF EXISTS savings_goals;
+      DROP TABLE IF EXISTS wishlist_items;
+      DROP TABLE IF EXISTS cash_flow_snapshots;
       DROP TABLE IF EXISTS app_settings;
       PRAGMA user_version = 2;
       PRAGMA foreign_keys = ON;

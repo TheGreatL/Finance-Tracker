@@ -117,6 +117,13 @@ export async function resetDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
     DROP TABLE IF EXISTS institutions;
     DROP TABLE IF EXISTS accounts;
     DROP TABLE IF EXISTS categories;
+    DROP TABLE IF EXISTS loans;
+    DROP TABLE IF EXISTS chat_messages;
+    DROP TABLE IF EXISTS transaction_deductions;
+    DROP TABLE IF EXISTS recurring_rules;
+    DROP TABLE IF EXISTS savings_goals;
+    DROP TABLE IF EXISTS wishlist_items;
+    DROP TABLE IF EXISTS cash_flow_snapshots;
     DROP TABLE IF EXISTS app_settings;
     PRAGMA user_version = 2;
     PRAGMA foreign_keys = ON;

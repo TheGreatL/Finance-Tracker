@@ -134,3 +134,4 @@ describe('transactionService database operations', () => {
     expect(deleteTx?.params).toContain('tx_123');
   });
 });
+
