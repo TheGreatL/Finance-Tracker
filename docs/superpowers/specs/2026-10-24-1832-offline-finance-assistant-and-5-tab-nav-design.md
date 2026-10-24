@@ -117,3 +117,4 @@ To complete the 5th tab meaningfully:
 - **Approach A (Selected):** Pure TypeScript regex & keyword intent parser directly interrogating SQLite. Instant, predictable, zero hallucination, offline.
 - **Approach B (Rejected):** Multi-step form/wizard modal. Too rigid and not a conversational experience as requested.
 - **Approach C (Rejected):** External LLM API (OpenAI/Gemini). Rejected per explicit user instruction ("while not using any AI api").
+
