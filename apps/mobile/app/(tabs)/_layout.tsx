@@ -1,8 +1,8 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { View } from 'react-native';
+import { View, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LayoutDashboard, WalletCards, ReceiptText } from 'lucide-react-native';
+import { LayoutDashboard, WalletCards, ReceiptText, Bot, PieChart } from 'lucide-react-native';
 import { useColorScheme } from '@/components/useColorScheme';
 
 export default function TabLayout() {
@@ -22,7 +22,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: activeTint,
         tabBarInactiveTintColor: inactiveTint,
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '600',
           marginTop: -2,
         },
@@ -46,7 +46,7 @@ export default function TabLayout() {
                 <View className="w-5 h-0.5 rounded-full bg-primary mb-1 -mt-1" />
               )}
               <LayoutDashboard
-                size={22}
+                size={21}
                 color={color}
                 strokeWidth={focused ? 2.5 : 2}
               />
@@ -64,11 +64,51 @@ export default function TabLayout() {
                 <View className="w-5 h-0.5 rounded-full bg-primary mb-1 -mt-1" />
               )}
               <WalletCards
-                size={22}
+                size={21}
                 color={color}
                 strokeWidth={focused ? 2.5 : 2}
               />
             </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="assistant"
+        options={{
+          title: 'Advisor',
+          tabBarIcon: ({ focused }) => (
+            <View className="-mt-2.5 items-center justify-center">
+              <View
+                className={`w-11 h-11 rounded-full items-center justify-center shadow-md ${
+                  focused ? 'bg-[#18342B]' : 'bg-[#BBD583]'
+                }`}
+                style={{
+                  elevation: 4,
+                  shadowColor: '#18342B',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.25,
+                  shadowRadius: 3.84,
+                }}
+              >
+                <Bot
+                  size={22}
+                  color={focused ? '#BBD583' : '#18342B'}
+                  strokeWidth={2.4}
+                />
+              </View>
+            </View>
+          ),
+          tabBarLabel: ({ focused, color }) => (
+            <Text
+              style={{
+                fontSize: 10,
+                fontWeight: '700',
+                color: focused ? activeTint : inactiveTint,
+                marginTop: -1,
+              }}
+            >
+              Advisor
+            </Text>
           ),
         }}
       />
@@ -82,7 +122,25 @@ export default function TabLayout() {
                 <View className="w-5 h-0.5 rounded-full bg-primary mb-1 -mt-1" />
               )}
               <ReceiptText
-                size={22}
+                size={21}
+                color={color}
+                strokeWidth={focused ? 2.5 : 2}
+              />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="analytics"
+        options={{
+          title: 'Analytics',
+          tabBarIcon: ({ color, focused }) => (
+            <View className="items-center">
+              {focused && (
+                <View className="w-5 h-0.5 rounded-full bg-primary mb-1 -mt-1" />
+              )}
+              <PieChart
+                size={21}
                 color={color}
                 strokeWidth={focused ? 2.5 : 2}
               />
