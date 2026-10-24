@@ -3,16 +3,20 @@ import { Platform } from 'react-native';
 import { formatCurrency } from '../utils/formatters';
 
 // Set default notification behavior when app is in foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    priority: Notifications.AndroidNotificationPriority.HIGH,
-  }),
-});
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      priority: Notifications.AndroidNotificationPriority?.HIGH ?? 4,
+    }),
+  });
+} catch (handlerErr) {
+  console.warn('Could not initialize foreground notification handler:', handlerErr);
+}
 
 /**
  * Calculates a reminder trigger 3 days before the due date at 9:00 AM.

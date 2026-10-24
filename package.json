@@ -12,6 +12,7 @@
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
+    "postinstall": "node scripts/patch-expo-notifications.js",
     "mobile": "npm run start --workspace=@finance-tracker/mobile",
     "mobile:android": "npm run android --workspace=@finance-tracker/mobile",
     "mobile:build": "npm run build:apk --workspace=@finance-tracker/mobile"
