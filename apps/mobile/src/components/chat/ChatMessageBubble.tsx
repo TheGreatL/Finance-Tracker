@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text } from 'react-native';
-import { Bot, User, CheckCircle2, AlertTriangle, XCircle, Info } from 'lucide-react-native';
+import { Bot, CheckCircle2, AlertTriangle, XCircle, Info, Sparkles, Zap } from 'lucide-react-native';
 import type { ChatStatus } from '../../services/chatEngine';
 
 export interface ChatMessage {
@@ -8,6 +8,7 @@ export interface ChatMessage {
   sender: 'user' | 'bot';
   text: string;
   status?: ChatStatus;
+  source?: 'gemini' | 'offline';
   timestamp: string;
 }
 
@@ -76,6 +77,8 @@ export function ChatMessageBubble({ message }: ChatMessageBubbleProps) {
     iconColor = '#E11D48';
   }
 
+  const isGemini = message.source === 'gemini';
+
   return (
     <View className="flex-row items-start mb-3.5 px-4">
       {/* Bot Avatar */}
@@ -89,9 +92,17 @@ export function ChatMessageBubble({ message }: ChatMessageBubbleProps) {
         <View className="flex-row items-center justify-between mb-1.5 pb-1 border-b border-stone-100">
           <View className="flex-row items-center space-x-1.5">
             <Text className="text-xs font-bold text-[#18342B]">PocketBot</Text>
-            <View className="bg-emerald-100/80 px-1.5 py-0.5 rounded-full ml-1.5">
-              <Text className="text-[9px] font-semibold text-emerald-800">100% Offline</Text>
-            </View>
+            {isGemini ? (
+              <View className="bg-[#BBD583]/50 px-1.5 py-0.5 rounded-full ml-1.5 flex-row items-center">
+                <Sparkles size={9} color="#18342B" />
+                <Text className="text-[9px] font-bold text-[#18342B] ml-1">Gemini AI</Text>
+              </View>
+            ) : (
+              <View className="bg-emerald-100/90 px-1.5 py-0.5 rounded-full ml-1.5 flex-row items-center">
+                <Zap size={9} color="#065F46" />
+                <Text className="text-[9px] font-semibold text-emerald-800 ml-1">Offline Engine</Text>
+              </View>
+            )}
           </View>
           <StatusIcon size={14} color={iconColor} />
         </View>
