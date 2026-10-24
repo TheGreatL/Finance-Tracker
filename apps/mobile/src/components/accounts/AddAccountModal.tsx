@@ -31,9 +31,10 @@ interface AddAccountModalProps {
     interestRate?: number | null;
     savingsDetails?: string;
   }) => Promise<void>;
+  onSwitchToLoan?: () => void;
 }
 
-export function AddAccountModal({ visible, onClose, onSubmit }: AddAccountModalProps) {
+export function AddAccountModal({ visible, onClose, onSubmit, onSwitchToLoan }: AddAccountModalProps) {
   const [selectedCode, setSelectedCode] = useState<string>('maya');
   const [customName, setCustomName] = useState('');
   const [notes, setNotes] = useState('');
@@ -118,6 +119,24 @@ export function AddAccountModal({ visible, onClose, onSubmit }: AddAccountModalP
                 <Text className="text-xs text-red-600 font-medium">{error}</Text>
               </View>
             ) : null}
+
+            {onSwitchToLoan && (
+              <Pressable
+                onPress={onSwitchToLoan}
+                className="mb-4 p-3.5 bg-amber-50 rounded-2xl border border-amber-200/90 flex-row items-center justify-between active:bg-amber-100">
+                <View className="flex-1 mr-2">
+                  <Text className="text-xs font-bold text-amber-900">
+                    Adding a Loan or Credit Line?
+                  </Text>
+                  <Text className="text-[11px] text-amber-800/80 mt-0.5">
+                    For GLoan, Maya Credit, BDO/BPI Loans, BillEase, or Tala.
+                  </Text>
+                </View>
+                <View className="bg-amber-700 px-3 py-1.5 rounded-xl">
+                  <Text className="text-xs font-bold text-white">Add Loan →</Text>
+                </View>
+              </Pressable>
+            )}
 
             {/* 1. Select Institution */}
             <Text className="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-2">

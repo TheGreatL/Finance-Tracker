@@ -12,6 +12,7 @@ interface InstitutionDetailSheetProps {
   pockets: AccountPocket[];
   onClose: () => void;
   onAddPocket: () => void;
+  onAddLoan?: () => void;
   onQuickExpense?: (pocket: AccountPocket) => void;
   onUpdateNotes?: (institutionId: string, notes: string) => Promise<void>;
 }
@@ -22,6 +23,7 @@ export function InstitutionDetailSheet({
   pockets,
   onClose,
   onAddPocket,
+  onAddLoan,
   onQuickExpense,
   onUpdateNotes,
 }: InstitutionDetailSheetProps) {
@@ -84,12 +86,22 @@ export function InstitutionDetailSheet({
                 </Text>
               </View>
 
-              <Pressable
-                onPress={onAddPocket}
-                className="flex-row items-center bg-[#18342B] px-3.5 py-2 rounded-xl active:opacity-90">
-                <Plus size={14} color="#FFFFFF" />
-                <Text className="text-xs font-bold text-white ml-1">Add Pocket</Text>
-              </Pressable>
+              <View className="flex-row items-center">
+                {onAddLoan && (
+                  <Pressable
+                    onPress={onAddLoan}
+                    className="flex-row items-center bg-amber-700 px-3 py-2 rounded-xl active:opacity-90 mr-2">
+                    <Plus size={14} color="#FFFFFF" />
+                    <Text className="text-xs font-bold text-white ml-1">Loan</Text>
+                  </Pressable>
+                )}
+                <Pressable
+                  onPress={onAddPocket}
+                  className="flex-row items-center bg-[#18342B] px-3.5 py-2 rounded-xl active:opacity-90">
+                  <Plus size={14} color="#FFFFFF" />
+                  <Text className="text-xs font-bold text-white ml-1">Add Pocket</Text>
+                </Pressable>
+              </View>
             </View>
 
             {/* Account Note / Details banner */}

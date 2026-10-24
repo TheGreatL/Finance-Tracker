@@ -298,10 +298,10 @@ export default function AccountsScreen() {
       <View className="px-5 mb-4">
         <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {[
-            { id: 'all', label: 'All Accounts' },
+            { id: 'all', label: 'All' },
             { id: 'bank', label: 'Banks' },
             { id: 'ewallet', label: 'E-Wallets' },
-            { id: 'loans', label: 'Loans & Debt' },
+            { id: 'loans', label: '💳 Loans & Debt' },
             { id: 'cash', label: 'Cash' },
           ].map((cat) => {
             const isSelected = selectedFilter === cat.id;
@@ -418,6 +418,10 @@ export default function AccountsScreen() {
         visible={addAccountVisible}
         onClose={() => setAddAccountVisible(false)}
         onSubmit={handleCreateAccount}
+        onSwitchToLoan={() => {
+          setAddAccountVisible(false);
+          setAddLoanVisible(true);
+        }}
       />
 
       <InstitutionDetailSheet
@@ -426,6 +430,10 @@ export default function AccountsScreen() {
         pockets={institutionPockets}
         onClose={() => setDetailSheetVisible(false)}
         onAddPocket={() => setAddPocketVisible(true)}
+        onAddLoan={() => {
+          setDetailSheetVisible(false);
+          setAddLoanVisible(true);
+        }}
         onUpdateNotes={handleUpdateNotes}
       />
 
