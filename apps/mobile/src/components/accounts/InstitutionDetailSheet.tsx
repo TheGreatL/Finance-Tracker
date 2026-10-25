@@ -46,7 +46,9 @@ export function InstitutionDetailSheet({
     if (!institution || !onUpdateNotes) return;
     try {
       setSavingNote(true);
-      await onUpdateNotes(institution.id, noteText.trim());
+      const trimmed = noteText.trim();
+      await onUpdateNotes(institution.id, trimmed);
+      institution.notes = trimmed;
       setIsEditingNote(false);
     } finally {
       setSavingNote(false);

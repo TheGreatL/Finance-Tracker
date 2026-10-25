@@ -96,10 +96,14 @@ export default function DashboardScreen() {
       setRecentTransactions(txs);
       setLoansSummary(loansSum);
 
-      // If an institution sheet is open, refresh its pockets
+      // If an institution sheet is open, refresh its institution data & pockets
       if (selectedInstitution) {
-        const updatedPockets = await getPocketsByInstitution(db, selectedInstitution.id);
-        setSelectedInstPockets(updatedPockets);
+        const refreshedInst = insts.find((i: Institution) => i.id === selectedInstitution.id) || null;
+        setSelectedInstitution(refreshedInst);
+        if (refreshedInst) {
+          const updatedPockets = await getPocketsByInstitution(db, refreshedInst.id);
+          setSelectedInstPockets(updatedPockets);
+        }
       }
     } catch (err: any) {
       console.error('Failed to load dashboard data:', err);

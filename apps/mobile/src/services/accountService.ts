@@ -155,7 +155,7 @@ export async function getInstitutionsWithBalances(
 ): Promise<Institution[]> {
   const query = `
     SELECT 
-      i.id, i.name, i.type, i.code, i.color, i.icon, i.is_archived, i.created_at, i.updated_at,
+      i.id, i.name, i.type, i.code, i.color, i.icon, i.notes, i.is_archived, i.created_at, i.updated_at,
       COALESCE(SUM(p.current_balance), 0) AS total_balance,
       COUNT(p.id) AS pocket_count
     FROM institutions i
