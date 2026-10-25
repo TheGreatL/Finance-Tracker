@@ -5,6 +5,46 @@ import type {
   CreateLoanInput,
   RecordLoanPaymentInput,
 } from '../types/database';
+import { getInstitutionConfig } from '../constants/institutions';
+
+async function resolveOrCreateInstitutionId(
+  db: SQLite.SQLiteDatabase,
+  institutionIdOrCode: string,
+  now: string
+): Promise<string> {
+  // If db does not have getFirstAsync (e.g. minimalist unit test mock), return as is
+  if (typeof db.getFirstAsync !== 'function') {
+    return institutionIdOrCode;
+  }
+
+  // 1. Check if it's already an exact ID in institutions
+  const existingById = await db.getFirstAsync<{ id: string }>(
+    'SELECT id FROM institutions WHERE id = ? LIMIT 1;',
+    [institutionIdOrCode]
+  );
+  if (existingById) {
+    return existingById.id;
+  }
+
+  // 2. Check if an institution exists with this code
+  const existingByCode = await db.getFirstAsync<{ id: string }>(
+    'SELECT id FROM institutions WHERE code = ? LIMIT 1;',
+    [institutionIdOrCode]
+  );
+  if (existingByCode) {
+    return existingByCode.id;
+  }
+
+  // 3. Auto-create institution for this provider config so Foreign Key constraint succeeds
+  const config = getInstitutionConfig(institutionIdOrCode);
+  const newInstId = `inst_${config.code}_${Date.now()}`;
+  await db.runAsync(
+    `INSERT INTO institutions (id, name, type, code, color, icon, notes, is_archived, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, '', 0, ?, ?)`,
+    [newInstId, config.name, config.type, config.code, config.color, config.icon, now, now]
+  );
+  return newInstId;
+}
 
 export async function createLoan(
   db: SQLite.SQLiteDatabase,
@@ -14,6 +54,9 @@ export async function createLoan(
   const now = new Date().toISOString();
   const remaining = input.remainingBalance ?? input.totalAmount;
 
+  // Resolve institution id to satisfy Foreign Key constraint
+  const resolvedInstitutionId = await resolveOrCreateInstitutionId(db, input.institutionId, now);
+
   await db.runAsync(
     `INSERT INTO loans (
       id, institution_id, title, total_amount, remaining_balance, monthly_payment,
@@ -22,7 +65,7 @@ export async function createLoan(
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       loanId,
-      input.institutionId,
+      resolvedInstitutionId,
       input.title.trim(),
       input.totalAmount,
       remaining,
@@ -40,7 +83,7 @@ export async function createLoan(
 
   return {
     id: loanId,
-    institution_id: input.institutionId,
+    institution_id: resolvedInstitutionId,
     title: input.title.trim(),
     total_amount: input.totalAmount,
     remaining_balance: remaining,

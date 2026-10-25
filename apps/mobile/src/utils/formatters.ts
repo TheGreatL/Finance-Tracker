@@ -76,3 +76,27 @@ export function formatRelativeDate(dateString: string): string {
     day: 'numeric',
   });
 }
+
+/**
+ * Formats a YYYY-MM-DD date string into a human-readable display string (e.g. "Nov 24, 2026").
+ */
+export function formatDisplayDate(dateString?: string): string {
+  if (!dateString) return 'Select date';
+  if (dateString.includes('-')) {
+    const parts = dateString.split('-');
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      const date = new Date(y, m, d);
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        });
+      }
+    }
+  }
+  return dateString;
+}

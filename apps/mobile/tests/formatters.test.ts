@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { formatCurrency, formatSignedCurrency, formatRelativeDate } from '../src/utils/formatters';
+import {
+  formatCurrency,
+  formatSignedCurrency,
+  formatRelativeDate,
+  formatDisplayDate,
+} from '../src/utils/formatters';
 
 describe('formatters', () => {
   it('formatCurrency formats zero correctly', () => {
@@ -38,5 +43,16 @@ describe('formatters', () => {
   it('formatRelativeDate returns Today for current date', () => {
     const today = new Date().toISOString();
     expect(formatRelativeDate(today)).toBe('Today');
+  });
+
+  it('formatDisplayDate formats YYYY-MM-DD into human-readable date', () => {
+    expect(formatDisplayDate('2026-11-24')).toBe('Nov 24, 2026');
+    expect(formatDisplayDate('2026-01-05')).toBe('Jan 5, 2026');
+  });
+
+  it('formatDisplayDate returns fallback when empty or invalid', () => {
+    expect(formatDisplayDate('')).toBe('Select date');
+    expect(formatDisplayDate(undefined)).toBe('Select date');
+    expect(formatDisplayDate('invalid-date-format')).toBe('invalid-date-format');
   });
 });

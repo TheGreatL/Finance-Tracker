@@ -43,6 +43,59 @@ describe('loanService operations', () => {
     expect(insert.params).toContain('active');
   });
 
+  it('createLoan reuses existing institution when code or id matches', async () => {
+    const executed: { sql: string; params: any[] }[] = [];
+    const mockDb: any = {
+      getFirstAsync: vi.fn(async (sql: string, params: any[]) => {
+        if (sql.includes('FROM institutions WHERE id = ?') && params[0] === 'inst_bdo_1') {
+          return { id: 'inst_bdo_1' };
+        }
+        return null;
+      }),
+      runAsync: vi.fn(async (sql: string, params: any[]) => {
+        executed.push({ sql, params });
+        return { changes: 1 };
+      }),
+    };
+
+    const res = await createLoan(mockDb, {
+      institutionId: 'inst_bdo_1',
+      title: 'BDO Personal Loan',
+      totalAmount: 50000,
+      monthlyPayment: 5000,
+      dueDate: '2026-12-01',
+    });
+
+    expect(mockDb.runAsync).toHaveBeenCalledTimes(1);
+    expect(res.institution_id).toBe('inst_bdo_1');
+  });
+
+  it('createLoan auto-creates institution record when provider does not exist yet', async () => {
+    const executed: { sql: string; params: any[] }[] = [];
+    const mockDb: any = {
+      getFirstAsync: vi.fn(async () => null),
+      runAsync: vi.fn(async (sql: string, params: any[]) => {
+        executed.push({ sql, params });
+        return { changes: 1 };
+      }),
+    };
+
+    const res = await createLoan(mockDb, {
+      institutionId: 'billease',
+      title: 'BillEase Installment',
+      totalAmount: 8000,
+      monthlyPayment: 2000,
+      dueDate: '2026-11-20',
+    });
+
+    // 1st runAsync creates institution, 2nd runAsync creates loan
+    expect(mockDb.runAsync).toHaveBeenCalledTimes(2);
+    expect(executed[0].sql).toContain('INSERT INTO institutions');
+    expect(executed[0].params).toContain('BillEase');
+    expect(executed[1].sql).toContain('INSERT INTO loans');
+    expect(res.institution_id).toContain('inst_billease_');
+  });
+
   it('getLoansSummary computes total active debt, next due date, and due soon count', async () => {
     const mockLoans: LoanRecord[] = [
       {

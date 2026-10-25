@@ -9,9 +9,10 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
-import { X, Check, Wallet } from 'lucide-react-native';
+import { X, Check, Wallet, Calendar, ChevronDown } from 'lucide-react-native';
 import type { LoanRecord, AccountPocket } from '../../types/database';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency, formatDisplayDate } from '../../utils/formatters';
+import { DatePickerModal } from '../common/DatePickerModal';
 
 interface LoanPaymentModalProps {
   visible: boolean;
@@ -38,6 +39,7 @@ export function LoanPaymentModal({
   const [amountStr, setAmountStr] = useState('');
   const [dateStr, setDateStr] = useState(() => new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -85,7 +87,8 @@ export function LoanPaymentModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
+    <>
+      <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         className="flex-1 justify-end bg-black/50">
@@ -167,13 +170,17 @@ export function LoanPaymentModal({
 
               <View className="flex-1">
                 <Text className="text-xs font-medium text-stone-600 mb-1">Payment Date *</Text>
-                <TextInput
-                  value={dateStr}
-                  onChangeText={setDateStr}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#A8A29E"
-                  className="bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-sm text-stone-900"
-                />
+                <Pressable
+                  onPress={() => setDatePickerVisible(true)}
+                  className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-3.5 flex-row items-center justify-between active:bg-stone-100">
+                  <View className="flex-row items-center flex-1 mr-1">
+                    <Calendar size={15} color="#78716C" />
+                    <Text className="text-xs text-stone-900 font-semibold ml-1.5" numberOfLines={1}>
+                      {formatDisplayDate(dateStr)}
+                    </Text>
+                  </View>
+                  <ChevronDown size={14} color="#A8A29E" />
+                </Pressable>
               </View>
             </View>
 
@@ -204,5 +211,15 @@ export function LoanPaymentModal({
         </View>
       </KeyboardAvoidingView>
     </Modal>
+
+    {/* Date Picker Modal */}
+    <DatePickerModal
+      visible={datePickerVisible}
+      initialDate={dateStr}
+      title="Select Payment Date"
+      onClose={() => setDatePickerVisible(false)}
+      onSelectDate={(newDate) => setDateStr(newDate)}
+    />
+  </>
   );
 }
