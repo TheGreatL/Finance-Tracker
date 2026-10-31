@@ -1,210 +1,254 @@
 import { describe, it, expect, vi } from 'vitest';
-import {
-  createLoan,
-  getLoansSummary,
-  recordLoanPayment,
-  deleteLoan,
-} from '../src/services/loanService';
+import { createLoan, getLoansSummary, recordLoanPayment, deleteLoan, updateLoanMetadata } from '../src/services/loanService';
 import type { LoanRecord } from '../src/types/database';
 
 describe('loanService operations', () => {
-  it('createLoan inserts active loan with specified details', async () => {
-    const executed: { sql: string; params: any[] }[] = [];
-    const mockDb: any = {
-      runAsync: vi.fn(async (sql: string, params: any[]) => {
-        executed.push({ sql, params });
-        return { changes: 1 };
-      }),
-    };
+    it('createLoan inserts active loan with specified details', async () => {
+        const executed: { sql: string; params: any[] }[] = [];
+        const mockDb: any = {
+            runAsync: vi.fn(async (sql: string, params: any[]) => {
+                executed.push({ sql, params });
+                return { changes: 1 };
+            })
+        };
 
-    const res = await createLoan(mockDb, {
-      institutionId: 'inst_gcash',
-      title: 'GLoan 6-Month',
-      totalAmount: 15000,
-      remainingBalance: 15000,
-      monthlyPayment: 2500,
-      dueDate: '2026-11-15',
-      interestRate: 3.5,
-      attachmentPath: 'file:///data/attachments/loan_contract.pdf',
-      attachmentName: 'contract.pdf',
-      notes: 'Business capital',
+        const res = await createLoan(mockDb, {
+            institutionId: 'inst_gcash',
+            title: 'GLoan 6-Month',
+            totalAmount: 15000,
+            remainingBalance: 15000,
+            monthlyPayment: 2500,
+            dueDate: '2026-11-15',
+            interestRate: 3.5,
+            attachmentPath: 'file:///data/attachments/loan_contract.pdf',
+            attachmentName: 'contract.pdf',
+            notes: 'Business capital'
+        });
+
+        expect(mockDb.runAsync).toHaveBeenCalledTimes(1);
+        expect(res.title).toBe('GLoan 6-Month');
+        expect(res.remaining_balance).toBe(15000);
+        expect(res.status).toBe('active');
+        expect(res.attachment_path).toContain('loan_contract.pdf');
+
+        const insert = executed[0];
+        expect(insert.sql).toContain('INSERT INTO loans');
+        expect(insert.params).toContain('GLoan 6-Month');
+        expect(insert.params).toContain(15000);
+        expect(insert.params).toContain('active');
     });
 
-    expect(mockDb.runAsync).toHaveBeenCalledTimes(1);
-    expect(res.title).toBe('GLoan 6-Month');
-    expect(res.remaining_balance).toBe(15000);
-    expect(res.status).toBe('active');
-    expect(res.attachment_path).toContain('loan_contract.pdf');
+    it('createLoan reuses existing institution when code or id matches', async () => {
+        const executed: { sql: string; params: any[] }[] = [];
+        const mockDb: any = {
+            getFirstAsync: vi.fn(async (sql: string, params: any[]) => {
+                if (sql.includes('FROM institutions WHERE id = ?') && params[0] === 'inst_bdo_1') {
+                    return { id: 'inst_bdo_1' };
+                }
+                return null;
+            }),
+            runAsync: vi.fn(async (sql: string, params: any[]) => {
+                executed.push({ sql, params });
+                return { changes: 1 };
+            })
+        };
 
-    const insert = executed[0];
-    expect(insert.sql).toContain('INSERT INTO loans');
-    expect(insert.params).toContain('GLoan 6-Month');
-    expect(insert.params).toContain(15000);
-    expect(insert.params).toContain('active');
-  });
+        const res = await createLoan(mockDb, {
+            institutionId: 'inst_bdo_1',
+            title: 'BDO Personal Loan',
+            totalAmount: 50000,
+            monthlyPayment: 5000,
+            dueDate: '2026-12-01'
+        });
 
-  it('createLoan reuses existing institution when code or id matches', async () => {
-    const executed: { sql: string; params: any[] }[] = [];
-    const mockDb: any = {
-      getFirstAsync: vi.fn(async (sql: string, params: any[]) => {
-        if (sql.includes('FROM institutions WHERE id = ?') && params[0] === 'inst_bdo_1') {
-          return { id: 'inst_bdo_1' };
-        }
-        return null;
-      }),
-      runAsync: vi.fn(async (sql: string, params: any[]) => {
-        executed.push({ sql, params });
-        return { changes: 1 };
-      }),
-    };
-
-    const res = await createLoan(mockDb, {
-      institutionId: 'inst_bdo_1',
-      title: 'BDO Personal Loan',
-      totalAmount: 50000,
-      monthlyPayment: 5000,
-      dueDate: '2026-12-01',
+        expect(mockDb.runAsync).toHaveBeenCalledTimes(1);
+        expect(res.institution_id).toBe('inst_bdo_1');
     });
 
-    expect(mockDb.runAsync).toHaveBeenCalledTimes(1);
-    expect(res.institution_id).toBe('inst_bdo_1');
-  });
+    it('createLoan auto-creates institution record when provider does not exist yet', async () => {
+        const executed: { sql: string; params: any[] }[] = [];
+        const mockDb: any = {
+            getFirstAsync: vi.fn(async () => null),
+            runAsync: vi.fn(async (sql: string, params: any[]) => {
+                executed.push({ sql, params });
+                return { changes: 1 };
+            })
+        };
 
-  it('createLoan auto-creates institution record when provider does not exist yet', async () => {
-    const executed: { sql: string; params: any[] }[] = [];
-    const mockDb: any = {
-      getFirstAsync: vi.fn(async () => null),
-      runAsync: vi.fn(async (sql: string, params: any[]) => {
-        executed.push({ sql, params });
-        return { changes: 1 };
-      }),
-    };
+        const res = await createLoan(mockDb, {
+            institutionId: 'billease',
+            title: 'BillEase Installment',
+            totalAmount: 8000,
+            monthlyPayment: 2000,
+            dueDate: '2026-11-20'
+        });
 
-    const res = await createLoan(mockDb, {
-      institutionId: 'billease',
-      title: 'BillEase Installment',
-      totalAmount: 8000,
-      monthlyPayment: 2000,
-      dueDate: '2026-11-20',
+        // 1st runAsync creates institution, 2nd runAsync creates loan
+        expect(mockDb.runAsync).toHaveBeenCalledTimes(2);
+        expect(executed[0].sql).toContain('INSERT INTO institutions');
+        expect(executed[0].params).toContain('BillEase');
+        expect(executed[1].sql).toContain('INSERT INTO loans');
+        expect(res.institution_id).toContain('inst_billease_');
     });
 
-    // 1st runAsync creates institution, 2nd runAsync creates loan
-    expect(mockDb.runAsync).toHaveBeenCalledTimes(2);
-    expect(executed[0].sql).toContain('INSERT INTO institutions');
-    expect(executed[0].params).toContain('BillEase');
-    expect(executed[1].sql).toContain('INSERT INTO loans');
-    expect(res.institution_id).toContain('inst_billease_');
-  });
+    it('getLoansSummary computes total active debt, next due date, and due soon count', async () => {
+        const mockLoans: LoanRecord[] = [
+            {
+                id: 'l1',
+                institution_id: 'i1',
+                title: 'BillEase Laptop',
+                total_amount: 20000,
+                remaining_balance: 10000,
+                monthly_payment: 2000,
+                due_date: '2026-10-28', // 4 days from Oct 24
+                status: 'active',
+                created_at: '',
+                updated_at: ''
+            },
+            {
+                id: 'l2',
+                institution_id: 'i2',
+                title: 'Tala Fast Cash',
+                total_amount: 5000,
+                remaining_balance: 3000,
+                monthly_payment: 3000,
+                due_date: '2026-11-10', // 17 days from Oct 24
+                status: 'active',
+                created_at: '',
+                updated_at: ''
+            }
+        ];
 
-  it('getLoansSummary computes total active debt, next due date, and due soon count', async () => {
-    const mockLoans: LoanRecord[] = [
-      {
-        id: 'l1',
-        institution_id: 'i1',
-        title: 'BillEase Laptop',
-        total_amount: 20000,
-        remaining_balance: 10000,
-        monthly_payment: 2000,
-        due_date: '2026-10-28', // 4 days from Oct 24
-        status: 'active',
-        created_at: '',
-        updated_at: '',
-      },
-      {
-        id: 'l2',
-        institution_id: 'i2',
-        title: 'Tala Fast Cash',
-        total_amount: 5000,
-        remaining_balance: 3000,
-        monthly_payment: 3000,
-        due_date: '2026-11-10', // 17 days from Oct 24
-        status: 'active',
-        created_at: '',
-        updated_at: '',
-      },
-    ];
+        const mockDb: any = {
+            getAllAsync: vi.fn(async () => mockLoans)
+        };
 
-    const mockDb: any = {
-      getAllAsync: vi.fn(async () => mockLoans),
-    };
+        const referenceDate = new Date('2026-10-24T00:00:00.000');
+        const summary = await getLoansSummary(mockDb, referenceDate);
 
-    const referenceDate = new Date('2026-10-24T00:00:00.000');
-    const summary = await getLoansSummary(mockDb, referenceDate);
-
-    expect(summary.totalLoanBalance).toBe(13000); // 10000 + 3000
-    expect(summary.activeCount).toBe(2);
-    expect(summary.nextDueLoan?.id).toBe('l1');
-    expect(summary.nextDueLoan?.due_date).toBe('2026-10-28');
-    expect(summary.dueSoonCount).toBe(1); // Oct 28 is <= 7 days
-  });
-
-  it('recordLoanPayment deducts from pocket and loan balance, marking status paid when 0', async () => {
-    const runQueries: { sql: string; params: any[] }[] = [];
-    const mockDb: any = {
-      withTransactionAsync: vi.fn(async (cb: () => Promise<void>) => {
-        await cb();
-      }),
-      getFirstAsync: vi.fn(async (sql: string, params: any[]) => {
-        if (sql.includes('FROM loans')) {
-          return {
-            id: 'l1',
-            title: 'BillEase Phone',
-            remaining_balance: 2500, // exact remaining balance
-            monthly_payment: 2500,
-            due_date: '2026-10-30',
-            institution_id: 'inst_be',
-          };
-        }
-        if (sql.includes('FROM account_pockets')) {
-          return {
-            id: 'p1',
-            current_balance: 10000, // sufficient balance
-          };
-        }
-        return null;
-      }),
-      runAsync: vi.fn(async (sql: string, params: any[]) => {
-        runQueries.push({ sql, params });
-        return { changes: 1 };
-      }),
-    };
-
-    await recordLoanPayment(mockDb, {
-      loanId: 'l1',
-      pocketId: 'p1',
-      amount: 2500,
-      date: '2026-10-25',
-      notes: 'October Amortization',
+        expect(summary.totalLoanBalance).toBe(13000); // 10000 + 3000
+        expect(summary.activeCount).toBe(2);
+        expect(summary.nextDueLoan?.id).toBe('l1');
+        expect(summary.nextDueLoan?.due_date).toBe('2026-10-28');
+        expect(summary.dueSoonCount).toBe(1); // Oct 28 is <= 7 days
     });
 
-    // 1. Pocket balance deducted
-    const pocketUpdate = runQueries.find((q) => q.sql.includes('UPDATE account_pockets'));
-    expect(pocketUpdate).toBeDefined();
-    expect(pocketUpdate?.params[0]).toBe(7500); // 10000 - 2500
+    it('recordLoanPayment deducts from pocket and loan balance, marking status paid when 0', async () => {
+        const runQueries: { sql: string; params: any[] }[] = [];
+        const mockDb: any = {
+            withTransactionAsync: vi.fn(async (cb: () => Promise<void>) => {
+                await cb();
+            }),
+            getFirstAsync: vi.fn(async (sql: string, params: any[]) => {
+                if (sql.includes('FROM loans')) {
+                    return {
+                        id: 'l1',
+                        title: 'BillEase Phone',
+                        remaining_balance: 2500, // exact remaining balance
+                        monthly_payment: 2500,
+                        due_date: '2026-10-30',
+                        institution_id: 'inst_be'
+                    };
+                }
+                if (sql.includes('FROM account_pockets')) {
+                    return {
+                        id: 'p1',
+                        current_balance: 10000 // sufficient balance
+                    };
+                }
+                return null;
+            }),
+            runAsync: vi.fn(async (sql: string, params: any[]) => {
+                runQueries.push({ sql, params });
+                return { changes: 1 };
+            })
+        };
 
-    // 2. Loan remaining balance updated to 0 and status 'paid'
-    const loanUpdate = runQueries.find((q) => q.sql.includes('UPDATE loans'));
-    expect(loanUpdate).toBeDefined();
-    expect(loanUpdate?.params[0]).toBe(0); // 2500 - 2500
-    expect(loanUpdate?.params[1]).toBe('paid'); // marked paid!
+        await recordLoanPayment(mockDb, {
+            loanId: 'l1',
+            pocketId: 'p1',
+            amount: 2500,
+            date: '2026-10-25',
+            notes: 'October Amortization'
+        });
 
-    // 3. Transaction logged as expense under 'Loan Payment'
-    const txInsert = runQueries.find((q) => q.sql.includes('INSERT INTO transactions'));
-    expect(txInsert).toBeDefined();
-    expect(txInsert?.params).toContain('Loan Payment: BillEase Phone');
-    expect(txInsert?.params).toContain(2500);
-    expect(txInsert?.params).toContain('Loan Payment');
-  });
+        // 1. Pocket balance deducted
+        const pocketUpdate = runQueries.find((q) => q.sql.includes('UPDATE account_pockets'));
+        expect(pocketUpdate).toBeDefined();
+        expect(pocketUpdate?.params[0]).toBe(7500); // 10000 - 2500
 
-  it('deleteLoan removes loan record', async () => {
-    const mockDb: any = {
-      runAsync: vi.fn(async () => ({ changes: 1 })),
-    };
+        // 2. Loan remaining balance updated to 0 and status 'paid'
+        const loanUpdate = runQueries.find((q) => q.sql.includes('UPDATE loans'));
+        expect(loanUpdate).toBeDefined();
+        expect(loanUpdate?.params[0]).toBe(0); // 2500 - 2500
+        expect(loanUpdate?.params[1]).toBe('paid'); // marked paid!
 
-    await deleteLoan(mockDb, 'loan_999');
-    expect(mockDb.runAsync).toHaveBeenCalledWith(
-      expect.stringContaining('DELETE FROM loans WHERE id = ?'),
-      ['loan_999']
-    );
-  });
+        // 3. Transaction logged as expense under 'Loan Payment'
+        const txInsert = runQueries.find((q) => q.sql.includes('INSERT INTO transactions'));
+        expect(txInsert).toBeDefined();
+        expect(txInsert?.params).toContain('Loan Payment: BillEase Phone');
+        expect(txInsert?.params).toContain(2500);
+        expect(txInsert?.params).toContain('Loan Payment');
+    });
+
+    it('deleteLoan removes loan record', async () => {
+        const mockDb: any = {
+            runAsync: vi.fn(async () => ({ changes: 1 }))
+        };
+
+        await deleteLoan(mockDb, 'loan_999');
+        expect(mockDb.runAsync).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM loans WHERE id = ?'), ['loan_999']);
+    });
+
+    it('updateLoanMetadata updates descriptive metadata without modifying remaining balance', async () => {
+        const executed: { sql: string; params: any[] }[] = [];
+        const mockDb: any = {
+            getFirstAsync: vi.fn(async (sql: string, params: any[]) => {
+                if (sql.includes('FROM loans WHERE id = ?')) {
+                    return {
+                        id: 'loan_123',
+                        institution_id: 'inst_maya',
+                        title: 'Old Loan Title',
+                        total_amount: 20000,
+                        remaining_balance: 15000,
+                        monthly_payment: 2000,
+                        due_date: '2026-11-01',
+                        notes: 'Old notes',
+                        attachment_path: 'old/path.pdf',
+                        attachment_name: 'old.pdf',
+                        status: 'active'
+                    };
+                }
+                if (sql.includes('FROM institutions WHERE id = ?')) {
+                    return { id: 'inst_bdo' };
+                }
+                return null;
+            }),
+            runAsync: vi.fn(async (sql: string, params: any[]) => {
+                executed.push({ sql, params });
+                return { changes: 1 };
+            })
+        };
+
+        await updateLoanMetadata(mockDb, 'loan_123', {
+            title: 'Updated Loan Title',
+            institutionId: 'inst_bdo',
+            dueDate: '2026-11-15',
+            monthlyPayment: 2500,
+            notes: 'Updated repayment terms',
+            attachmentPath: 'new/contract.pdf',
+            attachmentName: 'contract.pdf'
+        });
+
+        const updateQuery = executed.find((e) => e.sql.includes('UPDATE loans'));
+        expect(updateQuery).toBeDefined();
+        expect(updateQuery?.params[0]).toBe('Updated Loan Title');
+        expect(updateQuery?.params[1]).toBe('inst_bdo');
+        expect(updateQuery?.params[2]).toBe('2026-11-15');
+        expect(updateQuery?.params[3]).toBe(2500);
+        expect(updateQuery?.params[4]).toBe('Updated repayment terms');
+        expect(updateQuery?.params[5]).toBe('new/contract.pdf');
+        expect(updateQuery?.params[6]).toBe('contract.pdf');
+        expect(updateQuery?.params[8]).toBe('loan_123');
+    });
 });

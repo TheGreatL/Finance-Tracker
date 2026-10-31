@@ -1,98 +1,129 @@
 import { describe, it, expect, vi } from 'vitest';
-import {
-  addPocket,
-  archivePocket,
-  getInstitutionsWithBalances,
-  getPocketsByInstitution,
-} from '../src/services/accountService';
+import { addPocket, archivePocket, getInstitutionsWithBalances, getPocketsByInstitution, updatePocketMetadata } from '../src/services/accountService';
 import type { AccountPocket, Institution } from '../src/types/database';
 
 describe('accountService lifecycle and safety operations', () => {
-  it('addPocket creates pocket with default or custom interest rate', async () => {
-    const executed: { sql: string; params: any[] }[] = [];
-    const mockDb: any = {
-      runAsync: vi.fn(async (sql: string, params: any[]) => {
-        executed.push({ sql, params });
-        return { changes: 1 };
-      }),
-    };
+    it('addPocket creates pocket with default or custom interest rate', async () => {
+        const executed: { sql: string; params: any[] }[] = [];
+        const mockDb: any = {
+            runAsync: vi.fn(async (sql: string, params: any[]) => {
+                executed.push({ sql, params });
+                return { changes: 1 };
+            })
+        };
 
-    const pocket = await addPocket(mockDb, {
-      institutionId: 'inst_maya',
-      name: 'Personal Savings Goals',
-      pocketType: 'savings',
-      startingBalance: 5000,
-      interestRate: 6.0,
-      savingsDetails: '6% p.a. promo',
+        const pocket = await addPocket(mockDb, {
+            institutionId: 'inst_maya',
+            name: 'Personal Savings Goals',
+            pocketType: 'savings',
+            startingBalance: 5000,
+            interestRate: 6.0,
+            savingsDetails: '6% p.a. promo'
+        });
+
+        expect(mockDb.runAsync).toHaveBeenCalledTimes(1);
+        expect(pocket.name).toBe('Personal Savings Goals');
+        expect(pocket.pocket_type).toBe('savings');
+        expect(pocket.current_balance).toBe(5000);
+        expect(pocket.interest_rate).toBe(6.0);
+        expect(pocket.savings_details).toBe('6% p.a. promo');
+
+        const insert = executed[0];
+        expect(insert.sql).toContain('INSERT INTO account_pockets');
+        expect(insert.params).toContain('Personal Savings Goals');
+        expect(insert.params).toContain(6.0);
     });
 
-    expect(mockDb.runAsync).toHaveBeenCalledTimes(1);
-    expect(pocket.name).toBe('Personal Savings Goals');
-    expect(pocket.pocket_type).toBe('savings');
-    expect(pocket.current_balance).toBe(5000);
-    expect(pocket.interest_rate).toBe(6.0);
-    expect(pocket.savings_details).toBe('6% p.a. promo');
+    it('archivePocket throws an error if pocket has positive balance', async () => {
+        const mockDb: any = {
+            getFirstAsync: vi.fn(async () => ({ current_balance: 1500 })),
+            runAsync: vi.fn()
+        };
 
-    const insert = executed[0];
-    expect(insert.sql).toContain('INSERT INTO account_pockets');
-    expect(insert.params).toContain('Personal Savings Goals');
-    expect(insert.params).toContain(6.0);
-  });
+        await expect(archivePocket(mockDb, 'pock_with_money')).rejects.toThrow('Cannot archive a pocket with a positive balance');
+        expect(mockDb.runAsync).not.toHaveBeenCalled();
+    });
 
-  it('archivePocket throws an error if pocket has positive balance', async () => {
-    const mockDb: any = {
-      getFirstAsync: vi.fn(async () => ({ current_balance: 1500 })),
-      runAsync: vi.fn(),
-    };
+    it('archivePocket successfully sets is_archived = 1 when balance is 0', async () => {
+        const mockDb: any = {
+            getFirstAsync: vi.fn(async () => ({ current_balance: 0 })),
+            runAsync: vi.fn(async () => ({ changes: 1 }))
+        };
 
-    await expect(archivePocket(mockDb, 'pock_with_money')).rejects.toThrow(
-      'Cannot archive a pocket with a positive balance'
-    );
-    expect(mockDb.runAsync).not.toHaveBeenCalled();
-  });
+        await archivePocket(mockDb, 'pock_empty');
 
-  it('archivePocket successfully sets is_archived = 1 when balance is 0', async () => {
-    const mockDb: any = {
-      getFirstAsync: vi.fn(async () => ({ current_balance: 0 })),
-      runAsync: vi.fn(async () => ({ changes: 1 })),
-    };
+        expect(mockDb.runAsync).toHaveBeenCalledWith(expect.stringContaining('UPDATE account_pockets SET is_archived = 1'), [
+            expect.any(String),
+            'pock_empty'
+        ]);
+    });
 
-    await archivePocket(mockDb, 'pock_empty');
+    it('getInstitutionsWithBalances executes aggregation query with balance and pocket counts', async () => {
+        const mockInstitutions: Institution[] = [
+            {
+                id: 'inst_1',
+                name: 'Maya',
+                type: 'ewallet',
+                code: 'maya',
+                color: '#00D632',
+                is_archived: 0,
+                created_at: '',
+                updated_at: '',
+                total_balance: 45000,
+                pocket_count: 2
+            }
+        ];
 
-    expect(mockDb.runAsync).toHaveBeenCalledWith(
-      expect.stringContaining('UPDATE account_pockets SET is_archived = 1'),
-      [expect.any(String), 'pock_empty']
-    );
-  });
+        const mockDb: any = {
+            getAllAsync: vi.fn(async () => mockInstitutions)
+        };
 
-  it('getInstitutionsWithBalances executes aggregation query with balance and pocket counts', async () => {
-    const mockInstitutions: Institution[] = [
-      {
-        id: 'inst_1',
-        name: 'Maya',
-        type: 'ewallet',
-        code: 'maya',
-        color: '#00D632',
-        is_archived: 0,
-        created_at: '',
-        updated_at: '',
-        total_balance: 45000,
-        pocket_count: 2,
-      },
-    ];
+        const result = await getInstitutionsWithBalances(mockDb);
+        expect(result).toHaveLength(1);
+        expect(result[0].name).toBe('Maya');
+        expect(result[0].total_balance).toBe(45000);
+        expect(mockDb.getAllAsync).toHaveBeenCalledWith(expect.stringContaining('COALESCE(SUM(p.current_balance), 0) AS total_balance'), [0]);
+    });
 
-    const mockDb: any = {
-      getAllAsync: vi.fn(async () => mockInstitutions),
-    };
+    it('updatePocketMetadata updates name, type, and interest details without altering balance', async () => {
+        const executed: { sql: string; params: any[] }[] = [];
+        const mockDb: any = {
+            getFirstAsync: vi.fn(async (sql: string, params: any[]) => {
+                if (sql.includes('FROM account_pockets WHERE id = ?')) {
+                    return {
+                        id: 'pock_123',
+                        institution_id: 'inst_maya',
+                        name: 'Old Pocket',
+                        pocket_type: 'wallet',
+                        currency: 'PHP',
+                        starting_balance: 1000,
+                        current_balance: 5000,
+                        interest_rate: null,
+                        savings_details: '',
+                        is_archived: 0
+                    };
+                }
+                return null;
+            }),
+            runAsync: vi.fn(async (sql: string, params: any[]) => {
+                executed.push({ sql, params });
+                return { changes: 1 };
+            })
+        };
 
-    const result = await getInstitutionsWithBalances(mockDb);
-    expect(result).toHaveLength(1);
-    expect(result[0].name).toBe('Maya');
-    expect(result[0].total_balance).toBe(45000);
-    expect(mockDb.getAllAsync).toHaveBeenCalledWith(
-      expect.stringContaining('COALESCE(SUM(p.current_balance), 0) AS total_balance'),
-      [0]
-    );
-  });
+        await updatePocketMetadata(mockDb, 'pock_123', {
+            name: 'High-Yield Stash',
+            pocketType: 'savings',
+            interestRate: 6.5,
+            savingsDetails: '6.5% interest promo'
+        });
+
+        const updateQuery = executed.find((e) => e.sql.includes('UPDATE account_pockets'));
+        expect(updateQuery).toBeDefined();
+        expect(updateQuery?.params[0]).toBe('High-Yield Stash');
+        expect(updateQuery?.params[1]).toBe('savings');
+        expect(updateQuery?.params[2]).toBe(6.5);
+        expect(updateQuery?.params[3]).toBe('6.5% interest promo');
+        expect(updateQuery?.params[5]).toBe('pock_123');
+    });
 });
-
