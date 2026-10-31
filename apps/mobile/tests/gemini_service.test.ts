@@ -179,6 +179,56 @@ describe('geminiService', () => {
             expect(result.text).toContain('Based on your salary of ₱120,000');
         });
 
+        it('retries on transient network error and succeeds on second attempt', async () => {
+            let callCount = 0;
+            const mockFetch = vi.fn().mockImplementation(async () => {
+                callCount++;
+                if (callCount === 1) {
+                    throw new Error('fetch: failed Fetch request has been cancelled');
+                }
+                return {
+                    ok: true,
+                    json: async () => ({
+                        candidates: [
+                            {
+                                content: {
+                                    parts: [{ text: 'Recovered after retry! You can afford it.' }]
+                                }
+                            }
+                        ]
+                    })
+                };
+            });
+
+            const result = await queryGeminiAdvisor(mockDb, 'Can I afford ₱5,000?', {
+                fetchFn: mockFetch,
+                maxRetries: 1,
+                fetchPockets: vi.fn().mockResolvedValue(mockPockets),
+                fetchLoans: vi.fn().mockResolvedValue(mockLoans),
+                fetchLoansSummary: vi.fn().mockResolvedValue(mockLoansSummary)
+            });
+
+            expect(callCount).toBe(2);
+            expect(result.text).toContain('Recovered after retry');
+        });
+
+        it('converts cancellation or timeout into human-readable timeout error message', async () => {
+            const mockFetch = vi.fn().mockImplementation(async () => {
+                throw new Error('fetch: failed Fetch request has been cancelled');
+            });
+
+            await expect(
+                queryGeminiAdvisor(mockDb, 'Can I afford ₱5,000?', {
+                    fetchFn: mockFetch,
+                    maxRetries: 0,
+                    timeoutMs: 20000,
+                    fetchPockets: vi.fn().mockResolvedValue(mockPockets),
+                    fetchLoans: vi.fn().mockResolvedValue(mockLoans),
+                    fetchLoansSummary: vi.fn().mockResolvedValue(mockLoansSummary)
+                })
+            ).rejects.toThrow('Connection timed out after 20s');
+        });
+
         it('throws error when Gemini API request fails', async () => {
             const mockFetch = vi.fn().mockResolvedValue({
                 ok: false,

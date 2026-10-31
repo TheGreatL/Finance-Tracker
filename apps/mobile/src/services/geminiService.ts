@@ -92,6 +92,7 @@ export interface QueryGeminiOptions {
     apiKey?: string;
     model?: string;
     timeoutMs?: number;
+    maxRetries?: number;
     fetchFn?: typeof fetch;
     fetchPockets?: (db: SQLiteDatabase) => Promise<(AccountPocket & { institution_name?: string })[]>;
     fetchLoans?: (db: SQLiteDatabase) => Promise<LoanRecord[]>;
@@ -104,9 +105,14 @@ export interface QueryGeminiOptions {
  * Throws an error on network/timeout failure so caller can delegate to offline engine.
  */
 export async function queryGeminiAdvisor(db: SQLiteDatabase, prompt: string, options?: QueryGeminiOptions): Promise<GeminiAdvisorResult> {
-    const apiKey = options?.apiKey || GEMINI_API_KEY;
+    const apiKey = options?.apiKey || GEMINI_API_KEY || (options?.fetchFn ? 'mock-api-key' : '');
+    if (!apiKey) {
+        throw new Error('Gemini API key is not configured. Please check EXPO_PUBLIC_GEMINI_API_KEY in .env');
+    }
+
     const model = options?.model || 'gemini-3.5-flash-lite';
-    const timeoutMs = options?.timeoutMs || 8000;
+    const timeoutMs = options?.timeoutMs || 20000;
+    const maxRetries = options?.maxRetries ?? 1;
     const fetchFn = options?.fetchFn || fetch;
 
     const getPockets = options?.fetchPockets || getAllActivePockets;
@@ -123,57 +129,90 @@ export async function queryGeminiAdvisor(db: SQLiteDatabase, prompt: string, opt
 
     const systemInstruction = buildFinancialSystemContext(pockets, loans, loansSummary, incomeSummary);
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-        const requestBody = {
-            systemInstruction: {
-                parts: [{ text: systemInstruction }]
-            },
-            contents: [
-                {
-                    role: 'user',
-                    parts: [{ text: prompt }]
-                }
-            ],
-            generationConfig: {
-                temperature: 0.4,
-                maxOutputTokens: 600
+    const requestBody = {
+        systemInstruction: {
+            parts: [{ text: systemInstruction }]
+        },
+        contents: [
+            {
+                role: 'user',
+                parts: [{ text: prompt }]
             }
-        };
-
-        const res = await fetchFn(endpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(requestBody),
-            signal: controller.signal
-        });
-
-        clearTimeout(timer);
-
-        if (!res.ok) {
-            throw new Error(`Gemini API error ${res.status}: ${res.statusText}`);
+        ],
+        generationConfig: {
+            temperature: 0.4,
+            maxOutputTokens: 600
         }
+    };
 
-        const data = await res.json();
-        const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-        if (!candidateText || typeof candidateText !== 'string') {
-            throw new Error('Gemini API returned an empty response.');
+    let lastError: any;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => {
+            try {
+                controller.abort();
+            } catch {
+                // ignore
+            }
+        }, timeoutMs);
+
+        try {
+            const res = await fetchFn(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody),
+                signal: controller.signal
+            });
+
+            clearTimeout(timer);
+
+            if (!res.ok) {
+                // Non-retriable client errors (except 429 Too Many Requests)
+                if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+                    throw new Error(`Gemini API error ${res.status}: ${res.statusText}`);
+                }
+                throw new Error(`Gemini API error ${res.status}: ${res.statusText}`);
+            }
+
+            const data = await res.json();
+            const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (!candidateText || typeof candidateText !== 'string') {
+                throw new Error('Gemini API returned an empty response.');
+            }
+
+            return {
+                text: candidateText.trim(),
+                status: inferStatusFromText(candidateText),
+                source: 'gemini'
+            };
+        } catch (err: any) {
+            clearTimeout(timer);
+            const isAborted = controller.signal.aborted;
+            const isCancelled =
+                isAborted ||
+                err?.name === 'AbortError' ||
+                err?.message?.toLowerCase().includes('cancelled') ||
+                err?.message?.toLowerCase().includes('aborted');
+
+            if (isCancelled) {
+                lastError = new Error(`Connection timed out after ${Math.round(timeoutMs / 1000)}s`);
+            } else {
+                lastError = err;
+            }
+
+            // Retry on transient network drop or cancellation if retries remain
+            if (attempt < maxRetries) {
+                await new Promise((resolve) => setTimeout(resolve, 500));
+                continue;
+            }
         }
-
-        return {
-            text: candidateText.trim(),
-            status: inferStatusFromText(candidateText),
-            source: 'gemini'
-        };
-    } catch (err) {
-        clearTimeout(timer);
-        throw err;
     }
+
+    throw lastError;
 }

@@ -175,7 +175,7 @@ export default function AssistantScreen() {
             if (chatMode === 'gemini') {
                 // 1. Try Gemini Online AI first when Gemini mode is toggled ON
                 try {
-                    const geminiRes = await queryGeminiAdvisor(db, prompt, { timeoutMs: 8000 });
+                    const geminiRes = await queryGeminiAdvisor(db, prompt, { timeoutMs: 20000, maxRetries: 1 });
                     botMessage = {
                         id: `bot-${Date.now()}`,
                         sender: 'bot',
