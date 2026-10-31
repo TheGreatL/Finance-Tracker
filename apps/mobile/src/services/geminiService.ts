@@ -216,3 +216,51 @@ export async function queryGeminiAdvisor(db: SQLiteDatabase, prompt: string, opt
 
     throw lastError;
 }
+
+export interface VerifyConnectionOptions {
+    apiKey?: string;
+    timeoutMs?: number;
+    fetchFn?: typeof fetch;
+}
+
+/**
+ * Rapidly verifies active internet connectivity to Google Gemini API.
+ * Uses a lightweight metadata probe with a 5-second timeout.
+ */
+export async function verifyGeminiConnection(options?: VerifyConnectionOptions): Promise<{ ok: boolean; error?: string }> {
+    const apiKey = options?.apiKey || GEMINI_API_KEY || (options?.fetchFn ? 'mock-api-key' : '');
+    if (!apiKey) {
+        return { ok: false, error: 'Gemini API key is not configured in .env' };
+    }
+
+    const timeoutMs = options?.timeoutMs || 5000;
+    const fetchFn = options?.fetchFn || fetch;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+        try {
+            controller.abort();
+        } catch {
+            // ignore
+        }
+    }, timeoutMs);
+
+    try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+        const res = await fetchFn(endpoint, {
+            method: 'GET',
+            signal: controller.signal
+        });
+        clearTimeout(timer);
+
+        if (res.ok) {
+            return { ok: true };
+        }
+        return { ok: false, error: `Server returned status ${res.status}` };
+    } catch (err: any) {
+        clearTimeout(timer);
+        if (controller.signal.aborted) {
+            return { ok: false, error: 'Connection timed out. Server unreachable.' };
+        }
+        return { ok: false, error: err?.message || 'Internet connection unavailable' };
+    }
+}

@@ -18,7 +18,7 @@ import { useFocusEffect } from 'expo-router';
 import { Bot, Send, Trash2, Sparkles, Zap, Calendar } from 'lucide-react-native';
 import { getDatabase } from '../../src/database/db';
 import { evaluateChatPrompt } from '../../src/services/chatEngine';
-import { queryGeminiAdvisor } from '../../src/services/geminiService';
+import { queryGeminiAdvisor, verifyGeminiConnection } from '../../src/services/geminiService';
 import {
     saveChatMessage,
     getStoredChatMessages,
@@ -48,6 +48,7 @@ export default function AssistantScreen() {
 
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const [isConnecting, setIsConnecting] = useState(false);
     const [chatMode, setChatMode] = useState<'gemini' | 'offline'>('gemini');
     const [messages, setMessages] = useState<ChatMessage[]>([DEFAULT_WELCOME_MESSAGE]);
 
@@ -264,6 +265,38 @@ export default function AssistantScreen() {
         ]);
     };
 
+    const handleSwitchMode = async (targetMode: 'gemini' | 'offline') => {
+        if (targetMode === chatMode || loading || isConnecting) return;
+
+        if (targetMode === 'offline') {
+            setChatMode('offline');
+            return;
+        }
+
+        // Switching to Gemini AI: test connectivity first to give transparent feedback
+        setIsConnecting(true);
+        try {
+            const check = await verifyGeminiConnection();
+            if (check.ok) {
+                setChatMode('gemini');
+            } else {
+                Alert.alert(
+                    'Gemini AI Unavailable',
+                    `Unable to connect to Gemini AI servers (${check.error || 'Internet unreachable'}). Remaining in Offline Engine mode.`,
+                    [{ text: 'OK' }]
+                );
+            }
+        } catch (err: any) {
+            Alert.alert(
+                'Connection Check Failed',
+                `Failed to reach Gemini AI: ${err?.message || 'Network error'}. Remaining in Offline Engine mode.`,
+                [{ text: 'OK' }]
+            );
+        } finally {
+            setIsConnecting(false);
+        }
+    };
+
     // Scroll to bottom when messages update or when loading state starts
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -285,17 +318,22 @@ export default function AssistantScreen() {
                             <View className="ml-2.5 flex-1">
                                 <Text className="text-base font-bold text-stone-900">PocketBot</Text>
                                 <Text className="text-[11px] text-stone-400" numberOfLines={1}>
-                                    {chatMode === 'gemini' ? 'Gemini AI active (auto-offline fallback)' : 'Offline SQLite engine only'}
+                                    {isConnecting
+                                        ? 'Connecting to Gemini AI servers...'
+                                        : chatMode === 'gemini'
+                                          ? 'Gemini AI active (auto-offline fallback)'
+                                          : 'Offline SQLite engine only'}
                                 </Text>
                             </View>
                         </View>
 
                         <Pressable
                             onPress={handleClearHistory}
+                            disabled={loading || isConnecting}
                             hitSlop={8}
                             accessibilityRole="button"
                             accessibilityLabel="Clear conversation history"
-                            className="p-2 rounded-full active:bg-stone-100"
+                            className={`p-2 rounded-full active:bg-stone-100 ${loading || isConnecting ? 'opacity-40' : ''}`}
                         >
                             <Trash2 size={18} color="#78716C" />
                         </Pressable>
@@ -306,26 +344,32 @@ export default function AssistantScreen() {
                         <Text className="text-[11px] font-semibold text-stone-500 mr-2">Mode:</Text>
                         <View className="flex-row bg-stone-100 p-0.5 rounded-full border border-stone-200 flex-1 max-w-[240px]">
                             <Pressable
-                                onPress={() => setChatMode('gemini')}
+                                onPress={() => handleSwitchMode('gemini')}
+                                disabled={loading || isConnecting}
                                 accessibilityRole="button"
                                 accessibilityLabel="Switch to Gemini AI mode"
                                 className={`flex-1 flex-row items-center justify-center px-3 py-1.5 rounded-full ${
                                     chatMode === 'gemini' ? 'bg-[#18342B]' : ''
-                                }`}
+                                } ${isConnecting ? 'opacity-90' : ''}`}
                             >
-                                <Sparkles size={12} color={chatMode === 'gemini' ? '#BBD583' : '#78716C'} />
+                                {isConnecting ? (
+                                    <ActivityIndicator size="small" color={chatMode === 'gemini' ? '#BBD583' : '#18342B'} />
+                                ) : (
+                                    <Sparkles size={12} color={chatMode === 'gemini' ? '#BBD583' : '#78716C'} />
+                                )}
                                 <Text className={`text-[11px] font-bold ml-1.5 ${chatMode === 'gemini' ? 'text-white' : 'text-stone-600'}`}>
-                                    Gemini AI
+                                    {isConnecting ? 'Connecting...' : 'Gemini AI'}
                                 </Text>
                             </Pressable>
 
                             <Pressable
-                                onPress={() => setChatMode('offline')}
+                                onPress={() => handleSwitchMode('offline')}
+                                disabled={loading || isConnecting}
                                 accessibilityRole="button"
                                 accessibilityLabel="Switch to Offline engine mode"
                                 className={`flex-1 flex-row items-center justify-center px-3 py-1.5 rounded-full ${
                                     chatMode === 'offline' ? 'bg-[#18342B]' : ''
-                                }`}
+                                } ${isConnecting ? 'opacity-50' : ''}`}
                             >
                                 <Zap size={12} color={chatMode === 'offline' ? '#BBD583' : '#78716C'} />
                                 <Text className={`text-[11px] font-bold ml-1.5 ${chatMode === 'offline' ? 'text-white' : 'text-stone-600'}`}>
@@ -362,7 +406,7 @@ export default function AssistantScreen() {
                 />
 
                 {/* Prompt Suggestion Chips */}
-                <PromptSuggestionChips onSelectPrompt={(p) => handleSend(p)} disabled={loading} />
+                <PromptSuggestionChips onSelectPrompt={(p) => handleSend(p)} disabled={loading || isConnecting} />
 
                 {/* Input Bar */}
                 <View
@@ -375,21 +419,23 @@ export default function AssistantScreen() {
                         <TextInput
                             value={input}
                             onChangeText={setInput}
-                            editable={!loading}
+                            editable={!loading && !isConnecting}
                             multiline={true}
                             textAlignVertical="center"
                             scrollEnabled={true}
                             placeholder={
-                                loading
-                                    ? chatMode === 'gemini'
-                                        ? 'Gemini AI is generating response...'
-                                        : 'PocketBot is evaluating records...'
-                                    : chatMode === 'gemini'
-                                      ? "Ask Gemini AI 'Can I afford ₱15,000?'..."
-                                      : "Ask Offline Engine 'Can I afford ₱15,000?'..."
+                                isConnecting
+                                    ? 'Connecting to Gemini AI servers, please wait...'
+                                    : loading
+                                      ? chatMode === 'gemini'
+                                          ? 'Gemini AI is generating response...'
+                                          : 'PocketBot is evaluating records...'
+                                      : chatMode === 'gemini'
+                                        ? "Ask Gemini AI 'Can I afford ₱15,000?'..."
+                                        : "Ask Offline Engine 'Can I afford ₱15,000?'..."
                             }
                             placeholderTextColor="#A8A29E"
-                            className={`text-sm leading-5 p-0 ${loading ? 'text-stone-400' : 'text-stone-900'}`}
+                            className={`text-sm leading-5 p-0 ${loading || isConnecting ? 'text-stone-400' : 'text-stone-900'}`}
                             style={{
                                 maxHeight: 120,
                                 minHeight: 24,
@@ -401,15 +447,19 @@ export default function AssistantScreen() {
 
                     <Pressable
                         onPress={() => handleSend()}
-                        disabled={!input.trim() || loading}
+                        disabled={!input.trim() || loading || isConnecting}
                         hitSlop={8}
                         accessibilityRole="button"
-                        accessibilityLabel={loading ? 'Generating response...' : 'Send message'}
+                        accessibilityLabel={isConnecting ? 'Connecting to Gemini AI...' : loading ? 'Generating response...' : 'Send message'}
                         className={`w-11 h-11 rounded-2xl items-center justify-center shadow-xs mb-0.5 ${
-                            loading ? 'bg-stone-100 border border-stone-200' : input.trim() ? 'bg-[#18342B] active:opacity-90' : 'bg-stone-200'
+                            loading || isConnecting
+                                ? 'bg-stone-100 border border-stone-200'
+                                : input.trim()
+                                  ? 'bg-[#18342B] active:opacity-90'
+                                  : 'bg-stone-200'
                         }`}
                     >
-                        {loading ? (
+                        {loading || isConnecting ? (
                             <ActivityIndicator size="small" color="#18342B" />
                         ) : (
                             <Send size={18} color={input.trim() ? '#BBD583' : '#A8A29E'} />

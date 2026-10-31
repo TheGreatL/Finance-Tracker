@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { buildFinancialSystemContext, queryGeminiAdvisor, inferStatusFromText } from '../src/services/geminiService';
+import { buildFinancialSystemContext, queryGeminiAdvisor, inferStatusFromText, verifyGeminiConnection } from '../src/services/geminiService';
 
 describe('geminiService', () => {
     const mockPockets = [
@@ -244,6 +244,52 @@ describe('geminiService', () => {
                     fetchLoansSummary: vi.fn().mockResolvedValue(mockLoansSummary)
                 })
             ).rejects.toThrow();
+        });
+    });
+
+    describe('verifyGeminiConnection', () => {
+        it('returns ok: true when lightweight metadata probe succeeds', async () => {
+            const mockFetch = vi.fn().mockResolvedValue({
+                ok: true,
+                status: 200
+            });
+
+            const result = await verifyGeminiConnection({
+                fetchFn: mockFetch,
+                apiKey: 'test-api-key'
+            });
+
+            expect(result.ok).toBe(true);
+            expect(result.error).toBeUndefined();
+        });
+
+        it('returns ok: false with error details when server returns non-ok response', async () => {
+            const mockFetch = vi.fn().mockResolvedValue({
+                ok: false,
+                status: 403
+            });
+
+            const result = await verifyGeminiConnection({
+                fetchFn: mockFetch,
+                apiKey: 'test-api-key'
+            });
+
+            expect(result.ok).toBe(false);
+            expect(result.error).toContain('Server returned status 403');
+        });
+
+        it('returns ok: false when connection times out or network is down', async () => {
+            const mockFetch = vi.fn().mockImplementation(async () => {
+                throw new Error('Network request failed');
+            });
+
+            const result = await verifyGeminiConnection({
+                fetchFn: mockFetch,
+                apiKey: 'test-api-key'
+            });
+
+            expect(result.ok).toBe(false);
+            expect(result.error).toContain('Network request failed');
         });
     });
 });
