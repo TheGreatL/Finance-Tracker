@@ -9,6 +9,7 @@ import {
     Dimensions,
     Platform,
     Alert,
+    ActivityIndicator,
     type KeyboardEvent,
     type LayoutChangeEvent
 } from 'react-native';
@@ -26,6 +27,7 @@ import {
     type ChatTimelineItem
 } from '../../src/services/chatStorageService';
 import { ChatMessageBubble, type ChatMessage } from '../../src/components/chat/ChatMessageBubble';
+import { ChatTypingIndicator } from '../../src/components/chat/ChatTypingIndicator';
 import { PromptSuggestionChips } from '../../src/components/chat/PromptSuggestionChips';
 import { computeKeyboardOverlap } from '../../src/utils/keyboard';
 import { formatTime12 } from '../../src/utils/formatters';
@@ -262,13 +264,13 @@ export default function AssistantScreen() {
         ]);
     };
 
-    // Scroll to bottom when messages update
+    // Scroll to bottom when messages update or when loading state starts
     useEffect(() => {
         const timer = setTimeout(() => {
             listRef.current?.scrollToEnd({ animated: true });
         }, 100);
         return () => clearTimeout(timer);
-    }, [timelineItems.length]);
+    }, [timelineItems.length, loading]);
 
     return (
         <View onLayout={handleContainerLayout} className="flex-1 bg-stone-50" style={{ paddingTop: Math.max(insets.top, 12) }}>
@@ -352,6 +354,7 @@ export default function AssistantScreen() {
                         }
                         return <ChatMessageBubble message={item.message} />;
                     }}
+                    ListFooterComponent={loading ? <ChatTypingIndicator mode={chatMode} /> : undefined}
                     contentContainerStyle={{ paddingVertical: 14 }}
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
@@ -359,7 +362,7 @@ export default function AssistantScreen() {
                 />
 
                 {/* Prompt Suggestion Chips */}
-                <PromptSuggestionChips onSelectPrompt={(p) => handleSend(p)} />
+                <PromptSuggestionChips onSelectPrompt={(p) => handleSend(p)} disabled={loading} />
 
                 {/* Input Bar */}
                 <View
@@ -372,14 +375,21 @@ export default function AssistantScreen() {
                         <TextInput
                             value={input}
                             onChangeText={setInput}
+                            editable={!loading}
                             multiline={true}
                             textAlignVertical="center"
                             scrollEnabled={true}
                             placeholder={
-                                chatMode === 'gemini' ? "Ask Gemini AI 'Can I afford ₱15,000?'..." : "Ask Offline Engine 'Can I afford ₱15,000?'..."
+                                loading
+                                    ? chatMode === 'gemini'
+                                        ? 'Gemini AI is generating response...'
+                                        : 'PocketBot is evaluating records...'
+                                    : chatMode === 'gemini'
+                                      ? "Ask Gemini AI 'Can I afford ₱15,000?'..."
+                                      : "Ask Offline Engine 'Can I afford ₱15,000?'..."
                             }
                             placeholderTextColor="#A8A29E"
-                            className="text-sm text-stone-900 p-0 leading-5"
+                            className={`text-sm leading-5 p-0 ${loading ? 'text-stone-400' : 'text-stone-900'}`}
                             style={{
                                 maxHeight: 120,
                                 minHeight: 24,
@@ -393,11 +403,17 @@ export default function AssistantScreen() {
                         onPress={() => handleSend()}
                         disabled={!input.trim() || loading}
                         hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={loading ? 'Generating response...' : 'Send message'}
                         className={`w-11 h-11 rounded-2xl items-center justify-center shadow-xs mb-0.5 ${
-                            input.trim() && !loading ? 'bg-[#18342B] active:opacity-90' : 'bg-stone-200'
+                            loading ? 'bg-stone-100 border border-stone-200' : input.trim() ? 'bg-[#18342B] active:opacity-90' : 'bg-stone-200'
                         }`}
                     >
-                        <Send size={18} color={input.trim() && !loading ? '#BBD583' : '#A8A29E'} />
+                        {loading ? (
+                            <ActivityIndicator size="small" color="#18342B" />
+                        ) : (
+                            <Send size={18} color={input.trim() ? '#BBD583' : '#A8A29E'} />
+                        )}
                     </Pressable>
                 </View>
             </View>
