@@ -503,7 +503,7 @@ export default function DashboardScreen() {
         amount: t.amount,
         type: t.type,
         date: t.date,
-        accountName: t.institution_name ? `${t.institution_name} â€¢ ${t.pocket_name || 'Wallet'}` : t.pocket_name || 'Wallet'
+        accountName: t.institution_name ? `${t.institution_name} • ${t.pocket_name || 'Wallet'}` : t.pocket_name || 'Wallet'
     }));
 
     return (
@@ -524,7 +524,7 @@ export default function DashboardScreen() {
                 />
 
                 {/* Hero Card with Pistachio & Deep Pine */}
-                <BalanceHeroCard totalBalance={totalBalance} totalIncome={totalIncome} totalExpense={totalExpense} currency="â‚±" />
+                <BalanceHeroCard totalBalance={totalBalance} totalIncome={totalIncome} totalExpense={totalExpense} currency="₱" />
 
                 {/* Unified Financial Pulse Strip (Payday, Debt Due, Recurring Bills) */}
                 <FinancialPulseStrip
@@ -554,7 +554,7 @@ export default function DashboardScreen() {
                 />
 
                 {/* Recent Transactions List */}
-                <RecentTransactionsList transactions={formattedRecentTransactions} currency="â‚±" onSeeAllPress={() => router.push('/(tabs)/two')} />
+                <RecentTransactionsList transactions={formattedRecentTransactions} currency="₱" onSeeAllPress={() => router.push('/(tabs)/two')} />
 
                 {/* Dedicated Section: Reset, Export, and Import Database */}
                 <DatabaseManagementCard onDataChanged={loadData} />
