@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Modal, View, Text, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
-import { X, Plus, Trash2, Briefcase, Building2, Check, AlertCircle } from 'lucide-react-native';
+import { X, Plus, Trash2, Briefcase, Building2, Check, AlertCircle, Calendar, ChevronDown } from 'lucide-react-native';
 import type {
     AccountPocket,
     CreateJobInput,
@@ -17,9 +17,10 @@ import {
     DEDUCTION_CATEGORY_CONFIG,
     DEDUCTION_CUTOFF_OPTIONS
 } from '../../constants/salaryPresets';
-import { formatCurrency, formatMoneyInput, parseMoneyInput } from '../../utils/formatters';
+import { formatCurrency, formatMoneyInput, parseMoneyInput, formatDisplayDate } from '../../utils/formatters';
 import { calculateNetTakeHome } from '../../services/salaryService';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
+import { DatePickerModal } from '../common/DatePickerModal';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 
 interface AddJobModalProps {
@@ -47,6 +48,7 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
     const [payDay1Str, setPayDay1Str] = useState('15');
     const [payDay2Str, setPayDay2Str] = useState('30');
     const [payoutDate, setPayoutDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [datePickerVisible, setDatePickerVisible] = useState(false);
     const [grossSalaryStr, setGrossSalaryStr] = useState('');
     const [targetPocketId, setTargetPocketId] = useState('');
     const [notes, setNotes] = useState('');
@@ -74,6 +76,7 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
             setPayDay1Str('15');
             setPayDay2Str('30');
             setPayoutDate(new Date().toISOString().split('T')[0]);
+            setDatePickerVisible(false);
             setGrossSalaryStr('');
             setTargetPocketId(pockets[0]?.id || '');
             setNotes('');
@@ -276,406 +279,441 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
     };
 
     return (
-        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 justify-end bg-black/60">
-                <View className="max-h-[92%] rounded-t-3xl bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
-                    {/* Header */}
-                    <View className="flex-row items-center justify-between border-b border-slate-100 dark:border-slate-800 px-6 py-4">
-                        <View className="flex-row items-center gap-2.5">
-                            <View className="w-9 h-9 rounded-full bg-emerald-50 dark:bg-emerald-950/60 items-center justify-center">
-                                <Briefcase size={20} className="text-emerald-600 dark:text-emerald-400" />
-                            </View>
-                            <View>
-                                <Text className="text-lg font-bold text-slate-900 dark:text-white">Add Job & Salary</Text>
-                                <Text className="text-xs text-slate-500 dark:text-slate-400">Track earnings, itemized deductions & paydays</Text>
-                            </View>
-                        </View>
-                        <Pressable onPress={onClose} hitSlop={12} className="rounded-full p-2 bg-slate-100 dark:bg-slate-800">
-                            <X size={18} className="text-slate-600 dark:text-slate-300" />
-                        </Pressable>
-                    </View>
-
-                    {/* Error Banner */}
-                    {error ? (
-                        <View className="mx-6 mt-3 flex-row items-center gap-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 p-3 border border-rose-200 dark:border-rose-900/50">
-                            <AlertCircle size={18} className="text-rose-600 dark:text-rose-400" />
-                            <Text className="flex-1 text-xs text-rose-700 dark:text-rose-300 font-medium">{error}</Text>
-                        </View>
-                    ) : null}
-
-                    <ScrollView className="px-6 py-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: keyboardInset }}>
-                        {/* 1. Job Information */}
-                        <View className="mb-4">
-                            <Text className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
-                                1. Employment Information
-                            </Text>
-
-                            <View className="space-y-3">
-                                <View>
-                                    <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Job Title *</Text>
-                                    <TextInput
-                                        value={title}
-                                        onChangeText={setTitle}
-                                        placeholder="e.g. Senior Software Engineer"
-                                        placeholderTextColor="#94A3B8"
-                                        className="h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3.5 text-sm text-slate-900 dark:text-white"
-                                    />
+        <>
+            <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 justify-end bg-black/60">
+                    <View className="max-h-[92%] rounded-t-3xl bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+                        {/* Header */}
+                        <View className="flex-row items-center justify-between border-b border-slate-100 dark:border-slate-800 px-6 py-4">
+                            <View className="flex-row items-center gap-2.5">
+                                <View className="w-9 h-9 rounded-full bg-emerald-50 dark:bg-emerald-950/60 items-center justify-center">
+                                    <Briefcase size={20} className="text-emerald-600 dark:text-emerald-400" />
                                 </View>
+                                <View>
+                                    <Text className="text-lg font-bold text-slate-900 dark:text-white">Add Job & Salary</Text>
+                                    <Text className="text-xs text-slate-500 dark:text-slate-400">Track earnings, itemized deductions & paydays</Text>
+                                </View>
+                            </View>
+                            <Pressable onPress={onClose} hitSlop={12} className="rounded-full p-2 bg-slate-100 dark:bg-slate-800">
+                                <X size={18} className="text-slate-600 dark:text-slate-300" />
+                            </Pressable>
+                        </View>
 
-                                <View className="mt-2.5">
-                                    <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Employer / Client Name *</Text>
-                                    <View className="flex-row items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3.5">
-                                        <Building2 size={16} className="text-slate-400 mr-2" />
+                        {/* Error Banner */}
+                        {error ? (
+                            <View className="mx-6 mt-3 flex-row items-center gap-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 p-3 border border-rose-200 dark:border-rose-900/50">
+                                <AlertCircle size={18} className="text-rose-600 dark:text-rose-400" />
+                                <Text className="flex-1 text-xs text-rose-700 dark:text-rose-300 font-medium">{error}</Text>
+                            </View>
+                        ) : null}
+
+                        <ScrollView
+                            className="px-6 py-4"
+                            showsVerticalScrollIndicator={false}
+                            contentContainerStyle={{ paddingBottom: keyboardInset }}
+                        >
+                            {/* 1. Job Information */}
+                            <View className="mb-4">
+                                <Text className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
+                                    1. Employment Information
+                                </Text>
+
+                                <View className="space-y-3">
+                                    <View>
+                                        <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Job Title *</Text>
                                         <TextInput
-                                            value={companyName}
-                                            onChangeText={setCompanyName}
-                                            placeholder="e.g. Acme Corporation / Upwork Client"
+                                            value={title}
+                                            onChangeText={setTitle}
+                                            placeholder="e.g. Senior Software Engineer"
                                             placeholderTextColor="#94A3B8"
-                                            className="flex-1 h-11 text-sm text-slate-900 dark:text-white"
+                                            className="h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3.5 text-sm text-slate-900 dark:text-white"
                                         />
                                     </View>
-                                </View>
 
-                                <View className="mt-2.5">
-                                    <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Employment Type</Text>
-                                    <View className="flex-row flex-wrap gap-1.5">
-                                        {EMPLOYMENT_TYPE_OPTIONS.map((opt) => {
-                                            const isSelected = employmentType === opt.id;
+                                    <View className="mt-2.5">
+                                        <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                            Employer / Client Name *
+                                        </Text>
+                                        <View className="flex-row items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3.5">
+                                            <Building2 size={16} className="text-slate-400 mr-2" />
+                                            <TextInput
+                                                value={companyName}
+                                                onChangeText={setCompanyName}
+                                                placeholder="e.g. Acme Corporation / Upwork Client"
+                                                placeholderTextColor="#94A3B8"
+                                                className="flex-1 h-11 text-sm text-slate-900 dark:text-white"
+                                            />
+                                        </View>
+                                    </View>
+
+                                    <View className="mt-2.5">
+                                        <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Employment Type</Text>
+                                        <View className="flex-row flex-wrap gap-1.5">
+                                            {EMPLOYMENT_TYPE_OPTIONS.map((opt) => {
+                                                const isSelected = employmentType === opt.id;
+                                                return (
+                                                    <Pressable
+                                                        key={opt.id}
+                                                        onPress={() => setEmploymentType(opt.id)}
+                                                        className={`rounded-lg px-3 py-1.5 border ${
+                                                            isSelected
+                                                                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-700'
+                                                                : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                                                        }`}
+                                                    >
+                                                        <Text
+                                                            className={`text-xs font-medium ${
+                                                                isSelected
+                                                                    ? 'text-emerald-700 dark:text-emerald-300 font-bold'
+                                                                    : 'text-slate-600 dark:text-slate-400'
+                                                            }`}
+                                                        >
+                                                            {opt.label}
+                                                        </Text>
+                                                    </Pressable>
+                                                );
+                                            })}
+                                        </View>
+                                    </View>
+                                </View>
+                            </View>
+
+                            {/* 2. Pay Schedule & Gross Salary */}
+                            <View className="mb-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                <Text className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
+                                    2. Compensation & Pay Schedule
+                                </Text>
+
+                                <View className="mb-3">
+                                    <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Pay Schedule</Text>
+                                    <View className="flex-row flex-wrap gap-2">
+                                        {PAY_SCHEDULE_OPTIONS.map((opt) => {
+                                            const isSelected = paySchedule === opt.id;
                                             return (
                                                 <Pressable
                                                     key={opt.id}
-                                                    onPress={() => setEmploymentType(opt.id)}
-                                                    className={`rounded-lg px-3 py-1.5 border ${
+                                                    onPress={() => setPaySchedule(opt.id)}
+                                                    className={`flex-1 min-w-[45%] rounded-xl p-2.5 border ${
                                                         isSelected
-                                                            ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-700'
-                                                            : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                                                            ? 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-500'
+                                                            : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700'
                                                     }`}
                                                 >
                                                     <Text
-                                                        className={`text-xs font-medium ${
+                                                        className={`text-xs font-bold ${
                                                             isSelected
-                                                                ? 'text-emerald-700 dark:text-emerald-300 font-bold'
-                                                                : 'text-slate-600 dark:text-slate-400'
+                                                                ? 'text-emerald-700 dark:text-emerald-400'
+                                                                : 'text-slate-800 dark:text-slate-200'
                                                         }`}
                                                     >
                                                         {opt.label}
+                                                    </Text>
+                                                    <Text className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5" numberOfLines={1}>
+                                                        {opt.description}
                                                     </Text>
                                                 </Pressable>
                                             );
                                         })}
                                     </View>
                                 </View>
+
+                                {/* Pay Dates or One-Time Payout Date */}
+                                {paySchedule === 'one_time' ? (
+                                    <View className="mb-3">
+                                        <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Target Payout Date *</Text>
+                                        <Pressable
+                                            onPress={() => {
+                                                setDatePickerVisible(true);
+                                                if (fieldErrors.payoutDate) setFieldErrors((prev) => ({ ...prev, payoutDate: undefined }));
+                                            }}
+                                            disabled={submitting}
+                                            accessibilityRole="button"
+                                            accessibilityLabel="Select target payout date"
+                                            className={`rounded-xl px-3.5 py-3 flex-row items-center justify-between border ${
+                                                fieldErrors.payoutDate
+                                                    ? 'border-rose-400 bg-rose-50/30'
+                                                    : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 active:bg-slate-100 dark:active:bg-slate-800'
+                                            } ${submitting ? 'opacity-60' : ''}`}
+                                        >
+                                            <View className="flex-row items-center flex-1 mr-1">
+                                                <Calendar size={15} color="#18342B" />
+                                                <Text className="text-xs font-bold text-slate-900 dark:text-white ml-1.5" numberOfLines={1}>
+                                                    {formatDisplayDate(payoutDate)}
+                                                </Text>
+                                            </View>
+                                            <ChevronDown size={14} color="#78716C" />
+                                        </Pressable>
+                                        {fieldErrors.payoutDate && (
+                                            <Text className="text-[11px] font-semibold text-rose-600 mt-1">{fieldErrors.payoutDate}</Text>
+                                        )}
+                                    </View>
+                                ) : (
+                                    <View className="flex-row gap-3 mb-3">
+                                        <View className="flex-1">
+                                            <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                                {paySchedule === 'semi_monthly' ? '1st Payday (Day)' : 'Payday of Month'}
+                                            </Text>
+                                            <TextInput
+                                                value={payDay1Str}
+                                                onChangeText={setPayDay1Str}
+                                                keyboardType="number-pad"
+                                                placeholder="15"
+                                                maxLength={2}
+                                                className="h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3.5 text-sm text-slate-900 dark:text-white"
+                                            />
+                                            {fieldErrors.payDay1 && (
+                                                <Text className="text-[11px] font-semibold text-rose-600 mt-1">{fieldErrors.payDay1}</Text>
+                                            )}
+                                        </View>
+
+                                        {paySchedule === 'semi_monthly' && (
+                                            <View className="flex-1">
+                                                <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                                    2nd Payday (Day)
+                                                </Text>
+                                                <TextInput
+                                                    value={payDay2Str}
+                                                    onChangeText={setPayDay2Str}
+                                                    keyboardType="number-pad"
+                                                    placeholder="30"
+                                                    maxLength={2}
+                                                    className="h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3.5 text-sm text-slate-900 dark:text-white"
+                                                />
+                                                {fieldErrors.payDay2 && (
+                                                    <Text className="text-[11px] font-semibold text-rose-600 mt-1">{fieldErrors.payDay2}</Text>
+                                                )}
+                                            </View>
+                                        )}
+                                    </View>
+                                )}
+
+                                {/* Gross Salary per paycheck */}
+                                <View className="mb-3">
+                                    <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                        {paySchedule === 'one_time' ? 'Total Agreed Amount *' : 'Gross Earnings (Per Paycheck) *'}
+                                    </Text>
+                                    <View className="flex-row items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3.5">
+                                        <Text className="text-slate-400 font-bold mr-1.5 text-sm">₱</Text>
+                                        <TextInput
+                                            value={grossSalaryStr}
+                                            onChangeText={(val) => setGrossSalaryStr(formatMoneyInput(val))}
+                                            keyboardType="decimal-pad"
+                                            placeholder="0.00"
+                                            placeholderTextColor="#94A3B8"
+                                            className="flex-1 h-11 text-base font-semibold text-slate-900 dark:text-white"
+                                        />
+                                    </View>
+                                </View>
+
+                                {/* Target Pocket Selection */}
+                                <View className="mb-2">
+                                    <SearchableSelectField
+                                        label="Direct Deposit Account Pocket *"
+                                        selectedId={targetPocketId}
+                                        options={pocketOptions}
+                                        onSelect={(opt) => setTargetPocketId(opt.id)}
+                                        placeholder="Select deposit pocket..."
+                                    />
+                                </View>
                             </View>
-                        </View>
 
-                        {/* 2. Pay Schedule & Gross Salary */}
-                        <View className="mb-4 pt-2 border-t border-slate-100 dark:border-slate-800">
-                            <Text className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
-                                2. Compensation & Pay Schedule
-                            </Text>
+                            {/* 3. Itemized Deductions */}
+                            <View className="mb-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                <View className="flex-row items-center justify-between mb-2">
+                                    <Text className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                        3. Itemized Payroll Deductions
+                                    </Text>
+                                    <Pressable
+                                        onPress={handleAddCustomDeduction}
+                                        className="flex-row items-center gap-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1"
+                                    >
+                                        <Plus size={14} className="text-emerald-600 dark:text-emerald-400" />
+                                        <Text className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Custom</Text>
+                                    </Pressable>
+                                </View>
 
-                            <View className="mb-3">
-                                <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Pay Schedule</Text>
-                                <View className="flex-row flex-wrap gap-2">
-                                    {PAY_SCHEDULE_OPTIONS.map((opt) => {
-                                        const isSelected = paySchedule === opt.id;
+                                {/* Quick Add Preset Chips */}
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row mb-3 pb-1">
+                                    {DEDUCTION_PRESETS.map((preset) => {
+                                        const alreadyAdded = deductions.some((d) => d.name.toLowerCase() === preset.name.toLowerCase());
                                         return (
                                             <Pressable
-                                                key={opt.id}
-                                                onPress={() => setPaySchedule(opt.id)}
-                                                className={`flex-1 min-w-[45%] rounded-xl p-2.5 border ${
-                                                    isSelected
-                                                        ? 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-500'
-                                                        : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700'
+                                                key={preset.name}
+                                                onPress={() => handleAddPresetDeduction(preset)}
+                                                disabled={alreadyAdded}
+                                                className={`mr-2 flex-row items-center gap-1 rounded-full px-3 py-1 border ${
+                                                    alreadyAdded
+                                                        ? 'bg-slate-100 dark:bg-slate-800 border-transparent opacity-50'
+                                                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
                                                 }`}
                                             >
+                                                {alreadyAdded && <Check size={12} className="text-emerald-600" />}
                                                 <Text
-                                                    className={`text-xs font-bold ${
-                                                        isSelected ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-200'
+                                                    className={`text-[11px] font-medium ${
+                                                        alreadyAdded ? 'text-slate-400' : 'text-slate-700 dark:text-slate-300'
                                                     }`}
                                                 >
-                                                    {opt.label}
-                                                </Text>
-                                                <Text className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5" numberOfLines={1}>
-                                                    {opt.description}
+                                                    + {preset.name}
                                                 </Text>
                                             </Pressable>
+                                        );
+                                    })}
+                                </ScrollView>
+
+                                {/* Deductions Rows */}
+                                <View className="space-y-2.5">
+                                    {deductions.map((d) => {
+                                        const catConfig = DEDUCTION_CATEGORY_CONFIG[d.category];
+                                        return (
+                                            <View
+                                                key={d.id}
+                                                className="rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/70 dark:bg-slate-800/40 p-2.5"
+                                            >
+                                                <View className="flex-row items-center gap-2 mb-2">
+                                                    <TextInput
+                                                        value={d.name}
+                                                        onChangeText={(name) => handleUpdateDeduction(d.id, { name })}
+                                                        placeholder="Deduction Name"
+                                                        placeholderTextColor="#94A3B8"
+                                                        className="flex-1 h-9 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 text-xs font-semibold text-slate-900 dark:text-white"
+                                                    />
+                                                    <View className={`rounded-lg px-2 py-1 ${catConfig.badgeBg}`}>
+                                                        <Text className={`text-[10px] font-bold ${catConfig.badgeText}`}>{catConfig.label}</Text>
+                                                    </View>
+                                                    <Pressable
+                                                        onPress={() => handleRemoveDeduction(d.id)}
+                                                        className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40"
+                                                    >
+                                                        <Trash2 size={14} className="text-rose-600 dark:text-rose-400" />
+                                                    </Pressable>
+                                                </View>
+
+                                                {/* Amount Input */}
+                                                <View className="flex-row items-center gap-2">
+                                                    <View className="flex-1 flex-row items-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5">
+                                                        <Text className="text-slate-400 font-bold mr-1 text-xs">₱</Text>
+                                                        <TextInput
+                                                            value={d.amountStr}
+                                                            onChangeText={(val) => handleUpdateDeduction(d.id, { amountStr: formatMoneyInput(val) })}
+                                                            keyboardType="decimal-pad"
+                                                            placeholder="0.00"
+                                                            placeholderTextColor="#94A3B8"
+                                                            className="flex-1 h-9 text-xs font-semibold text-slate-900 dark:text-white"
+                                                        />
+                                                    </View>
+                                                </View>
+
+                                                {/* Semi-Monthly Cut-off Selection */}
+                                                {paySchedule === 'semi_monthly' && (
+                                                    <View className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex-row items-center justify-between">
+                                                        <Text className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                                            Cut-off:
+                                                        </Text>
+                                                        <View className="flex-row gap-1">
+                                                            {DEDUCTION_CUTOFF_OPTIONS.map((opt) => {
+                                                                const isSelected = (d.payCutoff || 'both') === opt.id;
+                                                                return (
+                                                                    <Pressable
+                                                                        key={opt.id}
+                                                                        onPress={() => handleUpdateDeduction(d.id, { payCutoff: opt.id })}
+                                                                        className={`rounded-md px-2 py-1 border ${
+                                                                            isSelected
+                                                                                ? 'bg-[#18342B] border-[#18342B]'
+                                                                                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                                                                        }`}
+                                                                    >
+                                                                        <Text
+                                                                            className={`text-[10px] font-bold ${
+                                                                                isSelected ? 'text-white' : 'text-slate-600 dark:text-slate-400'
+                                                                            }`}
+                                                                        >
+                                                                            {opt.shortLabel}
+                                                                        </Text>
+                                                                    </Pressable>
+                                                                );
+                                                            })}
+                                                        </View>
+                                                    </View>
+                                                )}
+                                            </View>
                                         );
                                     })}
                                 </View>
                             </View>
 
-                            {/* Pay Dates or One-Time Payout Date */}
-                            {paySchedule === 'one_time' ? (
-                                <View className="mb-3">
-                                    <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Target Payout Date *</Text>
-                                    <TextInput
-                                        value={payoutDate}
-                                        onChangeText={(val) => {
-                                            setPayoutDate(val);
-                                            if (fieldErrors.payoutDate) setFieldErrors((prev) => ({ ...prev, payoutDate: undefined }));
-                                        }}
-                                        placeholder="YYYY-MM-DD"
-                                        placeholderTextColor="#94A3B8"
-                                        className={`h-11 rounded-xl border px-3.5 text-sm text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-800/60 ${
-                                            fieldErrors.payoutDate ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200 dark:border-slate-700'
-                                        }`}
-                                    />
-                                    {fieldErrors.payoutDate && (
-                                        <Text className="text-[11px] font-semibold text-rose-600 mt-1">{fieldErrors.payoutDate}</Text>
-                                    )}
-                                </View>
-                            ) : (
-                                <View className="flex-row gap-3 mb-3">
-                                    <View className="flex-1">
-                                        <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                                            {paySchedule === 'semi_monthly' ? '1st Payday (Day)' : 'Payday of Month'}
-                                        </Text>
-                                        <TextInput
-                                            value={payDay1Str}
-                                            onChangeText={setPayDay1Str}
-                                            keyboardType="number-pad"
-                                            placeholder="15"
-                                            maxLength={2}
-                                            className="h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3.5 text-sm text-slate-900 dark:text-white"
-                                        />
-                                        {fieldErrors.payDay1 && (
-                                            <Text className="text-[11px] font-semibold text-rose-600 mt-1">{fieldErrors.payDay1}</Text>
-                                        )}
-                                    </View>
-
-                                    {paySchedule === 'semi_monthly' && (
-                                        <View className="flex-1">
-                                            <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">2nd Payday (Day)</Text>
-                                            <TextInput
-                                                value={payDay2Str}
-                                                onChangeText={setPayDay2Str}
-                                                keyboardType="number-pad"
-                                                placeholder="30"
-                                                maxLength={2}
-                                                className="h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3.5 text-sm text-slate-900 dark:text-white"
-                                            />
-                                            {fieldErrors.payDay2 && (
-                                                <Text className="text-[11px] font-semibold text-rose-600 mt-1">{fieldErrors.payDay2}</Text>
-                                            )}
-                                        </View>
-                                    )}
-                                </View>
-                            )}
-
-                            {/* Gross Salary per paycheck */}
-                            <View className="mb-3">
-                                <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                                    {paySchedule === 'one_time' ? 'Total Agreed Amount *' : 'Gross Earnings (Per Paycheck) *'}
+                            {/* Live Calculation Bar */}
+                            <View className="mb-5 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/20 p-4">
+                                <Text className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 mb-2">
+                                    Estimated Net Paycheck Summary
                                 </Text>
-                                <View className="flex-row items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3.5">
-                                    <Text className="text-slate-400 font-bold mr-1.5 text-sm">₱</Text>
-                                    <TextInput
-                                        value={grossSalaryStr}
-                                        onChangeText={(val) => setGrossSalaryStr(formatMoneyInput(val))}
-                                        keyboardType="decimal-pad"
-                                        placeholder="0.00"
-                                        placeholderTextColor="#94A3B8"
-                                        className="flex-1 h-11 text-base font-semibold text-slate-900 dark:text-white"
-                                    />
+
+                                <View className="flex-row justify-between items-center mb-1">
+                                    <Text className="text-xs text-slate-600 dark:text-slate-400">Gross Salary</Text>
+                                    <Text className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                        {formatCurrency(calculation.grossSalary)}
+                                    </Text>
+                                </View>
+
+                                <View className="flex-row justify-between items-center mb-2">
+                                    <Text className="text-xs text-rose-600 dark:text-rose-400">Total Deductions</Text>
+                                    <Text className="text-xs font-semibold text-rose-600 dark:text-rose-400">
+                                        - {formatCurrency(calculation.totalDeductions)}
+                                    </Text>
+                                </View>
+
+                                <View className="h-px bg-emerald-500/20 my-1" />
+
+                                <View className="flex-row justify-between items-center pt-1">
+                                    <Text className="text-sm font-bold text-slate-900 dark:text-white">Net Take-Home Pay</Text>
+                                    <Text className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                                        {formatCurrency(calculation.netTakeHome)}
+                                    </Text>
                                 </View>
                             </View>
 
-                            {/* Target Pocket Selection */}
-                            <View className="mb-2">
-                                <SearchableSelectField
-                                    label="Direct Deposit Account Pocket *"
-                                    selectedId={targetPocketId}
-                                    options={pocketOptions}
-                                    onSelect={(opt) => setTargetPocketId(opt.id)}
-                                    placeholder="Select deposit pocket..."
+                            {/* Notes */}
+                            <View className="mb-4">
+                                <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Notes (Optional)</Text>
+                                <TextInput
+                                    value={notes}
+                                    onChangeText={setNotes}
+                                    placeholder="Tax status, allowances, or contract remarks..."
+                                    placeholderTextColor="#94A3B8"
+                                    multiline
+                                    numberOfLines={2}
+                                    className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-3 text-xs text-slate-900 dark:text-white"
                                 />
                             </View>
+                        </ScrollView>
+
+                        {/* Footer Submit Button */}
+                        <View className="border-t border-slate-100 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
+                            <Pressable
+                                onPress={handleSave}
+                                disabled={submitting}
+                                className={`h-12 rounded-xl bg-emerald-600 items-center justify-center ${
+                                    submitting ? 'opacity-60' : 'active:bg-emerald-700'
+                                }`}
+                            >
+                                <Text className="text-sm font-bold text-white">{submitting ? 'Saving Job...' : 'Save Job & Schedule Paydays'}</Text>
+                            </Pressable>
                         </View>
-
-                        {/* 3. Itemized Deductions */}
-                        <View className="mb-4 pt-2 border-t border-slate-100 dark:border-slate-800">
-                            <View className="flex-row items-center justify-between mb-2">
-                                <Text className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                                    3. Itemized Payroll Deductions
-                                </Text>
-                                <Pressable
-                                    onPress={handleAddCustomDeduction}
-                                    className="flex-row items-center gap-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1"
-                                >
-                                    <Plus size={14} className="text-emerald-600 dark:text-emerald-400" />
-                                    <Text className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Custom</Text>
-                                </Pressable>
-                            </View>
-
-                            {/* Quick Add Preset Chips */}
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row mb-3 pb-1">
-                                {DEDUCTION_PRESETS.map((preset) => {
-                                    const alreadyAdded = deductions.some((d) => d.name.toLowerCase() === preset.name.toLowerCase());
-                                    return (
-                                        <Pressable
-                                            key={preset.name}
-                                            onPress={() => handleAddPresetDeduction(preset)}
-                                            disabled={alreadyAdded}
-                                            className={`mr-2 flex-row items-center gap-1 rounded-full px-3 py-1 border ${
-                                                alreadyAdded
-                                                    ? 'bg-slate-100 dark:bg-slate-800 border-transparent opacity-50'
-                                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-                                            }`}
-                                        >
-                                            {alreadyAdded && <Check size={12} className="text-emerald-600" />}
-                                            <Text
-                                                className={`text-[11px] font-medium ${
-                                                    alreadyAdded ? 'text-slate-400' : 'text-slate-700 dark:text-slate-300'
-                                                }`}
-                                            >
-                                                + {preset.name}
-                                            </Text>
-                                        </Pressable>
-                                    );
-                                })}
-                            </ScrollView>
-
-                            {/* Deductions Rows */}
-                            <View className="space-y-2.5">
-                                {deductions.map((d) => {
-                                    const catConfig = DEDUCTION_CATEGORY_CONFIG[d.category];
-                                    return (
-                                        <View
-                                            key={d.id}
-                                            className="rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/70 dark:bg-slate-800/40 p-2.5"
-                                        >
-                                            <View className="flex-row items-center gap-2 mb-2">
-                                                <TextInput
-                                                    value={d.name}
-                                                    onChangeText={(name) => handleUpdateDeduction(d.id, { name })}
-                                                    placeholder="Deduction Name"
-                                                    placeholderTextColor="#94A3B8"
-                                                    className="flex-1 h-9 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 text-xs font-semibold text-slate-900 dark:text-white"
-                                                />
-                                                <View className={`rounded-lg px-2 py-1 ${catConfig.badgeBg}`}>
-                                                    <Text className={`text-[10px] font-bold ${catConfig.badgeText}`}>{catConfig.label}</Text>
-                                                </View>
-                                                <Pressable
-                                                    onPress={() => handleRemoveDeduction(d.id)}
-                                                    className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40"
-                                                >
-                                                    <Trash2 size={14} className="text-rose-600 dark:text-rose-400" />
-                                                </Pressable>
-                                            </View>
-
-                                            {/* Amount Input */}
-                                            <View className="flex-row items-center gap-2">
-                                                <View className="flex-1 flex-row items-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5">
-                                                    <Text className="text-slate-400 font-bold mr-1 text-xs">₱</Text>
-                                                    <TextInput
-                                                        value={d.amountStr}
-                                                        onChangeText={(val) => handleUpdateDeduction(d.id, { amountStr: formatMoneyInput(val) })}
-                                                        keyboardType="decimal-pad"
-                                                        placeholder="0.00"
-                                                        placeholderTextColor="#94A3B8"
-                                                        className="flex-1 h-9 text-xs font-semibold text-slate-900 dark:text-white"
-                                                    />
-                                                </View>
-                                            </View>
-
-                                            {/* Semi-Monthly Cut-off Selection */}
-                                            {paySchedule === 'semi_monthly' && (
-                                                <View className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex-row items-center justify-between">
-                                                    <Text className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                                                        Cut-off:
-                                                    </Text>
-                                                    <View className="flex-row gap-1">
-                                                        {DEDUCTION_CUTOFF_OPTIONS.map((opt) => {
-                                                            const isSelected = (d.payCutoff || 'both') === opt.id;
-                                                            return (
-                                                                <Pressable
-                                                                    key={opt.id}
-                                                                    onPress={() => handleUpdateDeduction(d.id, { payCutoff: opt.id })}
-                                                                    className={`rounded-md px-2 py-1 border ${
-                                                                        isSelected
-                                                                            ? 'bg-[#18342B] border-[#18342B]'
-                                                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-                                                                    }`}
-                                                                >
-                                                                    <Text
-                                                                        className={`text-[10px] font-bold ${
-                                                                            isSelected ? 'text-white' : 'text-slate-600 dark:text-slate-400'
-                                                                        }`}
-                                                                    >
-                                                                        {opt.shortLabel}
-                                                                    </Text>
-                                                                </Pressable>
-                                                            );
-                                                        })}
-                                                    </View>
-                                                </View>
-                                            )}
-                                        </View>
-                                    );
-                                })}
-                            </View>
-                        </View>
-
-                        {/* Live Calculation Bar */}
-                        <View className="mb-5 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/20 p-4">
-                            <Text className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 mb-2">
-                                Estimated Net Paycheck Summary
-                            </Text>
-
-                            <View className="flex-row justify-between items-center mb-1">
-                                <Text className="text-xs text-slate-600 dark:text-slate-400">Gross Salary</Text>
-                                <Text className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                                    {formatCurrency(calculation.grossSalary)}
-                                </Text>
-                            </View>
-
-                            <View className="flex-row justify-between items-center mb-2">
-                                <Text className="text-xs text-rose-600 dark:text-rose-400">Total Deductions</Text>
-                                <Text className="text-xs font-semibold text-rose-600 dark:text-rose-400">
-                                    - {formatCurrency(calculation.totalDeductions)}
-                                </Text>
-                            </View>
-
-                            <View className="h-px bg-emerald-500/20 my-1" />
-
-                            <View className="flex-row justify-between items-center pt-1">
-                                <Text className="text-sm font-bold text-slate-900 dark:text-white">Net Take-Home Pay</Text>
-                                <Text className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                                    {formatCurrency(calculation.netTakeHome)}
-                                </Text>
-                            </View>
-                        </View>
-
-                        {/* Notes */}
-                        <View className="mb-4">
-                            <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Notes (Optional)</Text>
-                            <TextInput
-                                value={notes}
-                                onChangeText={setNotes}
-                                placeholder="Tax status, allowances, or contract remarks..."
-                                placeholderTextColor="#94A3B8"
-                                multiline
-                                numberOfLines={2}
-                                className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-3 text-xs text-slate-900 dark:text-white"
-                            />
-                        </View>
-                    </ScrollView>
-
-                    {/* Footer Submit Button */}
-                    <View className="border-t border-slate-100 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-                        <Pressable
-                            onPress={handleSave}
-                            disabled={submitting}
-                            className={`h-12 rounded-xl bg-emerald-600 items-center justify-center ${
-                                submitting ? 'opacity-60' : 'active:bg-emerald-700'
-                            }`}
-                        >
-                            <Text className="text-sm font-bold text-white">{submitting ? 'Saving Job...' : 'Save Job & Schedule Paydays'}</Text>
-                        </Pressable>
                     </View>
-                </View>
-            </KeyboardAvoidingView>
-        </Modal>
+                </KeyboardAvoidingView>
+            </Modal>
+
+            {/* Date Picker Calendar Modal */}
+            <DatePickerModal
+                visible={datePickerVisible}
+                initialDate={payoutDate || new Date().toISOString().split('T')[0]}
+                title="Select Target Payout Date"
+                onClose={() => setDatePickerVisible(false)}
+                onSelectDate={(newDate) => {
+                    setPayoutDate(newDate);
+                    if (fieldErrors.payoutDate) setFieldErrors((prev) => ({ ...prev, payoutDate: undefined }));
+                    setDatePickerVisible(false);
+                }}
+            />
+        </>
     );
 }
