@@ -69,7 +69,7 @@ export function EditPocketModal({ visible, pocket, institutionName, onClose, onS
     };
 
     return (
-        <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
+        <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={saving ? () => {} : onClose}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 justify-end bg-black/50">
                 <View className="bg-stone-50 rounded-t-3xl max-h-[85%] border-t border-stone-100">
                     {/* Header */}
@@ -78,7 +78,13 @@ export function EditPocketModal({ visible, pocket, institutionName, onClose, onS
                             <Text className="text-lg font-bold text-stone-900">Edit Pocket Details</Text>
                             <Text className="text-xs text-stone-500">{institutionName || 'Account Pocket'}</Text>
                         </View>
-                        <Pressable onPress={onClose} hitSlop={8} className="w-8 h-8 rounded-full bg-stone-100 items-center justify-center">
+                        <Pressable
+                            onPress={onClose}
+                            disabled={saving}
+                            pointerEvents={saving ? 'none' : 'auto'}
+                            hitSlop={8}
+                            className={`w-8 h-8 rounded-full bg-stone-100 items-center justify-center ${saving ? 'opacity-40' : ''}`}
+                        >
                             <X size={18} color="#78716C" />
                         </Pressable>
                     </View>
@@ -104,9 +110,12 @@ export function EditPocketModal({ visible, pocket, institutionName, onClose, onS
                             <TextInput
                                 value={name}
                                 onChangeText={setName}
+                                editable={!saving}
                                 placeholder="e.g. Daily Expenses, High Yield Savings"
                                 placeholderTextColor="#A8A29E"
-                                className="bg-white px-4 py-3 rounded-2xl border border-stone-200 text-sm text-stone-900"
+                                className={`px-4 py-3 rounded-2xl border border-stone-200 text-sm text-stone-900 ${
+                                    saving ? 'bg-stone-100 opacity-60' : 'bg-white'
+                                }`}
                             />
                         </View>
 
@@ -116,9 +125,10 @@ export function EditPocketModal({ visible, pocket, institutionName, onClose, onS
                             <View className="flex-row space-x-3">
                                 <Pressable
                                     onPress={() => setPocketType('wallet')}
+                                    disabled={saving}
                                     className={`flex-1 flex-row items-center justify-center py-3 rounded-2xl border mr-2 ${
-                                        pocketType === 'wallet' ? 'bg-[#18342B] border-[#18342B]' : 'bg-white border-stone-200'
-                                    }`}
+                                        saving ? 'opacity-60 ' : ''
+                                    }${pocketType === 'wallet' ? 'bg-[#18342B] border-[#18342B]' : 'bg-white border-stone-200'}`}
                                 >
                                     <Wallet size={16} color={pocketType === 'wallet' ? '#BBD583' : '#78716C'} />
                                     <Text className={`text-xs font-bold ml-1.5 ${pocketType === 'wallet' ? 'text-white' : 'text-stone-700'}`}>
@@ -128,9 +138,10 @@ export function EditPocketModal({ visible, pocket, institutionName, onClose, onS
 
                                 <Pressable
                                     onPress={() => setPocketType('savings')}
+                                    disabled={saving}
                                     className={`flex-1 flex-row items-center justify-center py-3 rounded-2xl border ${
-                                        pocketType === 'savings' ? 'bg-[#18342B] border-[#18342B]' : 'bg-white border-stone-200'
-                                    }`}
+                                        saving ? 'opacity-60 ' : ''
+                                    }${pocketType === 'savings' ? 'bg-[#18342B] border-[#18342B]' : 'bg-white border-stone-200'}`}
                                 >
                                     <PiggyBank size={16} color={pocketType === 'savings' ? '#BBD583' : '#78716C'} />
                                     <Text className={`text-xs font-bold ml-1.5 ${pocketType === 'savings' ? 'text-white' : 'text-stone-700'}`}>
@@ -147,10 +158,13 @@ export function EditPocketModal({ visible, pocket, institutionName, onClose, onS
                                 <TextInput
                                     value={interestRateStr}
                                     onChangeText={setInterestRateStr}
+                                    editable={!saving}
                                     keyboardType="numeric"
                                     placeholder="e.g. 4.5"
                                     placeholderTextColor="#A8A29E"
-                                    className="bg-white px-4 py-3 rounded-2xl border border-stone-200 text-sm text-stone-900"
+                                    className={`px-4 py-3 rounded-2xl border border-stone-200 text-sm text-stone-900 ${
+                                        saving ? 'bg-stone-100 opacity-60' : 'bg-white'
+                                    }`}
                                 />
                             </View>
                         )}
@@ -161,12 +175,15 @@ export function EditPocketModal({ visible, pocket, institutionName, onClose, onS
                             <TextInput
                                 value={savingsDetails}
                                 onChangeText={setSavingsDetails}
+                                editable={!saving}
                                 placeholder="Target goals, maturity, or rules..."
                                 placeholderTextColor="#A8A29E"
                                 multiline
                                 numberOfLines={2}
                                 textAlignVertical="top"
-                                className="bg-white px-4 py-3 rounded-2xl border border-stone-200 text-sm text-stone-900 min-h-[60px]"
+                                className={`px-4 py-3 rounded-2xl border border-stone-200 text-sm text-stone-900 min-h-[60px] ${
+                                    saving ? 'bg-stone-100 opacity-60' : 'bg-white'
+                                }`}
                             />
                         </View>
 
@@ -174,7 +191,9 @@ export function EditPocketModal({ visible, pocket, institutionName, onClose, onS
                         <Pressable
                             onPress={handleSave}
                             disabled={saving}
-                            className="bg-[#18342B] py-3.5 rounded-2xl items-center flex-row justify-center active:opacity-90 mb-6 shadow-xs"
+                            className={`bg-[#18342B] py-3.5 rounded-2xl items-center flex-row justify-center mb-6 shadow-xs ${
+                                saving ? 'opacity-50' : 'active:opacity-90'
+                            }`}
                         >
                             <Check size={18} color="#FFFFFF" />
                             <Text className="text-white font-bold text-sm ml-2">{saving ? 'Saving...' : 'Save Pocket Details'}</Text>

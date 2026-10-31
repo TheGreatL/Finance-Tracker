@@ -133,7 +133,7 @@ export function EditLoanModal({ visible, loan, onClose, onSave }: EditLoanModalP
     };
 
     return (
-        <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
+        <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={saving ? () => {} : onClose}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 justify-end bg-black/50">
                 <View className="bg-stone-50 rounded-t-3xl max-h-[90%] border-t border-stone-100">
                     {/* Header */}
@@ -142,7 +142,13 @@ export function EditLoanModal({ visible, loan, onClose, onSave }: EditLoanModalP
                             <Text className="text-lg font-bold text-stone-900">Edit Loan Details</Text>
                             <Text className="text-xs text-stone-500">Update loan terms and notes</Text>
                         </View>
-                        <Pressable onPress={onClose} hitSlop={8} className="w-8 h-8 rounded-full bg-stone-100 items-center justify-center">
+                        <Pressable
+                            onPress={onClose}
+                            disabled={saving}
+                            pointerEvents={saving ? 'none' : 'auto'}
+                            hitSlop={8}
+                            className={`w-8 h-8 rounded-full bg-stone-100 items-center justify-center ${saving ? 'opacity-40' : ''}`}
+                        >
                             <X size={18} color="#78716C" />
                         </Pressable>
                     </View>
@@ -168,9 +174,12 @@ export function EditLoanModal({ visible, loan, onClose, onSave }: EditLoanModalP
                             <TextInput
                                 value={title}
                                 onChangeText={setTitle}
+                                editable={!saving}
                                 placeholder="e.g. BPI Auto Loan"
                                 placeholderTextColor="#A8A29E"
-                                className="bg-white px-4 py-3 rounded-2xl border border-stone-200 text-sm text-stone-900"
+                                className={`px-4 py-3 rounded-2xl border border-stone-200 text-sm text-stone-900 ${
+                                    saving ? 'bg-stone-100 opacity-60' : 'bg-white'
+                                }`}
                             />
                         </View>
 
@@ -182,6 +191,7 @@ export function EditLoanModal({ visible, loan, onClose, onSave }: EditLoanModalP
                                 selectedId={selectedProvider}
                                 onSelect={(opt) => setSelectedProvider(opt.id)}
                                 placeholder="Select provider"
+                                disabled={saving}
                             />
                         </View>
 
@@ -192,10 +202,13 @@ export function EditLoanModal({ visible, loan, onClose, onSave }: EditLoanModalP
                                 <TextInput
                                     value={monthlyPaymentStr}
                                     onChangeText={setMonthlyPaymentStr}
+                                    editable={!saving}
                                     keyboardType="numeric"
                                     placeholder="0.00"
                                     placeholderTextColor="#A8A29E"
-                                    className="bg-white px-4 py-3 rounded-2xl border border-stone-200 text-sm text-stone-900"
+                                    className={`px-4 py-3 rounded-2xl border border-stone-200 text-sm text-stone-900 ${
+                                        saving ? 'bg-stone-100 opacity-60' : 'bg-white'
+                                    }`}
                                 />
                             </View>
 
@@ -203,7 +216,10 @@ export function EditLoanModal({ visible, loan, onClose, onSave }: EditLoanModalP
                                 <Text className="text-xs font-bold text-stone-700 mb-1.5">Next Due Date</Text>
                                 <Pressable
                                     onPress={() => setDatePickerVisible(true)}
-                                    className="flex-row items-center justify-between bg-white px-4 py-3 rounded-2xl border border-stone-200"
+                                    disabled={saving}
+                                    className={`flex-row items-center justify-between px-4 py-3 rounded-2xl border border-stone-200 ${
+                                        saving ? 'bg-stone-100 opacity-60' : 'bg-white active:bg-stone-100'
+                                    }`}
                                 >
                                     <Text className="text-sm text-stone-900 font-medium" numberOfLines={1}>
                                         {dueDateStr || 'Set date'}
@@ -219,12 +235,15 @@ export function EditLoanModal({ visible, loan, onClose, onSave }: EditLoanModalP
                             <TextInput
                                 value={notes}
                                 onChangeText={setNotes}
+                                editable={!saving}
                                 placeholder="Loan reference #, payment schedule, or agreement terms..."
                                 placeholderTextColor="#A8A29E"
                                 multiline
                                 numberOfLines={3}
                                 textAlignVertical="top"
-                                className="bg-white px-4 py-3 rounded-2xl border border-stone-200 text-sm text-stone-900 min-h-[70px]"
+                                className={`px-4 py-3 rounded-2xl border border-stone-200 text-sm text-stone-900 min-h-[70px] ${
+                                    saving ? 'bg-stone-100 opacity-60' : 'bg-white'
+                                }`}
                             />
                         </View>
 
@@ -244,7 +263,9 @@ export function EditLoanModal({ visible, loan, onClose, onSave }: EditLoanModalP
                                             setAttachmentUri(null);
                                             setAttachmentName(null);
                                         }}
+                                        disabled={saving}
                                         hitSlop={8}
+                                        className={saving ? 'opacity-40' : ''}
                                     >
                                         <Trash2 size={16} color="#DC2626" />
                                     </Pressable>
@@ -253,14 +274,20 @@ export function EditLoanModal({ visible, loan, onClose, onSave }: EditLoanModalP
                                 <View className="flex-row space-x-2">
                                     <Pressable
                                         onPress={handlePickDocument}
-                                        className="flex-1 flex-row items-center justify-center bg-white py-3 rounded-2xl border border-stone-200 mr-2 active:bg-stone-100"
+                                        disabled={saving}
+                                        className={`flex-1 flex-row items-center justify-center py-3 rounded-2xl border border-stone-200 mr-2 ${
+                                            saving ? 'bg-stone-100 opacity-60' : 'bg-white active:bg-stone-100'
+                                        }`}
                                     >
                                         <Paperclip size={15} color="#78716C" />
                                         <Text className="text-xs font-medium text-stone-700 ml-1.5">Pick Document</Text>
                                     </Pressable>
                                     <Pressable
                                         onPress={handlePickImage}
-                                        className="flex-1 flex-row items-center justify-center bg-white py-3 rounded-2xl border border-stone-200 active:bg-stone-100"
+                                        disabled={saving}
+                                        className={`flex-1 flex-row items-center justify-center py-3 rounded-2xl border border-stone-200 ${
+                                            saving ? 'bg-stone-100 opacity-60' : 'bg-white active:bg-stone-100'
+                                        }`}
                                     >
                                         <Camera size={15} color="#78716C" />
                                         <Text className="text-xs font-medium text-stone-700 ml-1.5">Pick Photo</Text>
@@ -273,7 +300,9 @@ export function EditLoanModal({ visible, loan, onClose, onSave }: EditLoanModalP
                         <Pressable
                             onPress={handleSave}
                             disabled={saving}
-                            className="bg-[#18342B] py-3.5 rounded-2xl items-center flex-row justify-center active:opacity-90 mb-6 shadow-xs"
+                            className={`bg-[#18342B] py-3.5 rounded-2xl items-center flex-row justify-center mb-6 shadow-xs ${
+                                saving ? 'opacity-50' : 'active:opacity-90'
+                            }`}
                         >
                             <Check size={18} color="#FFFFFF" />
                             <Text className="text-white font-bold text-sm ml-2">{saving ? 'Saving...' : 'Save Loan Details'}</Text>
