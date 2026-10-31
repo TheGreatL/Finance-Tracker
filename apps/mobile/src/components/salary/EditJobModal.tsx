@@ -557,7 +557,7 @@ export function EditJobModal({ visible, job, pockets, onClose, onSubmit, onArchi
 
                             <View className="flex-row justify-between items-center pt-1">
                                 <Text className="text-sm font-bold text-slate-900 dark:text-white">Net Take-Home Pay</Text>
-                                <Text className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                                <Text className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                                     {formatCurrency(calculation.netTakeHome)}
                                 </Text>
                             </View>
