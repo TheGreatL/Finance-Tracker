@@ -57,3 +57,4 @@ describe('computeKeyboardOverlap', () => {
     ).toBe(300);
   });
 });
+

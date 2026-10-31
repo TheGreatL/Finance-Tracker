@@ -5,13 +5,16 @@ import {
   TextInput,
   Pressable,
   FlatList,
-  KeyboardAvoidingView,
+  Keyboard,
+  Dimensions,
   Platform,
   Alert,
+  type KeyboardEvent,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
-import { Bot, Send, Trash2, Sparkles, ShieldCheck } from 'lucide-react-native';
+import { Bot, Send, Trash2, Sparkles } from 'lucide-react-native';
 import { getDatabase } from '../../src/database/db';
 import { evaluateChatPrompt } from '../../src/services/chatEngine';
 import { queryGeminiAdvisor } from '../../src/services/geminiService';
@@ -25,6 +28,7 @@ import {
   type ChatMessage,
 } from '../../src/components/chat/ChatMessageBubble';
 import { PromptSuggestionChips } from '../../src/components/chat/PromptSuggestionChips';
+import { computeKeyboardOverlap } from '../../src/utils/keyboard';
 
 const DEFAULT_WELCOME_MESSAGE: ChatMessage = {
   id: 'welcome',
@@ -42,6 +46,68 @@ export default function AssistantScreen() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([DEFAULT_WELCOME_MESSAGE]);
+
+  // Track container bottom Y and active keyboard metrics to position input bar right at the top of the keyboard
+  const viewBottomYRef = useRef<number>(Dimensions.get('window').height);
+  const keyboardMetricsRef = useRef<{ height: number; screenY: number }>({
+    height: 0,
+    screenY: 0,
+  });
+  const [keyboardOffset, setKeyboardOffset] = useState<number>(0);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState<boolean>(false);
+
+  const recalculateKeyboardOffset = useCallback(() => {
+    const windowHeight = Dimensions.get('window').height;
+    const overlap = computeKeyboardOverlap({
+      viewBottomY: viewBottomYRef.current,
+      windowHeight,
+      keyboardHeight: keyboardMetricsRef.current.height,
+      keyboardScreenY: keyboardMetricsRef.current.screenY,
+    });
+    setKeyboardOffset(overlap);
+  }, []);
+
+  useEffect(() => {
+    const onKeyboardShow = (event: KeyboardEvent) => {
+      keyboardMetricsRef.current = {
+        height: event.endCoordinates?.height ?? 0,
+        screenY: event.endCoordinates?.screenY ?? 0,
+      };
+      setIsKeyboardVisible(true);
+      recalculateKeyboardOffset();
+      setTimeout(() => {
+        listRef.current?.scrollToEnd({ animated: true });
+      }, 80);
+    };
+
+    const onKeyboardHide = () => {
+      keyboardMetricsRef.current = { height: 0, screenY: 0 };
+      setIsKeyboardVisible(false);
+      setKeyboardOffset(0);
+    };
+
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, onKeyboardShow);
+    const hideSub = Keyboard.addListener(hideEvent, onKeyboardHide);
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [recalculateKeyboardOffset]);
+
+  const handleContainerLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const { y, height } = event.nativeEvent.layout;
+      viewBottomYRef.current = y + height;
+      if (keyboardMetricsRef.current.height > 0) {
+        recalculateKeyboardOffset();
+      }
+    },
+    [recalculateKeyboardOffset]
+  );
 
   // Load persisted chat history from SQLite
   const loadChatHistory = useCallback(async () => {
@@ -187,78 +253,83 @@ export default function AssistantScreen() {
   }, [messages]);
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <View
+      onLayout={handleContainerLayout}
       className="flex-1 bg-stone-50"
       style={{ paddingTop: Math.max(insets.top, 12) }}>
-      {/* Header */}
-      <View className="px-5 py-3 border-b border-stone-200/80 bg-white flex-row items-center justify-between">
-        <View className="flex-row items-center space-x-2.5">
-          <View className="w-9 h-9 rounded-full bg-[#BBD583] items-center justify-center shadow-xs">
-            <Bot size={20} color="#18342B" />
-          </View>
-          <View className="ml-2">
-            <View className="flex-row items-center">
-              <Text className="text-base font-bold text-stone-900">PocketBot</Text>
-              <View className="flex-row items-center bg-emerald-100/70 px-1.5 py-0.5 rounded-full ml-2">
-                <Sparkles size={10} color="#065F46" />
-                <Text className="text-[10px] font-semibold text-emerald-800 ml-0.5">
-                  Gemini + Offline
-                </Text>
-              </View>
+      <View className="flex-1" style={{ paddingBottom: keyboardOffset }}>
+        {/* Header */}
+        <View className="px-5 py-3 border-b border-stone-200/80 bg-white flex-row items-center justify-between">
+          <View className="flex-row items-center space-x-2.5">
+            <View className="w-9 h-9 rounded-full bg-[#BBD583] items-center justify-center shadow-xs">
+              <Bot size={20} color="#18342B" />
             </View>
-            <Text className="text-xs text-stone-400">Smart Financial Advisor</Text>
+            <View className="ml-2">
+              <View className="flex-row items-center">
+                <Text className="text-base font-bold text-stone-900">PocketBot</Text>
+                <View className="flex-row items-center bg-emerald-100/70 px-1.5 py-0.5 rounded-full ml-2">
+                  <Sparkles size={10} color="#065F46" />
+                  <Text className="text-[10px] font-semibold text-emerald-800 ml-0.5">
+                    Gemini + Offline
+                  </Text>
+                </View>
+              </View>
+              <Text className="text-xs text-stone-400">Smart Financial Advisor</Text>
+            </View>
           </View>
+
+          <Pressable
+            onPress={handleClearHistory}
+            hitSlop={8}
+            className="p-2 rounded-full active:bg-stone-100">
+            <Trash2 size={18} color="#78716C" />
+          </Pressable>
         </View>
 
-        <Pressable
-          onPress={handleClearHistory}
-          hitSlop={8}
-          className="p-2 rounded-full active:bg-stone-100">
-          <Trash2 size={18} color="#78716C" />
-        </Pressable>
-      </View>
+        {/* Messages Feed */}
+        <FlatList
+          ref={listRef}
+          data={messages}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => <ChatMessageBubble message={item} />}
+          contentContainerStyle={{ paddingVertical: 16 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          className="flex-1"
+        />
 
-      {/* Messages Feed */}
-      <FlatList
-        ref={listRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <ChatMessageBubble message={item} />}
-        contentContainerStyle={{ paddingVertical: 16 }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      />
+        {/* Prompt Suggestion Chips */}
+        <PromptSuggestionChips onSelectPrompt={(p) => handleSend(p)} />
 
-      {/* Prompt Suggestion Chips */}
-      <PromptSuggestionChips onSelectPrompt={(p) => handleSend(p)} />
+        {/* Input Bar */}
+        <View
+          className="px-4 py-2.5 bg-white border-t border-stone-200/80 flex-row items-center space-x-2"
+          style={{
+            paddingBottom: isKeyboardVisible ? 10 : Math.max(insets.bottom, 12),
+          }}>
+          <View className="flex-1 bg-stone-100 rounded-2xl px-4 py-2.5 flex-row items-center border border-stone-200/80 mr-2">
+            <TextInput
+              value={input}
+              onChangeText={setInput}
+              placeholder="Ask 'Can I afford ₱15,000?'..."
+              placeholderTextColor="#A8A29E"
+              returnKeyType="send"
+              onSubmitEditing={() => handleSend()}
+              className="flex-1 text-sm text-stone-900 p-0"
+            />
+          </View>
 
-      {/* Input Bar */}
-      <View
-        className="px-4 py-2.5 bg-white border-t border-stone-200/80 flex-row items-center space-x-2"
-        style={{ paddingBottom: Math.max(insets.bottom, 12) }}>
-        <View className="flex-1 bg-stone-100 rounded-2xl px-4 py-2.5 flex-row items-center border border-stone-200/80 mr-2">
-          <TextInput
-            value={input}
-            onChangeText={setInput}
-            placeholder="Ask 'Can I afford ₱15,000?'..."
-            placeholderTextColor="#A8A29E"
-            returnKeyType="send"
-            onSubmitEditing={() => handleSend()}
-            className="flex-1 text-sm text-stone-900 p-0"
-          />
+          <Pressable
+            onPress={() => handleSend()}
+            disabled={!input.trim() || loading}
+            hitSlop={8}
+            className={`w-11 h-11 rounded-2xl items-center justify-center shadow-xs ${
+              input.trim() && !loading ? 'bg-[#18342B] active:opacity-90' : 'bg-stone-200'
+            }`}>
+            <Send size={18} color={input.trim() && !loading ? '#BBD583' : '#A8A29E'} />
+          </Pressable>
         </View>
-
-        <Pressable
-          onPress={() => handleSend()}
-          disabled={!input.trim() || loading}
-          hitSlop={8}
-          className={`w-11 h-11 rounded-2xl items-center justify-center shadow-xs ${
-            input.trim() && !loading ? 'bg-[#18342B] active:opacity-90' : 'bg-stone-200'
-          }`}>
-          <Send size={18} color={input.trim() && !loading ? '#BBD583' : '#A8A29E'} />
-        </Pressable>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }

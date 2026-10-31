@@ -145,7 +145,7 @@ export function TransactionFormModal({
   return (
     <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         className="flex-1 justify-end bg-black/50">
         <View className="bg-white rounded-t-3xl p-6 max-h-[90%] border-t border-stone-100">
           {/* Header */}

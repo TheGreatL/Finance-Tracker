@@ -80,7 +80,7 @@ export function SearchableSelectModal({
       statusBarTranslucent
       onRequestClose={onClose}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         className="flex-1 bg-black/60 items-center justify-center p-4">
         <View className="bg-white rounded-3xl w-full max-w-sm max-h-[80%] p-5 border border-stone-100 shadow-2xl">
           {/* Header */}
