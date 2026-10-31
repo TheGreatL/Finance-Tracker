@@ -17,6 +17,7 @@ import { TransactionFormModal } from '@/src/components/transactions/TransactionF
 import { TransactionDetailSheet } from '@/src/components/transactions/TransactionDetailSheet';
 import { DatabaseResetDialog } from '@/src/components/dev/DatabaseResetDialog';
 import { ActiveLoansBanner } from '@/src/components/loans/ActiveLoansBanner';
+import { SubscriptionsBanner } from '@/src/components/subscriptions/SubscriptionsBanner';
 
 import { getDatabase, closeDatabase } from '@/src/database/db';
 import { seedDevData, resetDatabase } from '@/src/database/seed';
@@ -35,6 +36,11 @@ import {
   type CreateTransactionInput,
 } from '@/src/services/transactionService';
 import { getLoansSummary } from '@/src/services/loanService';
+import {
+  processDueSubscriptions,
+  getSubscriptionsSummary,
+  type SubscriptionsSummary,
+} from '@/src/services/subscriptionService';
 import type {
   Institution,
   AccountPocket,
@@ -67,6 +73,13 @@ export default function DashboardScreen() {
     nextDueLoan: null,
     activeCount: 0,
   });
+  const [subsSummary, setSubsSummary] = useState<SubscriptionsSummary>({
+    monthlyTotal: 0,
+    activeCount: 0,
+    pausedCount: 0,
+    cancelledCount: 0,
+    nextUpcoming: null,
+  });
 
   // Modals state
   const [addAccountVisible, setAddAccountVisible] = useState(false);
@@ -91,16 +104,22 @@ export default function DashboardScreen() {
       if (__DEV__) {
         await seedDevData(db);
       }
-      const [insts, pocks, txs, loansSum] = await Promise.all([
+
+      // Catch up any due or missed subscription charges automatically
+      await processDueSubscriptions(db);
+
+      const [insts, pocks, txs, loansSum, subsSum] = await Promise.all([
         getInstitutionsWithBalances(db),
         getAllActivePockets(db),
         getRecentTransactions(db, 20),
         getLoansSummary(db),
+        getSubscriptionsSummary(db),
       ]);
       setInstitutions(insts);
       setAllPockets(pocks);
       setRecentTransactions(txs);
       setLoansSummary(loansSum);
+      setSubsSummary(subsSum);
 
       // If an institution sheet is open, refresh its institution data & pockets.
       // Read the open id from a ref (not state) so loadData stays stable and a
@@ -108,7 +127,6 @@ export default function DashboardScreen() {
       const openId = selectedInstitutionIdRef.current;
       if (openId) {
         const refreshedInst = insts.find((i: Institution) => i.id === openId) || null;
-        // Only update if the same sheet is still open after the await
         setSelectedInstitution((prev) => (prev && prev.id === openId ? refreshedInst : prev));
         if (refreshedInst) {
           const updatedPockets = await getPocketsByInstitution(db, refreshedInst.id);
@@ -126,16 +144,19 @@ export default function DashboardScreen() {
           const db = await getDatabase();
           await resetDatabase(db);
           await seedDevData(db);
-          const [insts, pocks, txs, loansSum] = await Promise.all([
+          await processDueSubscriptions(db);
+          const [insts, pocks, txs, loansSum, subsSum] = await Promise.all([
             getInstitutionsWithBalances(db),
             getAllActivePockets(db),
             getRecentTransactions(db, 20),
             getLoansSummary(db),
+            getSubscriptionsSummary(db),
           ]);
           setInstitutions(insts);
           setAllPockets(pocks);
           setRecentTransactions(txs);
           setLoansSummary(loansSum);
+          setSubsSummary(subsSum);
         } catch (recoverErr) {
           console.error('Database auto-recovery failed:', recoverErr);
         }
@@ -291,6 +312,16 @@ export default function DashboardScreen() {
           totalLoanBalance={loansSummary.totalLoanBalance}
           nextDueLoan={loansSummary.nextDueLoan}
           onPress={() => router.push({ pathname: '/(tabs)/accounts', params: { tab: 'loans' } })}
+        />
+
+        {/* Active Subscriptions Summary Banner */}
+        <SubscriptionsBanner
+          monthlyTotal={subsSummary.monthlyTotal}
+          activeCount={subsSummary.activeCount}
+          nextUpcoming={subsSummary.nextUpcoming}
+          onPress={() =>
+            router.push({ pathname: '/(tabs)/accounts', params: { tab: 'subscriptions' } })
+          }
         />
 
         {/* Philippine Institution Accounts 2-Column Grid */}

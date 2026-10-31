@@ -73,6 +73,29 @@ CREATE TABLE IF NOT EXISTS loans (
 CREATE INDEX IF NOT EXISTS idx_loans_institution ON loans(institution_id);
 CREATE INDEX IF NOT EXISTS idx_loans_status ON loans(status);
 
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id TEXT PRIMARY KEY,
+  service_name TEXT NOT NULL,
+  service_code TEXT NOT NULL DEFAULT 'custom',
+  pocket_id TEXT NOT NULL,
+  amount REAL NOT NULL,
+  frequency TEXT NOT NULL CHECK(frequency IN ('weekly', 'monthly', 'yearly')),
+  start_date TEXT NOT NULL,
+  next_billing_date TEXT NOT NULL,
+  category TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'paused', 'cancelled')),
+  reminder_days_before INTEGER NOT NULL DEFAULT 1,
+  notification_id TEXT DEFAULT '',
+  notes TEXT DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (pocket_id) REFERENCES account_pockets(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_subscriptions_pocket ON subscriptions(pocket_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_next_billing ON subscriptions(next_billing_date);
+
 CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -90,4 +113,3 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at);
 `;
-

@@ -57,6 +57,7 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
     await db.execAsync(`
       PRAGMA foreign_keys = OFF;
       DROP TABLE IF EXISTS transactions;
+      DROP TABLE IF EXISTS subscriptions;
       DROP TABLE IF EXISTS account_pockets;
       DROP TABLE IF EXISTS institutions;
       DROP TABLE IF EXISTS accounts;
@@ -116,7 +117,39 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
     }
   }
 
-  // 6. Ensure chat_messages table exists
+  // 6. Ensure subscriptions table exists
+  try {
+    await db.getFirstAsync('SELECT id FROM subscriptions LIMIT 1;');
+  } catch (err: any) {
+    const msg = String(err?.message || err);
+    if (msg.includes('no such table')) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS subscriptions (
+          id TEXT PRIMARY KEY,
+          service_name TEXT NOT NULL,
+          service_code TEXT NOT NULL DEFAULT 'custom',
+          pocket_id TEXT NOT NULL,
+          amount REAL NOT NULL,
+          frequency TEXT NOT NULL CHECK(frequency IN ('weekly', 'monthly', 'yearly')),
+          start_date TEXT NOT NULL,
+          next_billing_date TEXT NOT NULL,
+          category TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'paused', 'cancelled')),
+          reminder_days_before INTEGER NOT NULL DEFAULT 1,
+          notification_id TEXT DEFAULT '',
+          notes TEXT DEFAULT '',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (pocket_id) REFERENCES account_pockets(id) ON DELETE RESTRICT
+        );
+        CREATE INDEX IF NOT EXISTS idx_subscriptions_pocket ON subscriptions(pocket_id);
+        CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
+        CREATE INDEX IF NOT EXISTS idx_subscriptions_next_billing ON subscriptions(next_billing_date);
+      `);
+    }
+  }
+
+  // 7. Ensure chat_messages table exists
   try {
     await db.getFirstAsync('SELECT id FROM chat_messages LIMIT 1;');
   } catch (err: any) {

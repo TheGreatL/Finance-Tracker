@@ -97,3 +97,54 @@ export interface RecordLoanPaymentInput {
   notes?: string;
 }
 
+export type SubscriptionFrequency = 'weekly' | 'monthly' | 'yearly';
+export type SubscriptionStatus = 'active' | 'paused' | 'cancelled';
+
+export interface SubscriptionRecord {
+  id: string;
+  service_name: string;
+  service_code: string;
+  pocket_id: string;
+  amount: number;
+  frequency: SubscriptionFrequency;
+  start_date: string;
+  next_billing_date: string;
+  category: string;
+  status: SubscriptionStatus;
+  reminder_days_before: number;
+  notification_id?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  // Joined fields from account_pockets & institutions
+  pocket_name?: string;
+  institution_name?: string;
+  institution_code?: string;
+  institution_color?: string;
+}
+
+export interface CreateSubscriptionInput {
+  serviceName: string;
+  serviceCode?: string;
+  pocketId: string;
+  amount: number;
+  frequency: SubscriptionFrequency;
+  startDate: string;
+  nextBillingDate: string;
+  category: string;
+  reminderDaysBefore?: number;
+  notes?: string;
+}
+
+export interface UpdateSubscriptionInput {
+  serviceName?: string;
+  serviceCode?: string;
+  pocketId?: string;
+  amount?: number;
+  frequency?: SubscriptionFrequency;
+  startDate?: string;
+  nextBillingDate?: string;
+  category?: string;
+  reminderDaysBefore?: number;
+  notes?: string;
+}

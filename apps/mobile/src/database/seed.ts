@@ -113,6 +113,7 @@ export async function resetDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
   await db.execAsync(`
     PRAGMA foreign_keys = OFF;
     DROP TABLE IF EXISTS transactions;
+    DROP TABLE IF EXISTS subscriptions;
     DROP TABLE IF EXISTS account_pockets;
     DROP TABLE IF EXISTS institutions;
     DROP TABLE IF EXISTS accounts;

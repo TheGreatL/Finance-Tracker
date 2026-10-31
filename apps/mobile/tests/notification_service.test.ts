@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { calculateNotificationTrigger, formatReminderBody } from '../src/services/notificationService';
+import {
+  calculateNotificationTrigger,
+  formatReminderBody,
+  calculateSubscriptionReminderTrigger,
+  formatSubscriptionReminderBody,
+} from '../src/services/notificationService';
 
 describe('notificationService helper calculations', () => {
   it('calculateNotificationTrigger computes exactly 3 days prior at 9:00 AM', () => {
@@ -39,5 +44,34 @@ describe('notificationService helper calculations', () => {
     expect(body).toContain('3 days');
     expect(body).toContain('GCash');
     expect(body).toContain('2026-10-30');
+  });
+
+  it('calculateSubscriptionReminderTrigger schedules 1 day before next_billing_date at 9:00 AM', () => {
+    const ref = new Date(2026, 10, 10, 8, 0, 0); // Nov 10, 2026
+    const trigger = calculateSubscriptionReminderTrigger('2026-11-15', 1, ref);
+    expect(trigger).not.toBeNull();
+    expect(trigger?.getFullYear()).toBe(2026);
+    expect(trigger?.getMonth()).toBe(10);
+    expect(trigger?.getDate()).toBe(14);
+    expect(trigger?.getHours()).toBe(9);
+  });
+
+  it('calculateSubscriptionReminderTrigger returns null when trigger time has already passed', () => {
+    const ref = new Date(2026, 10, 14, 10, 0, 0); // Nov 14, 2026 10:00 AM
+    const trigger = calculateSubscriptionReminderTrigger('2026-11-15', 1, ref);
+    expect(trigger).toBeNull();
+  });
+
+  it('formatSubscriptionReminderBody includes amount, billing date, and pocket label', () => {
+    const body = formatSubscriptionReminderBody({
+      serviceName: 'Netflix',
+      amount: 549,
+      nextBillingDate: '2026-11-15',
+      pocketLabel: 'GCash • Main Wallet',
+      daysBefore: 1,
+    });
+    expect(body).toContain('₱549');
+    expect(body).toContain('2026-11-15');
+    expect(body).toContain('GCash • Main Wallet');
   });
 });

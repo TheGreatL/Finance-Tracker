@@ -48,6 +48,13 @@ The app has five tabs: **Dashboard · Accounts · Advisor · Ledger · Analytics
 - **Loan summary:** total active debt, active and paid-off counts, and loans due within 7 days.
 - If you add a loan for a lender you haven't set up yet, the app creates that institution automatically.
 
+### 🔄 Subscriptions
+- **Service presets with SVG logos:** Netflix, Spotify, YouTube Premium, Disney+, iCloud+, Google One, ChatGPT Plus, Canva Pro, Microsoft 365, Amazon Prime, Gym / Fitness, Fiber Internet, plus Custom services.
+- **Subscription details:** service name, payment source pocket, billing amount, frequency (`weekly`, `monthly`, `yearly`), start date, next billing date (with calendar date picker), category, and notes.
+- **Automatic money deduction & offline catch-up:** when a billing date arrives—or the next time you open the app if your phone was off—the app automatically deducts the amount from the chosen pocket, logs a regular `'expense'` in your ledger, and advances `next_billing_date` to the next cycle.
+- **Alerts & notifications:** sends a local reminder 1 day before the billing date and an immediate payment confirmation alert right after auto-deduction.
+- **Management & overview:** view active subscriptions, normalized monthly spend, and the next upcoming bill, with one-tap controls to **Edit**, **Pause / Resume**, **Cancel**, or **Delete**.
+
 ### 📒 Ledger (Transactions)
 - **Three transaction types:**
   - **Expense** and **Income** each have their own preset categories.
@@ -142,6 +149,7 @@ finance-tracker/
 | `account_pockets` | Wallet and savings pockets with starting/current balance and interest rate |
 | `transactions` | Income, expense, and transfer records (`to_pocket_id` for transfers) |
 | `loans` | Debts with remaining balance, monthly payment, due date, attachment, and status (`active` / `paid` / `defaulted`) |
+| `subscriptions` | Recurring subscriptions linked to a payment pocket with frequency (`weekly` / `monthly` / `yearly`), next billing date, and status (`active` / `paused` / `cancelled`) |
 | `chat_messages` | Advisor chat history (source: `gemini` or `offline`) |
 | `app_settings` | Key/value app settings |
 
