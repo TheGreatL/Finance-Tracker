@@ -19,6 +19,10 @@ import { TransactionDetailSheet } from '@/src/components/transactions/Transactio
 import { EditTransactionModal } from '@/src/components/transactions/EditTransactionModal';
 import { ActiveLoansBanner } from '@/src/components/loans/ActiveLoansBanner';
 import { SubscriptionsBanner } from '@/src/components/subscriptions/SubscriptionsBanner';
+import { AddLoanModal } from '@/src/components/loans/AddLoanModal';
+import { LoanDetailSheet } from '@/src/components/loans/LoanDetailSheet';
+import { EditLoanModal } from '@/src/components/loans/EditLoanModal';
+import { LoanPaymentModal } from '@/src/components/loans/LoanPaymentModal';
 import { NotificationCenterModal } from '@/src/components/notifications/NotificationCenterModal';
 import { DatabaseManagementCard } from '@/src/components/dashboard/DatabaseManagementCard';
 
@@ -40,7 +44,7 @@ import {
     updateTransactionMetadata,
     type CreateTransactionInput
 } from '@/src/services/transactionService';
-import { getLoansSummary } from '@/src/services/loanService';
+import { getLoansSummary, getLoansByInstitution, createLoan, recordLoanPayment, deleteLoan, updateLoanMetadata } from '@/src/services/loanService';
 import { processDueSubscriptions, getSubscriptionsSummary, type SubscriptionsSummary } from '@/src/services/subscriptionService';
 import {
     getAppNotifications,
@@ -51,7 +55,16 @@ import {
     syncAppNotificationsFromSchedule,
     type AppNotificationRecord
 } from '@/src/services/notificationCenterService';
-import type { Institution, AccountPocket, TransactionRecord, TransactionType, PocketType, LoanRecord } from '@/src/types/database';
+import type {
+    Institution,
+    AccountPocket,
+    TransactionRecord,
+    TransactionType,
+    PocketType,
+    LoanRecord,
+    CreateLoanInput,
+    RecordLoanPaymentInput
+} from '@/src/types/database';
 
 export default function DashboardScreen() {
     const insets = useSafeAreaInsets();
@@ -93,6 +106,13 @@ export default function DashboardScreen() {
     const [addAccountVisible, setAddAccountVisible] = useState(false);
     const [selectedInstitution, setSelectedInstitution] = useState<Institution | null>(null);
     const [selectedInstPockets, setSelectedInstPockets] = useState<AccountPocket[]>([]);
+    const [selectedInstLoans, setSelectedInstLoans] = useState<LoanRecord[]>([]);
+    const [selectedLoan, setSelectedLoan] = useState<LoanRecord | null>(null);
+    const [loanDetailVisible, setLoanDetailVisible] = useState(false);
+    const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+    const [editingLoan, setEditingLoan] = useState<LoanRecord | null>(null);
+    const [addLoanVisible, setAddLoanVisible] = useState(false);
+    const [addLoanInitialProvider, setAddLoanInitialProvider] = useState<string | undefined>();
     const [addPocketVisible, setAddPocketVisible] = useState(false);
     const [txModalVisible, setTxModalVisible] = useState(false);
     const [txModalType, setTxModalType] = useState<TransactionType>('expense');
@@ -137,15 +157,19 @@ export default function DashboardScreen() {
             setNotifications(notifs);
             setUnreadNotificationsCount(unread);
 
-            // If an institution sheet is open, refresh its institution data & pockets.
+            // If an institution sheet is open, refresh its institution data, pockets & loans.
             const openId = selectedInstitutionIdRef.current;
             if (openId) {
                 const refreshedInst = insts.find((i: Institution) => i.id === openId) || null;
                 setSelectedInstitution((prev) => (prev && prev.id === openId ? refreshedInst : prev));
                 if (refreshedInst) {
-                    const updatedPockets = await getPocketsByInstitution(db, refreshedInst.id);
+                    const [updatedPockets, updatedLoans] = await Promise.all([
+                        getPocketsByInstitution(db, refreshedInst.id),
+                        getLoansByInstitution(db, refreshedInst.id)
+                    ]);
                     if (selectedInstitutionIdRef.current === openId) {
                         setSelectedInstPockets(updatedPockets);
+                        setSelectedInstLoans(updatedLoans);
                     }
                 }
             }
@@ -216,8 +240,55 @@ export default function DashboardScreen() {
     const handleSelectInstitution = async (inst: Institution) => {
         setSelectedInstitution(inst);
         const db = await getDatabase();
-        const pocks = await getPocketsByInstitution(db, inst.id);
+        const [pocks, instLoans] = await Promise.all([getPocketsByInstitution(db, inst.id), getLoansByInstitution(db, inst.id)]);
         setSelectedInstPockets(pocks);
+        setSelectedInstLoans(instLoans);
+    };
+
+    // Loan handlers on Dashboard
+    const handleCreateLoan = async (input: CreateLoanInput) => {
+        const db = await getDatabase();
+        await createLoan(db, input);
+        await loadData();
+    };
+
+    const handleRecordLoanPayment = async (input: RecordLoanPaymentInput) => {
+        const db = await getDatabase();
+        await recordLoanPayment(db, input);
+        await loadData();
+        if (selectedLoan) {
+            const all = await getLoansByInstitution(db, selectedLoan.institution_id);
+            const updated = all.find((l) => l.id === selectedLoan.id) || null;
+            setSelectedLoan(updated);
+        }
+    };
+
+    const handleDeleteLoan = async (loanId: string) => {
+        const db = await getDatabase();
+        await deleteLoan(db, loanId);
+        setLoanDetailVisible(false);
+        setSelectedLoan(null);
+        await loadData();
+    };
+
+    const handleUpdateLoan = async (
+        loanId: string,
+        updates: {
+            title: string;
+            institutionId: string;
+            dueDate: string;
+            monthlyPayment: number;
+            notes?: string;
+            attachmentPath?: string;
+            attachmentName?: string;
+        }
+    ) => {
+        const db = await getDatabase();
+        await updateLoanMetadata(db, loanId, updates);
+        await loadData();
+        if (selectedLoan && selectedLoan.id === loanId) {
+            setSelectedLoan((prev) => (prev ? { ...prev, ...updates, due_date: updates.dueDate, monthly_payment: updates.monthlyPayment } : null));
+        }
     };
 
     // Add Account handler
@@ -395,14 +466,62 @@ export default function DashboardScreen() {
                 visible={!!selectedInstitution}
                 institution={selectedInstitution}
                 pockets={selectedInstPockets}
-                onClose={() => setSelectedInstitution(null)}
+                loans={selectedInstLoans}
+                onClose={() => {
+                    setSelectedInstitution(null);
+                    setSelectedInstLoans([]);
+                }}
                 onAddPocket={() => setAddPocketVisible(true)}
+                onAddLoan={() => {
+                    setAddLoanInitialProvider(selectedInstitution?.code);
+                    setSelectedInstitution(null);
+                    setAddLoanVisible(true);
+                }}
+                onSelectLoan={(loan) => {
+                    setSelectedInstitution(null);
+                    setSelectedLoan(loan);
+                    setLoanDetailVisible(true);
+                }}
                 onUpdateNotes={handleUpdateNotes}
                 onEditPocket={(pocket) => setEditingPocket(pocket)}
                 onQuickExpense={(pocket) => {
                     setSelectedInstitution(null);
                     handleOpenTransactionModal('expense', pocket.id);
                 }}
+            />
+
+            {/* Modals for Loans on Dashboard */}
+            <AddLoanModal
+                visible={addLoanVisible}
+                initialProvider={addLoanInitialProvider}
+                onClose={() => {
+                    setAddLoanVisible(false);
+                    setAddLoanInitialProvider(undefined);
+                }}
+                onSubmit={handleCreateLoan}
+            />
+
+            <LoanDetailSheet
+                visible={loanDetailVisible}
+                loan={selectedLoan}
+                onClose={() => setLoanDetailVisible(false)}
+                onRecordPayment={(loan) => {
+                    setLoanDetailVisible(false);
+                    setSelectedLoan(loan);
+                    setPaymentModalVisible(true);
+                }}
+                onDelete={handleDeleteLoan}
+                onEdit={(loan) => setEditingLoan(loan)}
+            />
+
+            <EditLoanModal visible={!!editingLoan} loan={editingLoan} onClose={() => setEditingLoan(null)} onSave={handleUpdateLoan} />
+
+            <LoanPaymentModal
+                visible={paymentModalVisible}
+                loan={selectedLoan}
+                pockets={allPockets}
+                onClose={() => setPaymentModalVisible(false)}
+                onSubmit={handleRecordLoanPayment}
             />
 
             <EditPocketModal

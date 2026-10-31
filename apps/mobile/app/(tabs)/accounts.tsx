@@ -81,6 +81,7 @@ export default function AccountsScreen() {
 
     // Loan Modals
     const [addLoanVisible, setAddLoanVisible] = useState(false);
+    const [addLoanInitialProvider, setAddLoanInitialProvider] = useState<string | undefined>();
     const [selectedLoan, setSelectedLoan] = useState<LoanRecord | null>(null);
     const [loanDetailVisible, setLoanDetailVisible] = useState(false);
     const [paymentModalVisible, setPaymentModalVisible] = useState(false);
@@ -643,11 +644,22 @@ export default function AccountsScreen() {
                 visible={detailSheetVisible}
                 institution={selectedInstitution}
                 pockets={institutionPockets}
+                loans={loans.filter(
+                    (l) =>
+                        l.institution_id === selectedInstitution?.id ||
+                        (!!selectedInstitution?.code && l.institution_code === selectedInstitution?.code)
+                )}
                 onClose={() => setDetailSheetVisible(false)}
                 onAddPocket={() => setAddPocketVisible(true)}
                 onAddLoan={() => {
                     setDetailSheetVisible(false);
+                    setAddLoanInitialProvider(selectedInstitution?.code);
                     setAddLoanVisible(true);
+                }}
+                onSelectLoan={(loan) => {
+                    setDetailSheetVisible(false);
+                    setSelectedLoan(loan);
+                    setLoanDetailVisible(true);
                 }}
                 onUpdateNotes={handleUpdateNotes}
                 onEditPocket={(pocket) => setEditingPocket(pocket)}
@@ -670,7 +682,15 @@ export default function AccountsScreen() {
             />
 
             {/* Modals for Loans */}
-            <AddLoanModal visible={addLoanVisible} onClose={() => setAddLoanVisible(false)} onSubmit={handleCreateLoan} />
+            <AddLoanModal
+                visible={addLoanVisible}
+                initialProvider={addLoanInitialProvider}
+                onClose={() => {
+                    setAddLoanVisible(false);
+                    setAddLoanInitialProvider(undefined);
+                }}
+                onSubmit={handleCreateLoan}
+            />
 
             <LoanDetailSheet
                 visible={loanDetailVisible}

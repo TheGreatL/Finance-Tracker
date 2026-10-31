@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createLoan, getLoansSummary, recordLoanPayment, deleteLoan, updateLoanMetadata } from '../src/services/loanService';
+import { createLoan, getLoansSummary, getLoansByInstitution, recordLoanPayment, deleteLoan, updateLoanMetadata } from '../src/services/loanService';
 import type { LoanRecord } from '../src/types/database';
 
 describe('loanService operations', () => {
@@ -250,5 +250,35 @@ describe('loanService operations', () => {
         expect(updateQuery?.params[5]).toBe('new/contract.pdf');
         expect(updateQuery?.params[6]).toBe('contract.pdf');
         expect(updateQuery?.params[8]).toBe('loan_123');
+    });
+
+    it('getLoansByInstitution queries loans filtered by institution_id', async () => {
+        const mockDb: any = {
+            getAllAsync: vi.fn(async (sql: string, params: any[]) => {
+                if (sql.includes('WHERE l.institution_id = ?') && params[0] === 'inst_maya_1') {
+                    return [
+                        {
+                            id: 'loan_maya_personal',
+                            institution_id: 'inst_maya_1',
+                            title: 'Maya Personal Loan',
+                            total_amount: 30000,
+                            remaining_balance: 24000,
+                            monthly_payment: 3000,
+                            due_date: '2026-11-28',
+                            status: 'active',
+                            institution_name: 'Maya',
+                            institution_code: 'maya'
+                        }
+                    ];
+                }
+                return [];
+            })
+        };
+
+        const res = await getLoansByInstitution(mockDb, 'inst_maya_1');
+        expect(mockDb.getAllAsync).toHaveBeenCalledWith(expect.stringContaining('WHERE l.institution_id = ?'), ['inst_maya_1']);
+        expect(res).toHaveLength(1);
+        expect(res[0].title).toBe('Maya Personal Loan');
+        expect(res[0].remaining_balance).toBe(24000);
     });
 });

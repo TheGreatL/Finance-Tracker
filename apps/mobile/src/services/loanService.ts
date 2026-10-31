@@ -108,6 +108,21 @@ export async function getAllLoans(db: SQLite.SQLiteDatabase): Promise<LoanRecord
     );
 }
 
+export async function getLoansByInstitution(db: SQLite.SQLiteDatabase, institutionId: string): Promise<LoanRecord[]> {
+    return await db.getAllAsync<LoanRecord>(
+        `SELECT
+      l.*,
+      i.name AS institution_name,
+      i.code AS institution_code,
+      i.color AS institution_color
+    FROM loans l
+    JOIN institutions i ON l.institution_id = i.id
+    WHERE l.institution_id = ?
+    ORDER BY l.status ASC, l.due_date ASC`,
+        [institutionId]
+    );
+}
+
 export async function getLoansSummary(
     db: SQLite.SQLiteDatabase,
     referenceDate: Date = new Date()
