@@ -13,6 +13,7 @@ import { X, Check, Wallet, Calendar, ChevronDown } from 'lucide-react-native';
 import type { LoanRecord, AccountPocket } from '../../types/database';
 import { formatCurrency, formatDisplayDate } from '../../utils/formatters';
 import { DatePickerModal } from '../common/DatePickerModal';
+import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
 
 interface LoanPaymentModalProps {
   visible: boolean;
@@ -120,39 +121,20 @@ export function LoanPaymentModal({
             ) : null}
 
             {/* 1. Select Paying Pocket */}
-            <Text className="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-2">
-              1. Deduct From (Source Account) *
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" className="mb-4">
-              {pockets.map((p) => {
-                const isSelected = p.id === selectedPocketId;
-                return (
-                  <Pressable
-                    key={p.id}
-                    onPress={() => setSelectedPocketId(p.id)}
-                    hitSlop={8}
-                    pressRetentionOffset={20}
-                    className={`px-3.5 py-2.5 rounded-xl mr-2 border ${
-                      isSelected
-                        ? 'bg-stone-900 border-stone-900'
-                        : 'bg-stone-50 border-stone-200'
-                    }`}>
-                    <Text
-                      className={`text-xs font-bold ${
-                        isSelected ? 'text-white' : 'text-stone-800'
-                      }`}>
-                      {p.institution_name ? `${p.institution_name} • ` : ''}{p.name}
-                    </Text>
-                    <Text
-                      className={`text-[10px] mt-0.5 ${
-                        isSelected ? 'text-stone-300' : 'text-stone-500'
-                      }`}>
-                      {formatCurrency(p.current_balance)} available
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+            <SearchableSelectField
+              label="1. Deduct From (Source Account) *"
+              modalTitle="Select Payment Account"
+              searchPlaceholder="Search bank, e-wallet, or pocket..."
+              placeholder="Select a pocket or wallet..."
+              options={pockets.map((p): SelectOption => ({
+                id: p.id,
+                label: p.institution_name ? `${p.institution_name} • ${p.name}` : p.name,
+                subtitle: p.pocket_type === 'savings' ? 'Interest Savings' : 'Everyday Wallet',
+                badge: `${formatCurrency(p.current_balance)} available`,
+              }))}
+              selectedId={selectedPocketId}
+              onSelect={(opt) => setSelectedPocketId(opt.id)}
+            />
 
             {/* 2. Payment Amount & Date */}
             <View className="flex-row gap-3 mb-3">

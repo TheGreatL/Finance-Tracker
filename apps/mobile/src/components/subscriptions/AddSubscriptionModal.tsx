@@ -25,6 +25,7 @@ import {
 import { advanceBillingDate, toLocalISODate } from '../../services/subscriptionService';
 import { formatCurrency, formatDisplayDate } from '../../utils/formatters';
 import { DatePickerModal } from '../common/DatePickerModal';
+import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
 import { SubscriptionLogo } from './SubscriptionLogo';
 
 interface AddSubscriptionModalProps {
@@ -212,41 +213,25 @@ export function AddSubscriptionModal({
               ) : null}
 
               {/* 1. Service Logo Preset Picker */}
-              <Text className="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-2">
-                1. Choose Service Preset
-              </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                className="mb-4">
-                {SUBSCRIPTION_PRESETS.map((preset) => {
-                  const isSelected = selectedCode === preset.code;
-                  return (
-                    <Pressable
-                      key={preset.code}
-                      onPress={() => handleSelectPreset(preset.code)}
-                      hitSlop={6}
-                      className={`items-center mr-2.5 px-3 py-2.5 rounded-2xl border ${
-                        isSelected
-                          ? 'bg-stone-900 border-stone-900'
-                          : 'bg-stone-50 border-stone-200'
-                      }`}>
-                      <SubscriptionLogo
-                        code={preset.code}
-                        serviceName={preset.name}
-                        size={30}
-                      />
-                      <Text
-                        className={`text-[10px] font-semibold mt-1.5 ${
-                          isSelected ? 'text-white' : 'text-stone-700'
-                        }`}>
-                        {preset.name}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+              <SearchableSelectField
+                label="1. Choose Service Preset"
+                modalTitle="Select Subscription Service"
+                searchPlaceholder="Search Netflix, Spotify, iCloud, Gym..."
+                options={SUBSCRIPTION_PRESETS.map((preset): SelectOption => ({
+                  id: preset.code,
+                  label: preset.name,
+                  subtitle: preset.defaultCategory,
+                  icon: (
+                    <SubscriptionLogo
+                      code={preset.code}
+                      serviceName={preset.name}
+                      size={28}
+                    />
+                  ),
+                }))}
+                selectedId={selectedCode}
+                onSelect={(opt) => handleSelectPreset(opt.id)}
+              />
 
               {/* 2. Service Name & Amount */}
               <View className="flex-row gap-3 mb-3">
@@ -279,43 +264,20 @@ export function AddSubscriptionModal({
               </View>
 
               {/* 3. Payment Source (Pocket) */}
-              <Text className="text-xs font-medium text-stone-600 mb-1.5">
-                Payment Source (Auto-Deduct From) *
-              </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                className="mb-4">
-                {pockets.map((p) => {
-                  const isSelected = p.id === selectedPocketId;
-                  return (
-                    <Pressable
-                      key={p.id}
-                      onPress={() => setSelectedPocketId(p.id)}
-                      hitSlop={6}
-                      className={`px-3.5 py-2.5 rounded-xl mr-2 border ${
-                        isSelected
-                          ? 'bg-[#18342B] border-[#18342B]'
-                          : 'bg-stone-50 border-stone-200'
-                      }`}>
-                      <Text
-                        className={`text-xs font-bold ${
-                          isSelected ? 'text-white' : 'text-stone-800'
-                        }`}>
-                        {p.institution_name ? `${p.institution_name} • ` : ''}
-                        {p.name}
-                      </Text>
-                      <Text
-                        className={`text-[10px] mt-0.5 ${
-                          isSelected ? 'text-[#BBD583]' : 'text-stone-500'
-                        }`}>
-                        {formatCurrency(p.current_balance)} available
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+              <SearchableSelectField
+                label="Payment Source (Auto-Deduct From) *"
+                modalTitle="Select Payment Account"
+                searchPlaceholder="Search bank, e-wallet, or pocket..."
+                placeholder="Select a pocket or wallet..."
+                options={pockets.map((p): SelectOption => ({
+                  id: p.id,
+                  label: p.institution_name ? `${p.institution_name} • ${p.name}` : p.name,
+                  subtitle: p.pocket_type === 'savings' ? 'Interest Savings' : 'Everyday Wallet',
+                  badge: `${formatCurrency(p.current_balance)} available`,
+                }))}
+                selectedId={selectedPocketId}
+                onSelect={(opt) => setSelectedPocketId(opt.id)}
+              />
 
               {/* 4. Billing Frequency */}
               <Text className="text-xs font-medium text-stone-600 mb-1.5">
@@ -381,33 +343,17 @@ export function AddSubscriptionModal({
               </View>
 
               {/* 6. Expense Category */}
-              <Text className="text-xs font-medium text-stone-600 mb-1.5">Category *</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                className="mb-4">
-                {SUBSCRIPTION_CATEGORIES.map((cat) => {
-                  const isSelected = category === cat;
-                  return (
-                    <Pressable
-                      key={cat}
-                      onPress={() => setCategory(cat)}
-                      className={`px-3 py-2 rounded-xl mr-2 border ${
-                        isSelected
-                          ? 'bg-stone-900 border-stone-900'
-                          : 'bg-stone-50 border-stone-200'
-                      }`}>
-                      <Text
-                        className={`text-xs font-semibold ${
-                          isSelected ? 'text-white' : 'text-stone-700'
-                        }`}>
-                        {cat}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+              <SearchableSelectField
+                label="Category *"
+                modalTitle="Select Expense Category"
+                searchPlaceholder="Search Entertainment, Software, Utilities..."
+                options={SUBSCRIPTION_CATEGORIES.map((cat): SelectOption => ({
+                  id: cat,
+                  label: cat,
+                }))}
+                selectedId={category}
+                onSelect={(opt) => setCategory(opt.id)}
+              />
 
               {/* 7. Optional Notes */}
               <View className="mb-5">

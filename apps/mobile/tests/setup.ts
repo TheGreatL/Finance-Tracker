@@ -9,6 +9,13 @@ vi.mock('react-native', () => ({
   },
 }));
 
+vi.mock('lucide-react-native', () => ({
+  Search: () => null,
+  X: () => null,
+  Check: () => null,
+  ChevronDown: () => null,
+}));
+
 const mockFileSystem = {
   documentDirectory: 'file:///data/user/0/com.app/files/',
   getInfoAsync: vi.fn(async (uri: string) => ({ exists: true, uri })),

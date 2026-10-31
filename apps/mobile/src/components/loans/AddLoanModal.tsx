@@ -19,6 +19,7 @@ import { InstitutionLogo } from '../accounts/InstitutionLogo';
 import { saveAttachment } from '../../utils/fileStorage';
 import { scheduleLoanReminder } from '../../services/notificationService';
 import { DatePickerModal } from '../common/DatePickerModal';
+import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
 import { formatDisplayDate } from '../../utils/formatters';
 
 interface AddLoanModalProps {
@@ -59,8 +60,8 @@ export function AddLoanModal({
     }
   }, [initialProvider, visible]);
 
-  // Providers list focusing on lending apps + banks/e-wallets
-  const providers = [
+  // Providers list focusing on lending apps first + all remaining banks/e-wallets
+  const priorityCodes = [
     'billease',
     'tala',
     'homecredit',
@@ -72,7 +73,11 @@ export function AddLoanModal({
     'cimb',
     'unionbank',
     'metrobank',
-  ].map((code) => getInstitutionConfig(code));
+  ];
+  const providers = [
+    ...priorityCodes.map((code) => getInstitutionConfig(code)),
+    ...INSTITUTION_OPTIONS.filter((item) => !priorityCodes.includes(item.code)),
+  ];
 
   const handlePickImage = async () => {
     try {
@@ -214,32 +219,19 @@ export function AddLoanModal({
               ) : null}
 
               {/* 1. Lender / Institution Selector */}
-              <Text className="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-2">
-                1. Lending Provider / Bank
-              </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" className="mb-4">
-                {providers.map((item) => {
-                  const isSelected = item.code === selectedProvider;
-                  return (
-                    <Pressable
-                      key={item.code}
-                      onPress={() => setSelectedProvider(item.code)}
-                      hitSlop={8}
-                      pressRetentionOffset={20}
-                      className={`flex-row items-center px-3 py-2 rounded-xl mr-2 border ${
-                        isSelected ? 'bg-stone-900 border-stone-900' : 'bg-stone-50 border-stone-200'
-                      }`}>
-                      <InstitutionLogo code={item.code} size={20} className="mr-2" />
-                      <Text
-                        className={`text-xs font-semibold ${
-                          isSelected ? 'text-white' : 'text-stone-700'
-                        }`}>
-                        {item.name}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+              <SearchableSelectField
+                label="1. Lending Provider / Bank"
+                modalTitle="Select Lending Provider or Bank"
+                searchPlaceholder="Search BillEase, Tala, Home Credit, GCash, BDO..."
+                options={providers.map((item): SelectOption => ({
+                  id: item.code,
+                  label: item.name,
+                  subtitle: item.type === 'ewallet' ? 'E-Wallet / Lending' : 'Bank',
+                  icon: <InstitutionLogo code={item.code} size={28} />,
+                }))}
+                selectedId={selectedProvider}
+                onSelect={(opt) => setSelectedProvider(opt.id)}
+              />
 
               {/* 2. Loan Title */}
               <View className="mb-3">

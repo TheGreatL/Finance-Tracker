@@ -9,13 +9,14 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { X, Check, Building2, Smartphone, Banknote, Wallet } from 'lucide-react-native';
+import { X } from 'lucide-react-native';
 import {
   INSTITUTION_OPTIONS,
   getInstitutionConfig,
   type InstitutionConfig,
 } from '../../constants/institutions';
 import { InstitutionLogo } from './InstitutionLogo';
+import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
 import type { PocketType } from '../../types/database';
 
 interface AddAccountModalProps {
@@ -138,33 +139,21 @@ export function AddAccountModal({ visible, onClose, onSubmit, onSwitchToLoan }: 
               </Pressable>
             )}
 
-            {/* 1. Select Institution */}
-            <Text className="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-2">
-              1. Choose Bank or E-Wallet
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" className="mb-4">
-              {INSTITUTION_OPTIONS.map((item) => {
-                const isSelected = item.code === selectedCode;
-                return (
-                  <Pressable
-                    key={item.code}
-                    onPress={() => handleSelectInstitution(item)}
-                    className={`flex-row items-center px-3 py-2 rounded-xl mr-2 border ${
-                      isSelected
-                        ? 'bg-stone-900 border-stone-900'
-                        : 'bg-stone-50 border-stone-200'
-                    }`}>
-                    <InstitutionLogo code={item.code} size={20} className="mr-2" />
-                    <Text
-                      className={`text-xs font-semibold ${
-                        isSelected ? 'text-white' : 'text-stone-700'
-                      }`}>
-                      {item.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+            {/* 1. Select Institution via Searchable Dropdown */}
+            <SearchableSelectField
+              label="1. Choose Bank or E-Wallet"
+              modalTitle="Select Bank or E-Wallet"
+              searchPlaceholder="Search BDO, BPI, GCash, Maya, SeaBank..."
+              options={INSTITUTION_OPTIONS.map((item): SelectOption => ({
+                id: item.code,
+                label: item.name,
+                subtitle: item.type === 'ewallet' ? 'E-Wallet' : item.type === 'bank' ? 'Bank' : 'Cash',
+                badge: item.defaultInterestRate ? `${item.defaultInterestRate}% p.a.` : undefined,
+                icon: <InstitutionLogo code={item.code} size={28} />,
+              }))}
+              selectedId={selectedCode}
+              onSelect={(opt) => handleSelectInstitution(getInstitutionConfig(opt.id))}
+            />
 
             {/* Custom Name (Optional) */}
             <View className="mb-4">
@@ -306,4 +295,3 @@ export function AddAccountModal({ visible, onClose, onSubmit, onSwitchToLoan }: 
     </Modal>
   );
 }
-

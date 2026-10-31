@@ -13,6 +13,8 @@ import { X, ArrowDownLeft, ArrowUpRight, Repeat } from 'lucide-react-native';
 import type { AccountPocket, TransactionType } from '../../types/database';
 import type { CreateTransactionInput } from '../../services/transactionService';
 import { InstitutionLogo } from '../accounts/InstitutionLogo';
+import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
+import { formatCurrency } from '../../utils/formatters';
 
 interface ActivePocket extends AccountPocket {
   institution_name: string;
@@ -264,94 +266,66 @@ export function TransactionFormModal({
             </View>
 
             {/* Source Pocket Selector */}
-            <View className="mb-4">
-              <Text className="text-xs font-medium text-stone-600 mb-1">
-                {type === 'transfer' ? 'From Pocket' : type === 'income' ? 'Deposit To' : 'Paid From'}
-              </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {pockets.map((p) => {
-                  const isSelected = p.id === pocketId;
-                  return (
-                    <Pressable
-                      key={p.id}
-                      onPress={() => setPocketId(p.id)}
-                      className={`flex-row items-center px-3 py-2 rounded-xl mr-2 border ${
-                        isSelected
-                          ? 'bg-[#18342B] border-[#18342B]'
-                          : 'bg-stone-50 border-stone-200'
-                      }`}>
-                      <InstitutionLogo code={p.institution_code} size={16} className="mr-1.5" />
-                      <Text
-                        className={`text-xs font-bold ${
-                          isSelected ? 'text-white' : 'text-stone-800'
-                        }`}>
-                        {p.institution_name} • {p.name}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
+            <SearchableSelectField
+              label={
+                type === 'transfer'
+                  ? 'From Pocket'
+                  : type === 'income'
+                  ? 'Deposit To'
+                  : 'Paid From'
+              }
+              modalTitle={
+                type === 'transfer'
+                  ? 'Select Source Pocket'
+                  : type === 'income'
+                  ? 'Select Deposit Pocket'
+                  : 'Select Payment Pocket'
+              }
+              searchPlaceholder="Search bank, e-wallet, or pocket..."
+              options={pockets.map((p): SelectOption => ({
+                id: p.id,
+                label: `${p.institution_name} • ${p.name}`,
+                subtitle: p.pocket_type === 'savings' ? 'Interest Savings' : 'Everyday Wallet',
+                badge: formatCurrency(p.current_balance),
+                icon: <InstitutionLogo code={p.institution_code} size={26} />,
+              }))}
+              selectedId={pocketId}
+              onSelect={(opt) => setPocketId(opt.id)}
+            />
 
             {/* Destination Pocket Selector (If Transfer) */}
             {type === 'transfer' ? (
-              <View className="mb-4">
-                <Text className="text-xs font-medium text-stone-600 mb-1">To Pocket</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {pockets
-                    .filter((p) => p.id !== pocketId)
-                    .map((p) => {
-                      const isSelected = p.id === toPocketId;
-                      return (
-                        <Pressable
-                          key={p.id}
-                          onPress={() => setToPocketId(p.id)}
-                          className={`flex-row items-center px-3 py-2 rounded-xl mr-2 border ${
-                            isSelected
-                              ? 'bg-[#18342B] border-[#18342B]'
-                              : 'bg-stone-50 border-stone-200'
-                          }`}>
-                          <InstitutionLogo code={p.institution_code} size={16} className="mr-1.5" />
-                          <Text
-                            className={`text-xs font-bold ${
-                              isSelected ? 'text-white' : 'text-stone-800'
-                            }`}>
-                            {p.institution_name} • {p.name}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                </ScrollView>
-              </View>
+              <SearchableSelectField
+                label="To Pocket"
+                modalTitle="Select Destination Pocket"
+                searchPlaceholder="Search destination pocket..."
+                options={pockets
+                  .filter((p) => p.id !== pocketId)
+                  .map((p): SelectOption => ({
+                    id: p.id,
+                    label: `${p.institution_name} • ${p.name}`,
+                    subtitle: p.pocket_type === 'savings' ? 'Interest Savings' : 'Everyday Wallet',
+                    badge: formatCurrency(p.current_balance),
+                    icon: <InstitutionLogo code={p.institution_code} size={26} />,
+                  }))}
+                selectedId={toPocketId}
+                onSelect={(opt) => setToPocketId(opt.id)}
+              />
             ) : null}
 
             {/* Category Selector (If not Transfer) */}
             {type !== 'transfer' ? (
-              <View className="mb-4">
-                <Text className="text-xs font-medium text-stone-600 mb-1">Category</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {categories.map((cat) => {
-                    const isSelected = cat === category;
-                    return (
-                      <Pressable
-                        key={cat}
-                        onPress={() => setCategory(cat)}
-                        className={`px-3 py-1.5 rounded-xl mr-2 border ${
-                          isSelected
-                            ? 'bg-stone-900 border-stone-900'
-                            : 'bg-stone-50 border-stone-200'
-                        }`}>
-                        <Text
-                          className={`text-xs font-semibold ${
-                            isSelected ? 'text-white' : 'text-stone-700'
-                          }`}>
-                          {cat}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              </View>
+              <SearchableSelectField
+                label="Category"
+                modalTitle={type === 'income' ? 'Select Income Category' : 'Select Expense Category'}
+                searchPlaceholder="Search category..."
+                options={categories.map((cat): SelectOption => ({
+                  id: cat,
+                  label: cat,
+                }))}
+                selectedId={category}
+                onSelect={(opt) => setCategory(opt.id)}
+              />
             ) : null}
 
             {/* Notes */}
