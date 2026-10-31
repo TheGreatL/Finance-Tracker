@@ -313,10 +313,10 @@ export default function ObligationsScreen() {
     const handleRecordPayday = async (job: JobRecord) => {
         const db = await getDatabase();
         const now = new Date();
-        const payDate = getNextPayDate(job.pay_schedule, job.pay_day_1, job.pay_day_2, now);
+        const payDate = getNextPayDate(job.pay_schedule, job.pay_day_1, job.pay_day_2, now, job.payout_date);
         await recordPaydayManual(db, job.id, payDate, `Manual payday payout for ${job.title}`);
         await loadData();
-        showToast('Payday deposited');
+        showToast(job.pay_schedule === 'one_time' ? 'One-time payout deposited' : 'Payday deposited');
     };
 
     // Filtered lists

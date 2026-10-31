@@ -508,21 +508,22 @@ export default function DashboardScreen() {
 
     return (
         <View className="flex-1 bg-stone-50" style={{ paddingTop: Math.max(insets.top, 12) }}>
+            {/* Header with greeting, unread notifications badge, and Notifications trigger */}
+            <DashboardHeader
+                userName="Personal Ledger"
+                onMenuPress={openSidebar}
+                unreadNotificationsCount={unreadNotificationsCount}
+                onNotificationPress={() => setNotificationCenterVisible(true)}
+                onScanPress={() => handleOpenTransactionModal('expense')}
+            />
+
             <ScrollView
+                className="flex-1"
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 contentContainerStyle={{ paddingBottom: 32 }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#BBD583" colors={['#18342B', '#BBD583']} />}
             >
-                {/* Header with greeting, unread notifications badge, and Notifications trigger */}
-                <DashboardHeader
-                    userName="Personal Ledger"
-                    onMenuPress={openSidebar}
-                    unreadNotificationsCount={unreadNotificationsCount}
-                    onNotificationPress={() => setNotificationCenterVisible(true)}
-                    onScanPress={() => handleOpenTransactionModal('expense')}
-                />
-
                 {/* Hero Card with Pistachio & Deep Pine */}
                 <BalanceHeroCard totalBalance={totalBalance} totalIncome={totalIncome} totalExpense={totalExpense} currency="₱" />
 

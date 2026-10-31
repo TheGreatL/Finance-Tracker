@@ -4,7 +4,7 @@ import { X, Edit3, Calendar, Wallet, Building2, FileText, ChevronRight, Archive 
 import type { JobRecord, JobDeductionRecord, PaySlipRecord } from '../../types/database';
 import { formatCurrency, formatDisplayDate } from '../../utils/formatters';
 import { getDatabase } from '../../database/db';
-import { getDeductionsByJobId, getPaySlipsByJob, getNextPayDate } from '../../services/salaryService';
+import { getDeductionsByJobId, getPaySlipsByJob, getNextPayDate, calculateNetTakeHome } from '../../services/salaryService';
 import { DEDUCTION_CATEGORY_CONFIG } from '../../constants/salaryPresets';
 
 interface JobDetailSheetProps {
@@ -42,10 +42,34 @@ export function JobDetailSheet({ visible, job, onClose, onEdit, onRecordPayday, 
     if (!job) return null;
 
     const isArchived = job.status === 'archived';
+    const isOneTime = job.pay_schedule === 'one_time';
+    const isSemiMonthly = job.pay_schedule === 'semi_monthly';
     const now = new Date();
-    const nextDate = !isArchived ? getNextPayDate(job.pay_schedule, job.pay_day_1, job.pay_day_2, now) : null;
+    const nextDate = !isArchived ? getNextPayDate(job.pay_schedule, job.pay_day_1, job.pay_day_2, now, job.payout_date) : null;
     const diffTime = nextDate ? new Date(nextDate).getTime() - new Date(now.toISOString().split('T')[0]).getTime() : 0;
-    const daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    const targetCutoff =
+        isSemiMonthly && nextDate
+            ? Math.abs(parseInt(nextDate.split('-')[2], 10) - job.pay_day_1) <= Math.abs(parseInt(nextDate.split('-')[2], 10) - (job.pay_day_2 || 30))
+                ? 'first_cutoff'
+                : 'second_cutoff'
+            : 'both';
+    const upcomingBreakdown = calculateNetTakeHome(job.gross_salary, deductions, targetCutoff);
+
+    const bannerTitle = isOneTime
+        ? daysRemaining < 0
+            ? 'Payout Pending'
+            : daysRemaining === 0
+              ? 'Payout Due Today'
+              : daysRemaining === 1
+                ? 'Payout Tomorrow'
+                : `Payout in ${daysRemaining} days`
+        : daysRemaining === 0
+          ? 'Payday Today'
+          : daysRemaining === 1
+            ? 'Payday Tomorrow'
+            : `Next Payday in ${daysRemaining} days`;
 
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -102,13 +126,7 @@ export function JobDetailSheet({ visible, job, onClose, onEdit, onRecordPayday, 
                                     <View className="flex-row items-center gap-2.5 flex-1 mr-2">
                                         <Calendar size={18} className="text-amber-600 dark:text-amber-400" />
                                         <View>
-                                            <Text className="text-xs font-bold text-amber-900 dark:text-amber-300">
-                                                {daysRemaining === 0
-                                                    ? 'Payday Today'
-                                                    : daysRemaining === 1
-                                                      ? 'Payday Tomorrow'
-                                                      : `Next Payday in ${daysRemaining} days`}
-                                            </Text>
+                                            <Text className="text-xs font-bold text-amber-900 dark:text-amber-300">{bannerTitle}</Text>
                                             <Text className="text-[11px] text-amber-700 dark:text-amber-400">
                                                 Scheduled on {nextDate ? formatDisplayDate(nextDate) : 'upcoming'}
                                             </Text>
@@ -118,7 +136,7 @@ export function JobDetailSheet({ visible, job, onClose, onEdit, onRecordPayday, 
                                         onPress={() => onRecordPayday(job)}
                                         className="rounded-xl bg-amber-500 active:bg-amber-600 px-3 py-1.5"
                                     >
-                                        <Text className="text-xs font-bold text-white">Record Now</Text>
+                                        <Text className="text-xs font-bold text-white">{isOneTime ? 'Deposit' : 'Record Now'}</Text>
                                     </Pressable>
                                 </View>
                             )}
@@ -126,27 +144,39 @@ export function JobDetailSheet({ visible, job, onClose, onEdit, onRecordPayday, 
                             {/* Earnings & Take-Home Card */}
                             <View className="mb-5 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/20 p-4">
                                 <Text className="text-[10px] uppercase font-bold text-emerald-800 dark:text-emerald-300 tracking-wider mb-1">
-                                    Net Take-Home Pay (Per Paycheck)
+                                    {isOneTime
+                                        ? 'Agreed Net Payout'
+                                        : isSemiMonthly
+                                          ? `Next Paycheck Net (${targetCutoff === 'first_cutoff' ? '1st Cut-off' : '2nd Cut-off'})`
+                                          : 'Net Take-Home Pay (Per Paycheck)'}
                                 </Text>
                                 <Text className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mb-3">
-                                    {formatCurrency(job.net_take_home ?? job.gross_salary)}
+                                    {formatCurrency(upcomingBreakdown.netTakeHome)}
                                 </Text>
 
                                 <View className="space-y-1.5 pt-2 border-t border-emerald-500/20">
                                     <View className="flex-row justify-between items-center">
-                                        <Text className="text-xs text-slate-600 dark:text-slate-400">Gross Earnings</Text>
+                                        <Text className="text-xs text-slate-600 dark:text-slate-400">
+                                            {isOneTime ? 'Total Agreed' : 'Gross Earnings'}
+                                        </Text>
                                         <Text className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                                             {formatCurrency(job.gross_salary)}
                                         </Text>
                                     </View>
                                     <View className="flex-row justify-between items-center">
-                                        <Text className="text-xs text-rose-600 dark:text-rose-400">Total Deductions</Text>
+                                        <Text className="text-xs text-rose-600 dark:text-rose-400">
+                                            {isSemiMonthly
+                                                ? `Deductions (${targetCutoff === 'first_cutoff' ? '1st Cut-off' : '2nd Cut-off'})`
+                                                : 'Total Deductions'}
+                                        </Text>
                                         <Text className="text-xs font-semibold text-rose-600 dark:text-rose-400">
-                                            - {formatCurrency(job.total_deductions ?? 0)}
+                                            - {formatCurrency(upcomingBreakdown.totalDeductions)}
                                         </Text>
                                     </View>
                                     <View className="flex-row justify-between items-center pt-1 border-t border-emerald-500/15">
-                                        <Text className="text-xs font-bold text-slate-700 dark:text-slate-300">Estimated Monthly Take-Home</Text>
+                                        <Text className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                            {isOneTime ? 'Current Month Budget Impact' : 'Estimated Monthly Take-Home'}
+                                        </Text>
                                         <Text className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
                                             {formatCurrency(job.monthly_net ?? 0)}/mo
                                         </Text>
@@ -192,6 +222,33 @@ export function JobDetailSheet({ visible, job, onClose, onEdit, onRecordPayday, 
                                                                     {catConfig.label}
                                                                 </Text>
                                                             </View>
+                                                            {isSemiMonthly && (
+                                                                <View
+                                                                    className={`rounded px-1.5 py-0.5 ${
+                                                                        d.pay_cutoff === 'first_cutoff'
+                                                                            ? 'bg-blue-50 dark:bg-blue-950/40'
+                                                                            : d.pay_cutoff === 'second_cutoff'
+                                                                              ? 'bg-purple-50 dark:bg-purple-950/40'
+                                                                              : 'bg-slate-100 dark:bg-slate-800'
+                                                                    }`}
+                                                                >
+                                                                    <Text
+                                                                        className={`text-[9px] font-bold ${
+                                                                            d.pay_cutoff === 'first_cutoff'
+                                                                                ? 'text-blue-700 dark:text-blue-400'
+                                                                                : d.pay_cutoff === 'second_cutoff'
+                                                                                  ? 'text-purple-700 dark:text-purple-400'
+                                                                                  : 'text-slate-600 dark:text-slate-400'
+                                                                        }`}
+                                                                    >
+                                                                        {d.pay_cutoff === 'first_cutoff'
+                                                                            ? '1st Cut-off'
+                                                                            : d.pay_cutoff === 'second_cutoff'
+                                                                              ? '2nd Cut-off'
+                                                                              : 'Both Cut-offs'}
+                                                                    </Text>
+                                                                </View>
+                                                            )}
                                                             {Boolean(d.is_percentage) && d.percentage_rate ? (
                                                                 <Text className="text-[10px] text-slate-400">({d.percentage_rate}%)</Text>
                                                             ) : null}
@@ -259,7 +316,7 @@ export function JobDetailSheet({ visible, job, onClose, onEdit, onRecordPayday, 
                                 onPress={() => onRecordPayday(job)}
                                 className="flex-1 h-12 rounded-xl bg-emerald-600 items-center justify-center active:bg-emerald-700"
                             >
-                                <Text className="text-sm font-bold text-white">Record Payday Now</Text>
+                                <Text className="text-sm font-bold text-white">{isOneTime ? 'Deposit Payout Now' : 'Record Payday Now'}</Text>
                             </Pressable>
                         )}
                         <Pressable

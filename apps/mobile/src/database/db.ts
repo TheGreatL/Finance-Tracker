@@ -207,9 +207,10 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
           title TEXT NOT NULL,
           company_name TEXT NOT NULL,
           employment_type TEXT NOT NULL CHECK(employment_type IN ('full_time', 'part_time', 'freelance', 'contract', 'other')),
-          pay_schedule TEXT NOT NULL CHECK(pay_schedule IN ('monthly', 'semi_monthly', 'biweekly', 'weekly')),
+          pay_schedule TEXT NOT NULL CHECK(pay_schedule IN ('monthly', 'semi_monthly', 'biweekly', 'weekly', 'one_time')),
           pay_day_1 INTEGER NOT NULL,
           pay_day_2 INTEGER DEFAULT NULL,
+          payout_date TEXT DEFAULT NULL,
           gross_salary REAL NOT NULL,
           salary_period TEXT NOT NULL DEFAULT 'per_paycheck' CHECK(salary_period IN ('monthly', 'per_paycheck')),
           target_pocket_id TEXT NOT NULL,
@@ -224,6 +225,44 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_jobs_target_pocket ON jobs(target_pocket_id);
       `);
         }
+    }
+
+    // 9b. Check if jobs table needs migration for one_time and payout_date
+    try {
+        const tableInfo = await db.getFirstAsync<{ sql: string }>("SELECT sql FROM sqlite_master WHERE type='table' AND name='jobs';");
+        if (tableInfo && (!tableInfo.sql.includes('one_time') || !tableInfo.sql.includes('payout_date'))) {
+            await db.execAsync(`
+                PRAGMA foreign_keys = OFF;
+                CREATE TABLE IF NOT EXISTS jobs_migration (
+                  id TEXT PRIMARY KEY,
+                  title TEXT NOT NULL,
+                  company_name TEXT NOT NULL,
+                  employment_type TEXT NOT NULL CHECK(employment_type IN ('full_time', 'part_time', 'freelance', 'contract', 'other')),
+                  pay_schedule TEXT NOT NULL CHECK(pay_schedule IN ('monthly', 'semi_monthly', 'biweekly', 'weekly', 'one_time')),
+                  pay_day_1 INTEGER NOT NULL,
+                  pay_day_2 INTEGER DEFAULT NULL,
+                  payout_date TEXT DEFAULT NULL,
+                  gross_salary REAL NOT NULL,
+                  salary_period TEXT NOT NULL DEFAULT 'per_paycheck' CHECK(salary_period IN ('monthly', 'per_paycheck')),
+                  target_pocket_id TEXT NOT NULL,
+                  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'archived')),
+                  color TEXT DEFAULT '#4F46E5',
+                  notes TEXT DEFAULT '',
+                  created_at TEXT NOT NULL,
+                  updated_at TEXT NOT NULL,
+                  FOREIGN KEY (target_pocket_id) REFERENCES account_pockets(id) ON DELETE RESTRICT
+                );
+                INSERT INTO jobs_migration (id, title, company_name, employment_type, pay_schedule, pay_day_1, pay_day_2, gross_salary, salary_period, target_pocket_id, status, color, notes, created_at, updated_at)
+                  SELECT id, title, company_name, employment_type, pay_schedule, pay_day_1, pay_day_2, gross_salary, salary_period, target_pocket_id, status, color, notes, created_at, updated_at FROM jobs;
+                DROP TABLE jobs;
+                ALTER TABLE jobs_migration RENAME TO jobs;
+                CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+                CREATE INDEX IF NOT EXISTS idx_jobs_target_pocket ON jobs(target_pocket_id);
+                PRAGMA foreign_keys = ON;
+            `);
+        }
+    } catch {
+        // Ignore table migration check failure
     }
 
     // 10. Ensure job_deductions table exists
@@ -241,6 +280,7 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
           amount REAL NOT NULL,
           is_percentage INTEGER NOT NULL DEFAULT 0,
           percentage_rate REAL DEFAULT NULL,
+          pay_cutoff TEXT NOT NULL DEFAULT 'both' CHECK(pay_cutoff IN ('both', 'first_cutoff', 'second_cutoff')),
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
           FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
@@ -248,6 +288,17 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_job_deductions_job ON job_deductions(job_id);
         CREATE INDEX IF NOT EXISTS idx_job_deductions_category ON job_deductions(category);
       `);
+        }
+    }
+
+    // 10b. Ensure job_deductions has pay_cutoff column
+    try {
+        await db.getFirstAsync('SELECT pay_cutoff FROM job_deductions LIMIT 1;');
+    } catch {
+        try {
+            await db.execAsync("ALTER TABLE job_deductions ADD COLUMN pay_cutoff TEXT NOT NULL DEFAULT 'both';");
+        } catch {
+            // Column may already exist or table was just created
         }
     }
 

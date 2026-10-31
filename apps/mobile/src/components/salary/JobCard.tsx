@@ -13,17 +13,19 @@ interface JobCardProps {
 export function JobCard({ job, onPress }: JobCardProps) {
     const isArchived = job.status === 'archived';
 
+    const isOneTime = job.pay_schedule === 'one_time';
+
     const nextPayInfo = useMemo(() => {
         if (isArchived) return null;
         const now = new Date();
-        const nextDate = getNextPayDate(job.pay_schedule, job.pay_day_1, job.pay_day_2, now);
+        const nextDate = getNextPayDate(job.pay_schedule, job.pay_day_1, job.pay_day_2, now, job.payout_date);
         const diffTime = new Date(nextDate).getTime() - new Date(now.toISOString().split('T')[0]).getTime();
-        const daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+        const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         return {
             date: nextDate,
             daysRemaining
         };
-    }, [isArchived, job.pay_schedule, job.pay_day_1, job.pay_day_2]);
+    }, [isArchived, job.pay_schedule, job.pay_day_1, job.pay_day_2, job.payout_date]);
 
     const employmentTypeLabel = useMemo(() => {
         switch (job.employment_type) {
@@ -50,6 +52,8 @@ export function JobCard({ job, onPress }: JobCardProps) {
                 return 'Bi-Weekly';
             case 'weekly':
                 return 'Weekly';
+            case 'one_time':
+                return 'One-Time';
             default:
                 return 'Paycheck';
         }
@@ -102,15 +106,21 @@ export function JobCard({ job, onPress }: JobCardProps) {
             <View className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 mb-3 border border-slate-100 dark:border-slate-800">
                 <View className="flex-row justify-between items-end mb-1.5">
                     <View>
-                        <Text className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Net Take-Home Pay</Text>
+                        <Text className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                            {isOneTime ? 'Agreed Net Payout' : 'Net Take-Home Pay'}
+                        </Text>
                         <Text className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                             {formatCurrency(job.net_take_home ?? job.gross_salary)}
-                            <Text className="text-xs font-medium text-slate-500 dark:text-slate-400"> / {scheduleLabel.toLowerCase()}</Text>
+                            <Text className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                {isOneTime ? ' (One-time)' : ` / ${scheduleLabel.toLowerCase()}`}
+                            </Text>
                         </Text>
                     </View>
 
                     <View className="items-end">
-                        <Text className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Gross Pay</Text>
+                        <Text className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                            {isOneTime ? 'Total Agreed' : 'Gross Pay'}
+                        </Text>
                         <Text className="text-xs font-bold text-slate-700 dark:text-slate-300">{formatCurrency(job.gross_salary)}</Text>
                     </View>
                 </View>
@@ -130,11 +140,19 @@ export function JobCard({ job, onPress }: JobCardProps) {
                     <View className="flex-row items-center gap-1.5">
                         <Calendar size={13} className="text-amber-500" />
                         <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                            {nextPayInfo.daysRemaining === 0
-                                ? 'Payday Today'
-                                : nextPayInfo.daysRemaining === 1
-                                  ? 'Payday Tomorrow'
-                                  : `Payday in ${nextPayInfo.daysRemaining} days`}
+                            {isOneTime
+                                ? nextPayInfo.daysRemaining < 0
+                                    ? 'Payout Pending'
+                                    : nextPayInfo.daysRemaining === 0
+                                      ? 'Payout Today'
+                                      : nextPayInfo.daysRemaining === 1
+                                        ? 'Payout Tomorrow'
+                                        : `Payout in ${nextPayInfo.daysRemaining} days`
+                                : nextPayInfo.daysRemaining === 0
+                                  ? 'Payday Today'
+                                  : nextPayInfo.daysRemaining === 1
+                                    ? 'Payday Tomorrow'
+                                    : `Payday in ${nextPayInfo.daysRemaining} days`}
                             <Text className="text-[11px] font-normal text-slate-400"> • {formatDisplayDate(nextPayInfo.date)}</Text>
                         </Text>
                     </View>

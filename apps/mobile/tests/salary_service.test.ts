@@ -56,6 +56,28 @@ describe('salaryService calculation engine', () => {
             expect(res.totalDeductions).toBe(6000);
             expect(res.netTakeHome).toBe(0);
         });
+
+        it('filters deductions based on targetCutoff for semi-monthly paydays', () => {
+            const gross = 25000;
+            const deductions: CreateDeductionInput[] = [
+                { name: 'Income Tax', category: 'tax', amount: 2000, payCutoff: 'both' },
+                { name: 'SSS', category: 'statutory', amount: 1125, payCutoff: 'first_cutoff' },
+                { name: 'PhilHealth', category: 'statutory', amount: 625, payCutoff: 'first_cutoff' },
+                { name: 'Pag-IBIG', category: 'statutory', amount: 200, payCutoff: 'second_cutoff' }
+            ];
+
+            // 1st cut-off should deduct Tax (2000) + SSS (1125) + PhilHealth (625) = 3750
+            const cut1 = calculateNetTakeHome(gross, deductions, 'first_cutoff');
+            expect(cut1.totalDeductions).toBe(3750);
+            expect(cut1.netTakeHome).toBe(21250);
+            expect(cut1.itemized.map((d) => d.name)).toEqual(['Income Tax', 'SSS', 'PhilHealth']);
+
+            // 2nd cut-off should deduct Tax (2000) + Pag-IBIG (200) = 2200
+            const cut2 = calculateNetTakeHome(gross, deductions, 'second_cutoff');
+            expect(cut2.totalDeductions).toBe(2200);
+            expect(cut2.netTakeHome).toBe(22800);
+            expect(cut2.itemized.map((d) => d.name)).toEqual(['Income Tax', 'Pag-IBIG']);
+        });
     });
 
     describe('normalizeMonthlySalary', () => {
@@ -77,6 +99,10 @@ describe('salaryService calculation engine', () => {
             const perWeek = 10000;
             const expected = Math.round(((10000 * 52) / 12) * 100) / 100;
             expect(normalizeMonthlySalary(perWeek, 'weekly')).toBe(expected);
+        });
+
+        it('normalizes one_time payment to exact amount without recurring multiplier', () => {
+            expect(normalizeMonthlySalary(45000, 'one_time')).toBe(45000);
         });
     });
 
@@ -151,6 +177,11 @@ describe('salaryService calculation engine', () => {
             const from = new Date(2026, 1, 16); // Feb 16, 2026
             const nextDate = getNextPayDate('semi_monthly', 15, 30, from);
             expect(nextDate).toBe('2026-02-28');
+        });
+
+        it('returns explicit payoutDate for one_time payment schedule', () => {
+            const from = new Date(2026, 9, 1);
+            expect(getNextPayDate('one_time', 15, null, from, '2026-11-20')).toBe('2026-11-20');
         });
     });
 });
@@ -230,9 +261,10 @@ describe('salaryService database CRUD', () => {
         expect(jobInsert).toBeDefined();
         expect(jobInsert?.params).toContain('Senior Software Engineer');
 
-        // Should insert 3 deductions
+        // Should insert 3 deductions with pay_cutoff
         const deductionInserts = executed.filter((e) => e.sql.includes('INSERT INTO job_deductions'));
         expect(deductionInserts.length).toBe(3);
+        expect(deductionInserts[0]?.params).toContain('both');
     });
 
     it('archiveJob and unarchiveJob update job status', async () => {
@@ -418,5 +450,111 @@ describe('salaryService database CRUD', () => {
         expect(summary.deductionBreakdown.tax).toBe(10000);
         expect(summary.deductionBreakdown.statutory).toBe(2000);
         expect(summary.nextPayday).toBeDefined();
+    });
+
+    it('getIncomeSummary includes one_time jobs only if payout_date is in current month', async () => {
+        const now = new Date();
+        const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const currentMonthDate = `${currentYearMonth}-15`;
+        const futureMonthDate = `${now.getFullYear() + 1}-01-15`;
+
+        const mockDb: any = {
+            getAllAsync: vi.fn(async (sql: string, params: any[]) => {
+                if (sql.includes('FROM jobs')) {
+                    if (params && params[0] === 'active') {
+                        return [
+                            {
+                                id: 'job_current_ot',
+                                title: 'Consulting Project',
+                                company_name: 'Client Alpha',
+                                employment_type: 'freelance',
+                                pay_schedule: 'one_time',
+                                pay_day_1: 1,
+                                payout_date: currentMonthDate,
+                                gross_salary: 25000,
+                                salary_period: 'one_time',
+                                target_pocket_id: 'pock_1',
+                                status: 'active',
+                                created_at: '2026-01-01',
+                                updated_at: '2026-01-01'
+                            },
+                            {
+                                id: 'job_future_ot',
+                                title: 'Upcoming Gig',
+                                company_name: 'Client Beta',
+                                employment_type: 'contract',
+                                pay_schedule: 'one_time',
+                                pay_day_1: 1,
+                                payout_date: futureMonthDate,
+                                gross_salary: 50000,
+                                salary_period: 'one_time',
+                                target_pocket_id: 'pock_1',
+                                status: 'active',
+                                created_at: '2026-01-01',
+                                updated_at: '2026-01-01'
+                            }
+                        ];
+                    }
+                    return [];
+                }
+                if (sql.includes('FROM job_deductions')) {
+                    return [];
+                }
+                if (sql.includes('FROM pay_slips')) {
+                    return [];
+                }
+                return [];
+            })
+        };
+
+        const summary = await getIncomeSummary(mockDb);
+        // Only job_current_ot should be in monthlyGross and monthlyNetTakeHome
+        expect(summary.activeJobsCount).toBe(2);
+        expect(summary.monthlyGross).toBe(25000);
+        expect(summary.monthlyNetTakeHome).toBe(25000);
+    });
+
+    it('getIncomeSummary skips one_time jobs from nextPayday if already paid', async () => {
+        const now = new Date();
+        const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const currentMonthDate = `${currentYearMonth}-28`;
+
+        const mockDb: any = {
+            getAllAsync: vi.fn(async (sql: string, params: any[]) => {
+                if (sql.includes('FROM jobs')) {
+                    if (params && params[0] === 'active') {
+                        return [
+                            {
+                                id: 'job_paid_ot',
+                                title: 'Completed Gig',
+                                company_name: 'Client Gamma',
+                                employment_type: 'freelance',
+                                pay_schedule: 'one_time',
+                                pay_day_1: 1,
+                                payout_date: currentMonthDate,
+                                gross_salary: 15000,
+                                salary_period: 'one_time',
+                                target_pocket_id: 'pock_1',
+                                status: 'active',
+                                created_at: '2026-01-01',
+                                updated_at: '2026-01-01'
+                            }
+                        ];
+                    }
+                    return [];
+                }
+                if (sql.includes('FROM job_deductions')) {
+                    return [];
+                }
+                if (sql.includes('FROM pay_slips')) {
+                    // Simulates an existing pay slip for this job
+                    return [{ id: 'slip_1', job_id: 'job_paid_ot', net_amount: 15000 }];
+                }
+                return [];
+            })
+        };
+
+        const summary = await getIncomeSummary(mockDb);
+        expect(summary.nextPayday).toBeUndefined();
     });
 });

@@ -316,9 +316,9 @@ export async function importDatabaseBackup(db: SQLiteDatabase, backup: DatabaseB
         await db.runAsync(
             `INSERT INTO jobs (
         id, title, company_name, employment_type, pay_schedule,
-        pay_day_1, pay_day_2, gross_salary, salary_period,
+        pay_day_1, pay_day_2, payout_date, gross_salary, salary_period,
         target_pocket_id, status, color, notes, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
             j.id,
             j.title,
             j.company_name,
@@ -326,6 +326,7 @@ export async function importDatabaseBackup(db: SQLiteDatabase, backup: DatabaseB
             j.pay_schedule,
             j.pay_day_1,
             j.pay_day_2 ?? null,
+            j.payout_date ?? null,
             j.gross_salary,
             j.salary_period || 'per_paycheck',
             j.target_pocket_id,
@@ -341,8 +342,8 @@ export async function importDatabaseBackup(db: SQLiteDatabase, backup: DatabaseB
     for (const d of job_deductions) {
         await db.runAsync(
             `INSERT INTO job_deductions (
-        id, job_id, name, category, amount, is_percentage, percentage_rate, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        id, job_id, name, category, amount, is_percentage, percentage_rate, pay_cutoff, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
             d.id,
             d.job_id,
             d.name,
@@ -350,6 +351,7 @@ export async function importDatabaseBackup(db: SQLiteDatabase, backup: DatabaseB
             d.amount,
             d.is_percentage ?? 0,
             d.percentage_rate ?? null,
+            d.pay_cutoff || 'both',
             d.created_at,
             d.updated_at
         );

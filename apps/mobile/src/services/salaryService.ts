@@ -8,7 +8,8 @@ import type {
     CreateDeductionInput,
     PaySchedule,
     JobStatus,
-    DeductionCategory
+    DeductionCategory,
+    DeductionCutoff
 } from '../types/database';
 
 export interface CalculatedDeductionItem {
@@ -18,6 +19,7 @@ export interface CalculatedDeductionItem {
     amount: number;
     isPercentage?: boolean;
     percentageRate?: number | null;
+    payCutoff?: DeductionCutoff;
 }
 
 export interface SalaryBreakdownResult {
@@ -56,6 +58,7 @@ export interface IncomeSummary {
 
 /**
  * Calculates net take-home pay by evaluating fixed and percentage-based deductions.
+ * Supports filtering deductions to a specific semi-monthly cut-off (first_cutoff, second_cutoff, or both).
  */
 export function calculateNetTakeHome(
     grossSalary: number,
@@ -65,12 +68,21 @@ export function calculateNetTakeHome(
         amount: number;
         isPercentage?: boolean;
         percentageRate?: number | null;
-    }>
+        payCutoff?: DeductionCutoff;
+        pay_cutoff?: DeductionCutoff;
+    }>,
+    targetCutoff?: DeductionCutoff
 ): SalaryBreakdownResult {
     const safeGross = Math.max(0, grossSalary || 0);
     let totalDeductions = 0;
 
-    const itemized: CalculatedDeductionItem[] = deductions.map((d) => {
+    const applicableDeductions = deductions.filter((d) => {
+        const cutoff = d.payCutoff || d.pay_cutoff || 'both';
+        if (!targetCutoff || targetCutoff === 'both') return true;
+        return cutoff === 'both' || cutoff === targetCutoff;
+    });
+
+    const itemized: CalculatedDeductionItem[] = applicableDeductions.map((d) => {
         const calculatedAmount =
             d.isPercentage && d.percentageRate && d.percentageRate > 0
                 ? Math.round(((safeGross * d.percentageRate) / 100) * 100) / 100
@@ -81,7 +93,8 @@ export function calculateNetTakeHome(
             category: d.category,
             amount: calculatedAmount,
             isPercentage: Boolean(d.isPercentage),
-            percentageRate: d.percentageRate ?? null
+            percentageRate: d.percentageRate ?? null,
+            payCutoff: d.payCutoff || d.pay_cutoff || 'both'
         };
     });
 
@@ -110,6 +123,8 @@ export function normalizeMonthlySalary(amount: number, schedule: PaySchedule): n
             return Math.round(((safeAmount * 26) / 12) * 100) / 100;
         case 'weekly':
             return Math.round(((safeAmount * 52) / 12) * 100) / 100;
+        case 'one_time':
+            return safeAmount;
         default:
             return safeAmount;
     }
@@ -177,12 +192,23 @@ export function clampDayToMonth(year: number, monthIndex: number, targetDay: num
 /**
  * Calculates the next upcoming payday formatted as YYYY-MM-DD.
  */
-export function getNextPayDate(schedule: PaySchedule, payDay1: number, payDay2?: number | null, fromDate: Date = new Date()): string {
+export function getNextPayDate(
+    schedule: PaySchedule,
+    payDay1: number,
+    payDay2?: number | null,
+    fromDate: Date = new Date(),
+    payoutDate?: string | null
+): string {
     const fromYear = fromDate.getFullYear();
     const fromMonth = fromDate.getMonth();
     const fromDay = fromDate.getDate();
 
     const pad = (n: number) => String(n).padStart(2, '0');
+
+    if (schedule === 'one_time') {
+        if (payoutDate) return payoutDate;
+        return `${fromYear}-${pad(fromMonth + 1)}-${pad(clampDayToMonth(fromYear, fromMonth, payDay1 || 1))}`;
+    }
 
     if (schedule === 'monthly') {
         const dayThisMonth = clampDayToMonth(fromYear, fromMonth, payDay1);
@@ -255,9 +281,9 @@ export async function createJob(db: SQLiteDatabase, input: CreateJobInput, deduc
         await db.runAsync(
             `INSERT INTO jobs (
         id, title, company_name, employment_type, pay_schedule,
-        pay_day_1, pay_day_2, gross_salary, salary_period,
+        pay_day_1, pay_day_2, payout_date, gross_salary, salary_period,
         target_pocket_id, status, color, notes, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
             [
                 id,
                 input.title.trim(),
@@ -266,6 +292,7 @@ export async function createJob(db: SQLiteDatabase, input: CreateJobInput, deduc
                 input.paySchedule,
                 input.payDay1,
                 input.payDay2 ?? null,
+                input.payoutDate ?? null,
                 input.grossSalary,
                 salaryPeriod,
                 input.targetPocketId,
@@ -281,9 +308,20 @@ export async function createJob(db: SQLiteDatabase, input: CreateJobInput, deduc
             const deductionId = `ded_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
             await db.runAsync(
                 `INSERT INTO job_deductions (
-          id, job_id, name, category, amount, is_percentage, percentage_rate, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-                [deductionId, id, d.name.trim(), d.category, d.amount, d.isPercentage ? 1 : 0, d.percentageRate ?? null, now, now]
+          id, job_id, name, category, amount, is_percentage, percentage_rate, pay_cutoff, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+                [
+                    deductionId,
+                    id,
+                    d.name.trim(),
+                    d.category,
+                    d.amount,
+                    d.isPercentage ? 1 : 0,
+                    d.percentageRate ?? null,
+                    d.payCutoff || 'both',
+                    now,
+                    now
+                ]
             );
         }
     });
@@ -327,8 +365,17 @@ export async function getAllJobs(db: SQLiteDatabase, statusFilter?: JobStatus): 
         const breakdown = calculateNetTakeHome(row.gross_salary, deductions);
 
         const monthlyGross = normalizeMonthlySalary(row.gross_salary, row.pay_schedule);
-        const monthlyDeductions = normalizeMonthlySalary(breakdown.totalDeductions, row.pay_schedule);
-        const monthlyNet = normalizeMonthlySalary(breakdown.netTakeHome, row.pay_schedule);
+        let monthlyDeductions = 0;
+        if (row.pay_schedule === 'semi_monthly') {
+            for (const d of breakdown.itemized) {
+                const cutoff = d.payCutoff || 'both';
+                monthlyDeductions += cutoff === 'both' ? d.amount * 2 : d.amount;
+            }
+            monthlyDeductions = Math.round(monthlyDeductions * 100) / 100;
+        } else {
+            monthlyDeductions = normalizeMonthlySalary(breakdown.totalDeductions, row.pay_schedule);
+        }
+        const monthlyNet = Math.max(0, Math.round((monthlyGross - monthlyDeductions) * 100) / 100);
 
         jobs.push({
             ...row,
@@ -369,8 +416,17 @@ export async function getJobById(db: SQLiteDatabase, id: string): Promise<JobRec
     const breakdown = calculateNetTakeHome(row.gross_salary, deductions);
 
     const monthlyGross = normalizeMonthlySalary(row.gross_salary, row.pay_schedule);
-    const monthlyDeductions = normalizeMonthlySalary(breakdown.totalDeductions, row.pay_schedule);
-    const monthlyNet = normalizeMonthlySalary(breakdown.netTakeHome, row.pay_schedule);
+    let monthlyDeductions = 0;
+    if (row.pay_schedule === 'semi_monthly') {
+        for (const d of breakdown.itemized) {
+            const cutoff = d.payCutoff || 'both';
+            monthlyDeductions += cutoff === 'both' ? d.amount * 2 : d.amount;
+        }
+        monthlyDeductions = Math.round(monthlyDeductions * 100) / 100;
+    } else {
+        monthlyDeductions = normalizeMonthlySalary(breakdown.totalDeductions, row.pay_schedule);
+    }
+    const monthlyNet = Math.max(0, Math.round((monthlyGross - monthlyDeductions) * 100) / 100);
 
     return {
         ...row,
@@ -424,6 +480,10 @@ export async function updateJob(db: SQLiteDatabase, id: string, input: UpdateJob
             fields.push('pay_day_2 = ?');
             params.push(input.payDay2);
         }
+        if (input.payoutDate !== undefined) {
+            fields.push('payout_date = ?');
+            params.push(input.payoutDate);
+        }
         if (input.grossSalary !== undefined) {
             fields.push('gross_salary = ?');
             params.push(input.grossSalary);
@@ -462,9 +522,20 @@ export async function updateJob(db: SQLiteDatabase, id: string, input: UpdateJob
                 const deductionId = `ded_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
                 await db.runAsync(
                     `INSERT INTO job_deductions (
-            id, job_id, name, category, amount, is_percentage, percentage_rate, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-                    [deductionId, id, d.name.trim(), d.category, d.amount, d.isPercentage ? 1 : 0, d.percentageRate ?? null, now, now]
+            id, job_id, name, category, amount, is_percentage, percentage_rate, pay_cutoff, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+                    [
+                        deductionId,
+                        id,
+                        d.name.trim(),
+                        d.category,
+                        d.amount,
+                        d.isPercentage ? 1 : 0,
+                        d.percentageRate ?? null,
+                        d.payCutoff || 'both',
+                        now,
+                        now
+                    ]
                 );
             }
         }
@@ -521,6 +592,7 @@ export async function getIncomeSummary(db: SQLiteDatabase): Promise<IncomeSummar
     }> = [];
 
     const now = new Date();
+    const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     let nearestPayday: IncomeSummary['nextPayday'] = undefined;
     let minDaysRemaining = Number.MAX_SAFE_INTEGER;
 
@@ -528,25 +600,60 @@ export async function getIncomeSummary(db: SQLiteDatabase): Promise<IncomeSummar
         const deductions = await getDeductionsByJobId(db, job.id);
         const breakdown = calculateNetTakeHome(job.gross_salary, deductions);
 
-        const mGross = normalizeMonthlySalary(job.gross_salary, job.pay_schedule);
-        const mDeductions = normalizeMonthlySalary(breakdown.totalDeductions, job.pay_schedule);
-        const mNet = normalizeMonthlySalary(breakdown.netTakeHome, job.pay_schedule);
-
-        monthlyGross += mGross;
-        monthlyDeductions += mDeductions;
-        monthlyNetTakeHome += mNet;
-
-        for (const item of breakdown.itemized) {
-            const normalizedItemAmount = normalizeMonthlySalary(item.amount, job.pay_schedule);
-            allDeductionsForCategorization.push({
-                category: item.category,
-                amount: normalizedItemAmount
-            });
+        let includeInMonthlyStats = true;
+        if (job.pay_schedule === 'one_time') {
+            includeInMonthlyStats = job.payout_date ? job.payout_date.startsWith(currentYearMonth) : true;
         }
 
-        const nextPayDate = getNextPayDate(job.pay_schedule, job.pay_day_1, job.pay_day_2, now);
+        if (includeInMonthlyStats) {
+            const mGross = normalizeMonthlySalary(job.gross_salary, job.pay_schedule);
+            let mDeductions = 0;
+
+            for (const item of breakdown.itemized) {
+                const normalizedItemAmount =
+                    job.pay_schedule === 'semi_monthly'
+                        ? (item.payCutoff || 'both') === 'both'
+                            ? item.amount * 2
+                            : item.amount
+                        : normalizeMonthlySalary(item.amount, job.pay_schedule);
+
+                mDeductions += normalizedItemAmount;
+                allDeductionsForCategorization.push({
+                    category: item.category,
+                    amount: normalizedItemAmount
+                });
+            }
+
+            mDeductions = Math.round(mDeductions * 100) / 100;
+            const mNet = Math.max(0, Math.round((mGross - mDeductions) * 100) / 100);
+
+            monthlyGross += mGross;
+            monthlyDeductions += mDeductions;
+            monthlyNetTakeHome += mNet;
+        }
+
+        if (job.pay_schedule === 'one_time') {
+            const existingSlips = await getPaySlipsByJob(db, job.id);
+            if (existingSlips.length > 0) {
+                // Already paid out, do not flag as an upcoming payday
+                continue;
+            }
+        }
+
+        const nextPayDate = getNextPayDate(job.pay_schedule, job.pay_day_1, job.pay_day_2, now, job.payout_date);
         const diffTime = new Date(nextPayDate).getTime() - new Date(now.toISOString().split('T')[0]).getTime();
         const daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+
+        let targetCutoff: DeductionCutoff = 'both';
+        if (job.pay_schedule === 'semi_monthly') {
+            const nextPayDayNum = parseInt(nextPayDate.split('-')[2], 10);
+            const d1 = Math.min(job.pay_day_1, job.pay_day_2 || 30);
+            const d2 = Math.max(job.pay_day_1, job.pay_day_2 || 30);
+            const diff1 = Math.abs(nextPayDayNum - d1);
+            const diff2 = Math.abs(nextPayDayNum - d2);
+            targetCutoff = diff1 <= diff2 ? 'first_cutoff' : 'second_cutoff';
+        }
+        const upcomingBreakdown = calculateNetTakeHome(job.gross_salary, deductions, targetCutoff);
 
         if (daysRemaining < minDaysRemaining) {
             minDaysRemaining = daysRemaining;
@@ -555,7 +662,7 @@ export async function getIncomeSummary(db: SQLiteDatabase): Promise<IncomeSummar
                 jobTitle: job.title,
                 companyName: job.company_name,
                 payDate: nextPayDate,
-                netAmount: breakdown.netTakeHome,
+                netAmount: upcomingBreakdown.netTakeHome,
                 pocketName: job.pocket_name || 'Account Pocket',
                 institutionColor: job.institution_color,
                 daysRemaining
@@ -604,7 +711,16 @@ export async function getPaySlipsByJob(db: SQLiteDatabase, jobId: string): Promi
  */
 async function executePaydayDeposit(db: SQLiteDatabase, job: JobRecord, payDate: string, customNotes?: string): Promise<PaySlipRecord> {
     const deductions = await getDeductionsByJobId(db, job.id);
-    const breakdown = calculateNetTakeHome(job.gross_salary, deductions);
+    let targetCutoff: DeductionCutoff = 'both';
+    if (job.pay_schedule === 'semi_monthly') {
+        const payDayNum = parseInt(payDate.split('-')[2], 10);
+        const d1 = Math.min(job.pay_day_1, job.pay_day_2 || 30);
+        const d2 = Math.max(job.pay_day_1, job.pay_day_2 || 30);
+        const diff1 = Math.abs(payDayNum - d1);
+        const diff2 = Math.abs(payDayNum - d2);
+        targetCutoff = diff1 <= diff2 ? 'first_cutoff' : 'second_cutoff';
+    }
+    const breakdown = calculateNetTakeHome(job.gross_salary, deductions, targetCutoff);
 
     // Check target pocket exists
     const pocket = await db.getFirstAsync<{ id: string; current_balance: number; name?: string }>(
@@ -738,6 +854,10 @@ export async function processDuePaydays(
             while (cur.getMonth() === refMonth) {
                 candidatePayDates.push(`${refYear}-${pad(refMonth + 1)}-${pad(cur.getDate())}`);
                 cur.setDate(cur.getDate() + interval);
+            }
+        } else if (job.pay_schedule === 'one_time') {
+            if (job.payout_date) {
+                candidatePayDates.push(job.payout_date);
             }
         }
 

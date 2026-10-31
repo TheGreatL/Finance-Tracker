@@ -119,37 +119,33 @@ export default function AnalyticsScreen() {
 
     return (
         <View className="flex-1 bg-stone-50" style={{ paddingTop: Math.max(insets.top, 12) }}>
+            {/* Header */}
+            <View className="px-5 pt-3 pb-4 flex-row items-center">
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Open sidebar navigation"
+                    onPress={openSidebar}
+                    hitSlop={8}
+                    className="items-center justify-center w-10 h-10 rounded-full bg-stone-200/70 active:opacity-70 mr-3"
+                >
+                    <Menu size={20} color="#18342B" strokeWidth={2.2} />
+                </Pressable>
+                <View className="flex-1">
+                    <Text className="text-2xl font-bold text-stone-900 tracking-tight" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                        Analytics & Insights
+                    </Text>
+                    <Text className="text-xs text-stone-500 font-medium mt-0.5" numberOfLines={2}>
+                        Cash flow, subscriptions, loans, and spending breakdown
+                    </Text>
+                </View>
+            </View>
+
             <ScrollView
+                className="flex-1"
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 40 }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#BBD583" colors={['#18342B', '#BBD583']} />}
             >
-                {/* Header */}
-                <View className="px-5 pt-3 pb-4 flex-row items-center">
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Open sidebar navigation"
-                        onPress={openSidebar}
-                        hitSlop={8}
-                        className="items-center justify-center w-10 h-10 rounded-full bg-stone-200/70 active:opacity-70 mr-3"
-                    >
-                        <Menu size={20} color="#18342B" strokeWidth={2.2} />
-                    </Pressable>
-                    <View className="flex-1">
-                        <Text
-                            className="text-2xl font-bold text-stone-900 tracking-tight"
-                            numberOfLines={1}
-                            adjustsFontSizeToFit
-                            minimumFontScale={0.85}
-                        >
-                            Analytics & Insights
-                        </Text>
-                        <Text className="text-xs text-stone-500 font-medium mt-0.5" numberOfLines={2}>
-                            Cash flow, subscriptions, loans, and spending breakdown
-                        </Text>
-                    </View>
-                </View>
-
                 {/* 1. Cash Flow Summary Card */}
                 <View className="mx-4 sm:mx-5 mb-4 p-4 sm:p-5 bg-[#18342B] rounded-2xl">
                     <View className="flex-row items-center justify-between mb-4">

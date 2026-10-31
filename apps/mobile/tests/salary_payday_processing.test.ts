@@ -221,4 +221,153 @@ describe('salary payday processing & ledger balance synchronization', () => {
         expect(executed.some((e) => e.sql.includes('UPDATE account_pockets'))).toBe(true);
         expect(executed.some((e) => e.sql.includes('INSERT INTO pay_slips'))).toBe(true);
     });
+
+    it('processDuePaydays processes one_time job with explicit payout_date only once', async () => {
+        const executed: { sql: string; params?: any[] }[] = [];
+        let paySlipCreated = false;
+
+        const mockDb: any = {
+            withTransactionAsync: vi.fn(async (cb: () => Promise<void>) => {
+                await cb();
+            }),
+            runAsync: vi.fn(async (sql: string, params?: any[]) => {
+                executed.push({ sql, params });
+                if (sql.includes('INSERT INTO pay_slips')) {
+                    paySlipCreated = true;
+                }
+                return { changes: 1 };
+            }),
+            getAllAsync: vi.fn(async (sql: string) => {
+                if (sql.includes('FROM jobs')) {
+                    return [
+                        {
+                            id: 'job_freelance_1',
+                            title: 'Website Redesign Gig',
+                            company_name: 'Design Studio',
+                            employment_type: 'freelance',
+                            pay_schedule: 'one_time',
+                            pay_day_1: 15,
+                            payout_date: '2026-10-25',
+                            gross_salary: 40000,
+                            salary_period: 'per_paycheck',
+                            target_pocket_id: 'pocket_gcash_wallet',
+                            status: 'active',
+                            created_at: '2026-10-01',
+                            updated_at: '2026-10-01',
+                            pocket_name: 'GCash Wallet'
+                        }
+                    ];
+                }
+                if (sql.includes('FROM job_deductions')) {
+                    return [{ id: 'd1', job_id: 'job_freelance_1', name: 'Withholding Tax', category: 'tax', amount: 2000 }];
+                }
+                return [];
+            }),
+            getFirstAsync: vi.fn(async (sql: string, params?: any[]) => {
+                if (sql.includes('FROM pay_slips WHERE job_id = ? AND pay_date = ?')) {
+                    return paySlipCreated ? { id: 'existing_ps' } : null;
+                }
+                if (sql.includes('FROM account_pockets WHERE id = ?')) {
+                    return { id: 'pocket_gcash_wallet', current_balance: 10000, name: 'GCash Wallet' };
+                }
+                if (sql.includes('FROM pay_slips WHERE id = ?')) {
+                    return {
+                        id: 'ps_one_time_1',
+                        job_id: 'job_freelance_1',
+                        pocket_id: 'pocket_gcash_wallet',
+                        pay_date: '2026-10-25',
+                        gross_amount: 40000,
+                        total_deductions: 2000,
+                        net_amount: 38000,
+                        deductions_snapshot: '[]',
+                        status: 'paid'
+                    };
+                }
+                return null;
+            })
+        };
+
+        // Before payout date: Oct 20 -> should not pay
+        const resBefore = await processDuePaydays(mockDb, new Date(2026, 9, 20));
+        expect(resBefore.processedCount).toBe(0);
+
+        // On payout date: Oct 25 -> should pay
+        const resOnDate = await processDuePaydays(mockDb, new Date(2026, 9, 25));
+        expect(resOnDate.processedCount).toBe(1);
+        expect(resOnDate.totalCredited).toBe(38000);
+
+        // After payout date: Oct 30 -> should not pay again (already paid)
+        const resAfter = await processDuePaydays(mockDb, new Date(2026, 9, 30));
+        expect(resAfter.processedCount).toBe(0);
+    });
+
+    it('processDuePaydays applies first_cutoff deductions on 1st payday and second_cutoff deductions on 2nd payday', async () => {
+        const executed: { sql: string; params?: any[] }[] = [];
+        const recordedPaySlips: any[] = [];
+
+        const mockDb: any = {
+            withTransactionAsync: vi.fn(async (cb: () => Promise<void>) => {
+                await cb();
+            }),
+            runAsync: vi.fn(async (sql: string, params?: any[]) => {
+                executed.push({ sql, params });
+                if (sql.includes('INSERT INTO pay_slips')) {
+                    recordedPaySlips.push(params);
+                }
+                return { changes: 1 };
+            }),
+            getAllAsync: vi.fn(async (sql: string, params?: any[]) => {
+                if (sql.includes('FROM jobs')) {
+                    return [
+                        {
+                            id: 'job_semi_test',
+                            title: 'QA Specialist',
+                            company_name: 'Tech Inc',
+                            employment_type: 'full_time',
+                            pay_schedule: 'semi_monthly',
+                            pay_day_1: 15,
+                            pay_day_2: 30,
+                            gross_salary: 30000,
+                            salary_period: 'per_paycheck',
+                            target_pocket_id: 'pocket_1',
+                            status: 'active',
+                            created_at: '2026-01-01',
+                            updated_at: '2026-01-01'
+                        }
+                    ];
+                }
+                if (sql.includes('FROM job_deductions')) {
+                    return [
+                        { id: 'd_tax', job_id: 'job_semi_test', name: 'Tax', category: 'tax', amount: 2000, pay_cutoff: 'both' },
+                        { id: 'd_sss', job_id: 'job_semi_test', name: 'SSS', category: 'statutory', amount: 1125, pay_cutoff: 'first_cutoff' },
+                        { id: 'd_pi', job_id: 'job_semi_test', name: 'Pag-IBIG', category: 'statutory', amount: 200, pay_cutoff: 'second_cutoff' }
+                    ];
+                }
+                return [];
+            }),
+            getFirstAsync: vi.fn(async (sql: string, params?: any[]) => {
+                if (sql.includes('FROM pay_slips WHERE job_id = ? AND pay_date = ?')) {
+                    return null;
+                }
+                if (sql.includes('FROM account_pockets WHERE id = ?')) {
+                    return { id: 'pocket_1', current_balance: 5000, name: 'Main Pocket' };
+                }
+                if (sql.includes('FROM pay_slips WHERE id = ?')) {
+                    return { id: 'ps_test', gross_amount: 30000, net_amount: 26875, status: 'paid' };
+                }
+                return null;
+            })
+        };
+
+        // When reference date is Oct 15 (1st cutoff):
+        // Only Tax (2000) and SSS (1125) apply -> Total deductions 3125, Net 26875
+        await processDuePaydays(mockDb, new Date(2026, 9, 15));
+        expect(recordedPaySlips.length).toBe(1);
+        const slip1 = recordedPaySlips[0];
+        // params: [id, job.id, pocket_id, txId, payDate, gross, total_deductions, net_amount, snapshotJson, ...]
+        expect(slip1[4]).toBe('2026-10-15');
+        expect(slip1[5]).toBe(30000); // gross
+        expect(slip1[6]).toBe(3125); // deductions (tax + sss)
+        expect(slip1[7]).toBe(26875); // net (30000 - 3125)
+    });
 });

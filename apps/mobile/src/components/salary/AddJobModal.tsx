@@ -1,8 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Modal, View, Text, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
 import { X, Plus, Trash2, Briefcase, Building2, Check, AlertCircle } from 'lucide-react-native';
-import type { AccountPocket, CreateJobInput, CreateDeductionInput, EmploymentType, PaySchedule, DeductionCategory } from '../../types/database';
-import { DEDUCTION_PRESETS, EMPLOYMENT_TYPE_OPTIONS, PAY_SCHEDULE_OPTIONS, DEDUCTION_CATEGORY_CONFIG } from '../../constants/salaryPresets';
+import type {
+    AccountPocket,
+    CreateJobInput,
+    CreateDeductionInput,
+    EmploymentType,
+    PaySchedule,
+    DeductionCategory,
+    DeductionCutoff
+} from '../../types/database';
+import {
+    DEDUCTION_PRESETS,
+    EMPLOYMENT_TYPE_OPTIONS,
+    PAY_SCHEDULE_OPTIONS,
+    DEDUCTION_CATEGORY_CONFIG,
+    DEDUCTION_CUTOFF_OPTIONS
+} from '../../constants/salaryPresets';
 import { formatCurrency, formatMoneyInput, parseMoneyInput } from '../../utils/formatters';
 import { calculateNetTakeHome } from '../../services/salaryService';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
@@ -22,6 +36,7 @@ interface DeductionFormRow {
     amountStr: string;
     isPercentage: boolean;
     percentageRateStr: string;
+    payCutoff: DeductionCutoff;
 }
 
 export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModalProps) {
@@ -31,6 +46,7 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
     const [paySchedule, setPaySchedule] = useState<PaySchedule>('semi_monthly');
     const [payDay1Str, setPayDay1Str] = useState('15');
     const [payDay2Str, setPayDay2Str] = useState('30');
+    const [payoutDate, setPayoutDate] = useState(() => new Date().toISOString().split('T')[0]);
     const [grossSalaryStr, setGrossSalaryStr] = useState('');
     const [targetPocketId, setTargetPocketId] = useState('');
     const [notes, setNotes] = useState('');
@@ -44,6 +60,7 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
         grossSalary?: string;
         payDay1?: string;
         payDay2?: string;
+        payoutDate?: string;
         targetPocketId?: string;
     }>({});
     const keyboardInset = useKeyboardBottomInset(36);
@@ -56,6 +73,7 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
             setPaySchedule('semi_monthly');
             setPayDay1Str('15');
             setPayDay2Str('30');
+            setPayoutDate(new Date().toISOString().split('T')[0]);
             setGrossSalaryStr('');
             setTargetPocketId(pockets[0]?.id || '');
             setNotes('');
@@ -69,7 +87,8 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
                     category: 'tax',
                     amountStr: '',
                     isPercentage: false,
-                    percentageRateStr: ''
+                    percentageRateStr: '',
+                    payCutoff: 'both'
                 },
                 {
                     id: 'init_sss',
@@ -77,7 +96,8 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
                     category: 'statutory',
                     amountStr: '1,125.00',
                     isPercentage: false,
-                    percentageRateStr: ''
+                    percentageRateStr: '',
+                    payCutoff: 'first_cutoff'
                 },
                 {
                     id: 'init_ph',
@@ -85,7 +105,8 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
                     category: 'statutory',
                     amountStr: '',
                     isPercentage: false,
-                    percentageRateStr: ''
+                    percentageRateStr: '',
+                    payCutoff: 'first_cutoff'
                 },
                 {
                     id: 'init_pagibig',
@@ -93,7 +114,8 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
                     category: 'statutory',
                     amountStr: '200.00',
                     isPercentage: false,
-                    percentageRateStr: ''
+                    percentageRateStr: '',
+                    payCutoff: 'second_cutoff'
                 }
             ]);
         }
@@ -116,7 +138,8 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
             category: d.category,
             amount: parseMoneyInput(d.amountStr),
             isPercentage: d.isPercentage,
-            percentageRate: d.percentageRateStr ? parseFloat(d.percentageRateStr) : undefined
+            percentageRate: d.percentageRateStr ? parseFloat(d.percentageRateStr) : undefined,
+            payCutoff: d.payCutoff || 'both'
         }));
         return calculateNetTakeHome(gross, parsedDeductions);
     }, [grossSalaryStr, deductions]);
@@ -133,7 +156,8 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
                 category: preset.category,
                 amountStr: preset.defaultAmount ? formatMoneyInput(String(preset.defaultAmount)) : '',
                 isPercentage: Boolean(preset.isPercentage),
-                percentageRateStr: preset.percentageRate ? String(preset.percentageRate) : ''
+                percentageRateStr: preset.percentageRate ? String(preset.percentageRate) : '',
+                payCutoff: preset.defaultCutoff || 'both'
             }
         ]);
     };
@@ -147,7 +171,8 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
                 category: 'workplace',
                 amountStr: '',
                 isPercentage: false,
-                percentageRateStr: ''
+                percentageRateStr: '',
+                payCutoff: 'both'
             }
         ]);
     };
@@ -168,12 +193,14 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
             grossSalary?: string;
             payDay1?: string;
             payDay2?: string;
+            payoutDate?: string;
             targetPocketId?: string;
         } = {};
         const cleanTitle = title.trim();
         const cleanCompany = companyName.trim();
         const grossSalary = parseMoneyInput(grossSalaryStr);
-        const d1 = parseInt(payDay1Str, 10);
+        const isOneTime = paySchedule === 'one_time';
+        const d1 = isOneTime ? (payoutDate ? parseInt(payoutDate.split('-')[2], 10) || 1 : 1) : parseInt(payDay1Str, 10);
         const d2 = paySchedule === 'semi_monthly' ? parseInt(payDay2Str, 10) : null;
 
         if (!cleanTitle) {
@@ -183,13 +210,19 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
             errors.companyName = 'Please enter employer or company name.';
         }
         if (grossSalary <= 0) {
-            errors.grossSalary = 'Please enter agreed gross salary.';
+            errors.grossSalary = 'Please enter agreed gross earnings.';
         }
-        if (isNaN(d1) || d1 < 1 || d1 > 31) {
-            errors.payDay1 = 'Pay date must be between 1 and 31.';
-        }
-        if (paySchedule === 'semi_monthly' && (d2 === null || isNaN(d2) || d2 < 1 || d2 > 31)) {
-            errors.payDay2 = 'Second pay date must be between 1 and 31.';
+        if (isOneTime) {
+            if (!payoutDate || !/^\d{4}-\d{2}-\d{2}$/.test(payoutDate.trim())) {
+                errors.payoutDate = 'Please enter payout date (YYYY-MM-DD).';
+            }
+        } else {
+            if (isNaN(d1) || d1 < 1 || d1 > 31) {
+                errors.payDay1 = 'Pay date must be between 1 and 31.';
+            }
+            if (paySchedule === 'semi_monthly' && (d2 === null || isNaN(d2) || d2 < 1 || d2 > 31)) {
+                errors.payDay2 = 'Second pay date must be between 1 and 31.';
+            }
         }
         if (!targetPocketId) {
             errors.targetPocketId = 'Please select a target pocket for salary deposits.';
@@ -212,7 +245,8 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
                 category: d.category,
                 amount: parseMoneyInput(d.amountStr),
                 isPercentage: d.isPercentage,
-                percentageRate: d.percentageRateStr ? parseFloat(d.percentageRateStr) : undefined
+                percentageRate: d.percentageRateStr ? parseFloat(d.percentageRateStr) : undefined,
+                payCutoff: paySchedule === 'semi_monthly' ? d.payCutoff || 'both' : 'both'
             }));
 
         try {
@@ -225,6 +259,7 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
                     paySchedule,
                     payDay1: d1,
                     payDay2: d2,
+                    payoutDate: isOneTime ? payoutDate.trim() : null,
                     grossSalary,
                     salaryPeriod: 'per_paycheck',
                     targetPocketId,
@@ -370,40 +405,69 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
                                 </View>
                             </View>
 
-                            {/* Pay Dates */}
-                            <View className="flex-row gap-3 mb-3">
-                                <View className="flex-1">
-                                    <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                                        {paySchedule === 'semi_monthly' ? '1st Payday (Day)' : 'Payday of Month'}
-                                    </Text>
+                            {/* Pay Dates or One-Time Payout Date */}
+                            {paySchedule === 'one_time' ? (
+                                <View className="mb-3">
+                                    <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Target Payout Date *</Text>
                                     <TextInput
-                                        value={payDay1Str}
-                                        onChangeText={setPayDay1Str}
-                                        keyboardType="number-pad"
-                                        placeholder="15"
-                                        maxLength={2}
-                                        className="h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3.5 text-sm text-slate-900 dark:text-white"
+                                        value={payoutDate}
+                                        onChangeText={(val) => {
+                                            setPayoutDate(val);
+                                            if (fieldErrors.payoutDate) setFieldErrors((prev) => ({ ...prev, payoutDate: undefined }));
+                                        }}
+                                        placeholder="YYYY-MM-DD"
+                                        placeholderTextColor="#94A3B8"
+                                        className={`h-11 rounded-xl border px-3.5 text-sm text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-800/60 ${
+                                            fieldErrors.payoutDate ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200 dark:border-slate-700'
+                                        }`}
                                     />
+                                    {fieldErrors.payoutDate && (
+                                        <Text className="text-[11px] font-semibold text-rose-600 mt-1">{fieldErrors.payoutDate}</Text>
+                                    )}
                                 </View>
-
-                                {paySchedule === 'semi_monthly' && (
+                            ) : (
+                                <View className="flex-row gap-3 mb-3">
                                     <View className="flex-1">
-                                        <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">2nd Payday (Day)</Text>
+                                        <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                            {paySchedule === 'semi_monthly' ? '1st Payday (Day)' : 'Payday of Month'}
+                                        </Text>
                                         <TextInput
-                                            value={payDay2Str}
-                                            onChangeText={setPayDay2Str}
+                                            value={payDay1Str}
+                                            onChangeText={setPayDay1Str}
                                             keyboardType="number-pad"
-                                            placeholder="30"
+                                            placeholder="15"
                                             maxLength={2}
                                             className="h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3.5 text-sm text-slate-900 dark:text-white"
                                         />
+                                        {fieldErrors.payDay1 && (
+                                            <Text className="text-[11px] font-semibold text-rose-600 mt-1">{fieldErrors.payDay1}</Text>
+                                        )}
                                     </View>
-                                )}
-                            </View>
+
+                                    {paySchedule === 'semi_monthly' && (
+                                        <View className="flex-1">
+                                            <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">2nd Payday (Day)</Text>
+                                            <TextInput
+                                                value={payDay2Str}
+                                                onChangeText={setPayDay2Str}
+                                                keyboardType="number-pad"
+                                                placeholder="30"
+                                                maxLength={2}
+                                                className="h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3.5 text-sm text-slate-900 dark:text-white"
+                                            />
+                                            {fieldErrors.payDay2 && (
+                                                <Text className="text-[11px] font-semibold text-rose-600 mt-1">{fieldErrors.payDay2}</Text>
+                                            )}
+                                        </View>
+                                    )}
+                                </View>
+                            )}
 
                             {/* Gross Salary per paycheck */}
                             <View className="mb-3">
-                                <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Gross Earnings (Per Paycheck) *</Text>
+                                <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                    {paySchedule === 'one_time' ? 'Total Agreed Amount *' : 'Gross Earnings (Per Paycheck) *'}
+                                </Text>
                                 <View className="flex-row items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3.5">
                                     <Text className="text-slate-400 font-bold mr-1.5 text-sm">₱</Text>
                                     <TextInput
@@ -500,7 +564,7 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
                                                 </Pressable>
                                             </View>
 
-                                            {/* Amount or Percentage Input */}
+                                            {/* Amount Input */}
                                             <View className="flex-row items-center gap-2">
                                                 <View className="flex-1 flex-row items-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5">
                                                     <Text className="text-slate-400 font-bold mr-1 text-xs">₱</Text>
@@ -514,6 +578,39 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
                                                     />
                                                 </View>
                                             </View>
+
+                                            {/* Semi-Monthly Cut-off Selection */}
+                                            {paySchedule === 'semi_monthly' && (
+                                                <View className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex-row items-center justify-between">
+                                                    <Text className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                                        Cut-off:
+                                                    </Text>
+                                                    <View className="flex-row gap-1">
+                                                        {DEDUCTION_CUTOFF_OPTIONS.map((opt) => {
+                                                            const isSelected = (d.payCutoff || 'both') === opt.id;
+                                                            return (
+                                                                <Pressable
+                                                                    key={opt.id}
+                                                                    onPress={() => handleUpdateDeduction(d.id, { payCutoff: opt.id })}
+                                                                    className={`rounded-md px-2 py-1 border ${
+                                                                        isSelected
+                                                                            ? 'bg-[#18342B] border-[#18342B]'
+                                                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                                                                    }`}
+                                                                >
+                                                                    <Text
+                                                                        className={`text-[10px] font-bold ${
+                                                                            isSelected ? 'text-white' : 'text-slate-600 dark:text-slate-400'
+                                                                        }`}
+                                                                    >
+                                                                        {opt.shortLabel}
+                                                                    </Text>
+                                                                </Pressable>
+                                                            );
+                                                        })}
+                                                    </View>
+                                                </View>
+                                            )}
                                         </View>
                                     );
                                 })}

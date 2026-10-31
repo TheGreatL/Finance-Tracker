@@ -154,9 +154,10 @@ export interface UpdateSubscriptionInput {
 // ==========================================
 
 export type EmploymentType = 'full_time' | 'part_time' | 'freelance' | 'contract' | 'other';
-export type PaySchedule = 'monthly' | 'semi_monthly' | 'biweekly' | 'weekly';
+export type PaySchedule = 'monthly' | 'semi_monthly' | 'biweekly' | 'weekly' | 'one_time';
 export type JobStatus = 'active' | 'archived';
 export type DeductionCategory = 'tax' | 'statutory' | 'workplace' | 'other';
+export type DeductionCutoff = 'both' | 'first_cutoff' | 'second_cutoff';
 export type PaySlipStatus = 'paid' | 'pending' | 'skipped';
 
 export interface JobRecord {
@@ -167,6 +168,7 @@ export interface JobRecord {
     pay_schedule: PaySchedule;
     pay_day_1: number;
     pay_day_2?: number | null;
+    payout_date?: string | null;
     gross_salary: number;
     salary_period: 'monthly' | 'per_paycheck';
     target_pocket_id: string;
@@ -196,6 +198,7 @@ export interface JobDeductionRecord {
     amount: number;
     is_percentage?: number; // 0 or 1 in SQLite
     percentage_rate?: number | null;
+    pay_cutoff?: DeductionCutoff;
     created_at: string;
     updated_at: string;
 }
@@ -206,6 +209,7 @@ export interface DeductionSnapshotItem {
     amount: number;
     is_percentage?: boolean;
     percentage_rate?: number | null;
+    pay_cutoff?: DeductionCutoff;
 }
 
 export interface PaySlipRecord {
@@ -236,6 +240,7 @@ export interface CreateDeductionInput {
     amount: number;
     isPercentage?: boolean;
     percentageRate?: number | null;
+    payCutoff?: DeductionCutoff;
 }
 
 export interface CreateJobInput {
@@ -245,6 +250,7 @@ export interface CreateJobInput {
     paySchedule: PaySchedule;
     payDay1: number;
     payDay2?: number | null;
+    payoutDate?: string | null;
     grossSalary: number;
     salaryPeriod?: 'monthly' | 'per_paycheck';
     targetPocketId: string;
@@ -259,6 +265,7 @@ export interface UpdateJobInput {
     paySchedule?: PaySchedule;
     payDay1?: number;
     payDay2?: number | null;
+    payoutDate?: string | null;
     grossSalary?: number;
     salaryPeriod?: 'monthly' | 'per_paycheck';
     targetPocketId?: string;
