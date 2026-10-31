@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, RefreshControl, TextInput, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Plus, Filter, Menu } from 'lucide-react-native';
+import { Search, Plus, Filter, Menu, X } from 'lucide-react-native';
 
 import { useSidebar } from '@/src/context/SidebarContext';
 import { getDatabase, closeDatabase } from '@/src/database/db';
@@ -146,6 +146,11 @@ export default function LedgerScreen() {
                         placeholderTextColor="#A8A29E"
                         className="flex-1 ml-2 text-xs text-stone-900"
                     />
+                    {searchQuery.length > 0 && (
+                        <Pressable onPress={() => setSearchQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search input">
+                            <X size={15} color="#A8A29E" />
+                        </Pressable>
+                    )}
                 </View>
             </View>
 

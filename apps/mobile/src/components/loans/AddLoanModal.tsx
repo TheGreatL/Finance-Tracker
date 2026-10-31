@@ -39,9 +39,19 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
     const [datePickerVisible, setDatePickerVisible] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const [fieldErrors, setFieldErrors] = useState<{
+        title?: string;
+        totalAmount?: string;
+        monthlyPayment?: string;
+        dueDate?: string;
+    }>({});
     const keyboardInset = useKeyboardBottomInset(36);
 
     useEffect(() => {
+        if (visible) {
+            setError('');
+            setFieldErrors({});
+        }
         if (initialProvider) {
             setSelectedProvider(initialProvider);
         }
@@ -101,25 +111,27 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
 
     const handleSave = async () => {
         setError('');
+        const errors: { title?: string; totalAmount?: string; monthlyPayment?: string; dueDate?: string } = {};
         const totalAmount = parseMoneyInput(totalAmountStr);
         const remaining = remainingBalanceStr ? parseMoneyInput(remainingBalanceStr) : totalAmount;
         const monthlyPayment = parseMoneyInput(monthlyPaymentStr);
         const rate = interestRateStr ? parseFloat(interestRateStr) : null;
 
         if (!title.trim()) {
-            setError('Please provide a name or title for this loan.');
-            return;
+            errors.title = 'Please provide a name or title for this loan.';
         }
         if (totalAmount <= 0) {
-            setError('Please provide a valid total loan amount.');
-            return;
+            errors.totalAmount = 'Please provide a valid total loan amount.';
         }
         if (monthlyPayment <= 0) {
-            setError('Please specify the monthly payment due amount.');
-            return;
+            errors.monthlyPayment = 'Please specify the monthly payment due amount.';
         }
         if (!dueDateStr.trim() || !dueDateStr.includes('-')) {
-            setError('Please select a valid due date.');
+            errors.dueDate = 'Please select a valid due date.';
+        }
+
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(errors);
             return;
         }
 
@@ -162,6 +174,7 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
             setNotes('');
             setAttachmentUri(null);
             setAttachmentName(null);
+            setFieldErrors({});
             onClose();
         } catch (err: any) {
             setError(err?.message || 'Failed to create loan');
@@ -225,28 +238,39 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
 
                             {/* 2. Loan Title */}
                             <View className="mb-3">
-                                <Text className="text-xs font-medium text-stone-600 mb-1">Loan Title *</Text>
+                                <Text className={`text-xs font-medium mb-1 ${fieldErrors.title ? 'text-rose-600 font-semibold' : 'text-stone-600'}`}>
+                                    Loan Title *
+                                </Text>
                                 <TextInput
                                     value={title}
-                                    onChangeText={setTitle}
+                                    onChangeText={(val) => {
+                                        setTitle(val);
+                                        if (fieldErrors.title) setFieldErrors((prev) => ({ ...prev, title: undefined }));
+                                    }}
                                     editable={!submitting}
                                     placeholder="e.g. BillEase Laptop, GLoan 6-Mo, Salary Loan"
                                     placeholderTextColor="#A8A29E"
-                                    className={`border border-stone-200 rounded-xl px-4 py-3 text-sm text-stone-900 ${
-                                        submitting ? 'bg-stone-100 opacity-60' : 'bg-stone-50'
-                                    }`}
+                                    className={`rounded-xl px-4 py-3 text-sm text-stone-900 border ${
+                                        fieldErrors.title ? 'border-rose-400 bg-rose-50/30' : 'border-stone-200 bg-stone-50'
+                                    } ${submitting ? 'bg-stone-100 opacity-60' : ''}`}
                                 />
+                                {fieldErrors.title ? <Text className="text-[11px] font-medium text-rose-600 mt-1">{fieldErrors.title}</Text> : null}
                             </View>
 
                             {/* 3. Amounts Row: Total & Remaining */}
                             <View className="flex-row gap-3 mb-3">
                                 <View className="flex-1">
-                                    <Text className="text-xs font-medium text-stone-600 mb-1">Total Loan (₱) *</Text>
+                                    <Text
+                                        className={`text-xs font-medium mb-1 ${fieldErrors.totalAmount ? 'text-rose-600 font-semibold' : 'text-stone-600'}`}
+                                    >
+                                        Total Loan (₱) *
+                                    </Text>
                                     <TextInput
                                         value={totalAmountStr}
                                         onChangeText={(val) => {
                                             const formatted = formatMoneyInput(val);
                                             setTotalAmountStr(formatted);
+                                            if (fieldErrors.totalAmount) setFieldErrors((prev) => ({ ...prev, totalAmount: undefined }));
                                             if (!remainingBalanceStr || remainingBalanceStr === totalAmountStr) {
                                                 setRemainingBalanceStr(formatted);
                                             }
@@ -255,10 +279,13 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
                                         placeholder="₱15,000"
                                         placeholderTextColor="#A8A29E"
                                         keyboardType="decimal-pad"
-                                        className={`border border-stone-200 rounded-xl px-4 py-3 text-sm text-stone-900 font-bold ${
-                                            submitting ? 'bg-stone-100 opacity-60' : 'bg-stone-50'
-                                        }`}
+                                        className={`rounded-xl px-4 py-3 text-sm text-stone-900 font-bold border ${
+                                            fieldErrors.totalAmount ? 'border-rose-400 bg-rose-50/30' : 'border-stone-200 bg-stone-50'
+                                        } ${submitting ? 'bg-stone-100 opacity-60' : ''}`}
                                     />
+                                    {fieldErrors.totalAmount ? (
+                                        <Text className="text-[11px] font-medium text-rose-600 mt-1">{fieldErrors.totalAmount}</Text>
+                                    ) : null}
                                 </View>
 
                                 <View className="flex-1">
@@ -280,30 +307,47 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
                             {/* 4. Payment Schedule Row: Monthly Due & Due Date Picker */}
                             <View className="flex-row gap-3 mb-3">
                                 <View className="flex-1">
-                                    <Text className="text-xs font-medium text-stone-600 mb-1">Monthly Payment (₱) *</Text>
+                                    <Text
+                                        className={`text-xs font-medium mb-1 ${fieldErrors.monthlyPayment ? 'text-rose-600 font-semibold' : 'text-stone-600'}`}
+                                    >
+                                        Monthly Payment (₱) *
+                                    </Text>
                                     <TextInput
                                         value={monthlyPaymentStr}
-                                        onChangeText={(val) => setMonthlyPaymentStr(formatMoneyInput(val))}
+                                        onChangeText={(val) => {
+                                            setMonthlyPaymentStr(formatMoneyInput(val));
+                                            if (fieldErrors.monthlyPayment) setFieldErrors((prev) => ({ ...prev, monthlyPayment: undefined }));
+                                        }}
                                         editable={!submitting}
                                         placeholder="₱2,500"
                                         placeholderTextColor="#A8A29E"
                                         keyboardType="decimal-pad"
-                                        className={`border border-stone-200 rounded-xl px-4 py-3 text-sm text-stone-900 font-bold ${
-                                            submitting ? 'bg-stone-100 opacity-60' : 'bg-stone-50'
-                                        }`}
+                                        className={`rounded-xl px-4 py-3 text-sm text-stone-900 font-bold border ${
+                                            fieldErrors.monthlyPayment ? 'border-rose-400 bg-rose-50/30' : 'border-stone-200 bg-stone-50'
+                                        } ${submitting ? 'bg-stone-100 opacity-60' : ''}`}
                                     />
+                                    {fieldErrors.monthlyPayment ? (
+                                        <Text className="text-[11px] font-medium text-rose-600 mt-1">{fieldErrors.monthlyPayment}</Text>
+                                    ) : null}
                                 </View>
 
                                 <View className="flex-1">
-                                    <Text className="text-xs font-medium text-stone-600 mb-1">Next Due Date *</Text>
+                                    <Text
+                                        className={`text-xs font-medium mb-1 ${fieldErrors.dueDate ? 'text-rose-600 font-semibold' : 'text-stone-600'}`}
+                                    >
+                                        Next Due Date *
+                                    </Text>
                                     <Pressable
-                                        onPress={() => setDatePickerVisible(true)}
+                                        onPress={() => {
+                                            setDatePickerVisible(true);
+                                            if (fieldErrors.dueDate) setFieldErrors((prev) => ({ ...prev, dueDate: undefined }));
+                                        }}
                                         disabled={submitting}
                                         accessibilityRole="button"
                                         accessibilityLabel="Select next due date"
-                                        className={`border border-stone-200 rounded-xl px-3.5 py-3 flex-row items-center justify-between ${
-                                            submitting ? 'bg-stone-100 opacity-60' : 'bg-stone-50 active:bg-stone-100'
-                                        }`}
+                                        className={`rounded-xl px-3.5 py-3 flex-row items-center justify-between border ${
+                                            fieldErrors.dueDate ? 'border-rose-400 bg-rose-50/30' : 'border-stone-200 bg-stone-50 active:bg-stone-100'
+                                        } ${submitting ? 'bg-stone-100 opacity-60' : ''}`}
                                     >
                                         <View className="flex-row items-center flex-1 mr-1">
                                             <Calendar size={15} color="#18342B" />
@@ -313,6 +357,9 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
                                         </View>
                                         <ChevronDown size={14} color="#78716C" />
                                     </Pressable>
+                                    {fieldErrors.dueDate ? (
+                                        <Text className="text-[11px] font-medium text-rose-600 mt-1">{fieldErrors.dueDate}</Text>
+                                    ) : null}
                                 </View>
                             </View>
 

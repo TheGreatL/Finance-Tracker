@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { View, Text, ScrollView, RefreshControl, TextInput, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { Search, Plus, WalletCards, HandCoins, Repeat, Briefcase, Menu } from 'lucide-react-native';
+import { Search, Plus, WalletCards, HandCoins, Repeat, Briefcase, Menu, X } from 'lucide-react-native';
 import { useSidebar } from '../../src/context/SidebarContext';
 import { getDatabase } from '../../src/database/db';
 import {
@@ -510,21 +510,24 @@ export default function AccountsScreen() {
         return loans.filter((l) => l.status === 'active').reduce((sum, l) => sum + l.remaining_balance, 0);
     }, [loans]);
 
+    const isObligationSection = selectedFilter === 'income' || selectedFilter === 'subscriptions' || selectedFilter === 'loans';
+    const isAccountsSection = !isObligationSection;
+
     const isLoansTab = selectedFilter === 'loans';
     const isSubsTab = selectedFilter === 'subscriptions';
     const isIncomeTab = selectedFilter === 'income';
 
-    const headerTitle = isIncomeTab ? 'Salary & Income' : isLoansTab ? 'Loans & Debt' : isSubsTab ? 'Subscriptions' : 'Accounts';
+    const headerTitle = isAccountsSection ? 'Accounts & Wallets' : isIncomeTab ? 'Salary & Income' : isLoansTab ? 'Loans & Debt' : 'Subscriptions';
 
-    const headerSubtitle = isIncomeTab
-        ? 'Multi-Job Streams, Deductions & Paydays'
-        : isLoansTab
-          ? 'Lending Apps, Installments & Personal Loans'
-          : isSubsTab
-            ? 'Recurring Bills, Auto-Pay & Due Reminders'
-            : 'Philippine Banks, E-Wallets & Cash';
+    const headerSubtitle = isAccountsSection
+        ? 'Philippine Banks, E-Wallets & Cash'
+        : isIncomeTab
+          ? 'Multi-Job Streams, Deductions & Paydays'
+          : isLoansTab
+            ? 'Lending Apps, Installments & Personal Loans'
+            : 'Recurring Bills, Auto-Pay & Due Reminders';
 
-    const headerButtonLabel = isIncomeTab ? 'Add Job' : isLoansTab ? 'Add Loan' : isSubsTab ? 'Add Sub' : 'Add Account';
+    const headerButtonLabel = isAccountsSection ? 'Add Account' : isIncomeTab ? 'Add Job' : isLoansTab ? 'Add Loan' : 'Add Sub';
 
     const handleHeaderAddPress = () => {
         if (isIncomeTab) {
@@ -574,10 +577,109 @@ export default function AccountsScreen() {
                 </Pressable>
             </View>
 
+            {/* Top-Level Section Switcher: Accounts vs Obligations */}
+            <View className="px-5 mb-2.5">
+                <View accessibilityRole="tablist" className="flex-row bg-stone-200/80 p-1 rounded-2xl">
+                    <Pressable
+                        accessibilityRole="tab"
+                        accessibilityLabel="Accounts and Wallets tab"
+                        accessibilityState={{ selected: isAccountsSection }}
+                        onPress={() => {
+                            if (isObligationSection) {
+                                setSelectedFilter('all');
+                            }
+                        }}
+                        hitSlop={6}
+                        className={`flex-1 flex-row items-center justify-center py-2 rounded-xl ${isAccountsSection ? 'bg-[#18342B]' : ''}`}
+                    >
+                        <WalletCards size={15} color={isAccountsSection ? '#BBD583' : '#57534E'} strokeWidth={2.2} />
+                        <Text className={`text-xs font-bold ml-1.5 ${isAccountsSection ? 'text-white' : 'text-stone-700'}`}>Accounts & Wallets</Text>
+                    </Pressable>
+
+                    <Pressable
+                        accessibilityRole="tab"
+                        accessibilityLabel="Obligations and Income tab"
+                        accessibilityState={{ selected: isObligationSection }}
+                        onPress={() => {
+                            if (isAccountsSection) {
+                                setSelectedFilter('income');
+                            }
+                        }}
+                        hitSlop={6}
+                        className={`flex-1 flex-row items-center justify-center py-2 rounded-xl ${isObligationSection ? 'bg-[#18342B]' : ''}`}
+                    >
+                        <Briefcase size={15} color={isObligationSection ? '#BBD583' : '#57534E'} strokeWidth={2.2} />
+                        <Text className={`text-xs font-bold ml-1.5 ${isObligationSection ? 'text-white' : 'text-stone-700'}`}>
+                            Obligations & Income
+                        </Text>
+                    </Pressable>
+                </View>
+            </View>
+
+            {/* Sub-Category Switcher: Direct 1-touch tabs without horizontal overflow */}
+            <View className="px-5 mb-3">
+                {isAccountsSection ? (
+                    <View accessibilityRole="tablist" className="flex-row gap-1.5">
+                        {[
+                            { id: 'all', label: 'All' },
+                            { id: 'bank', label: 'Banks' },
+                            { id: 'ewallet', label: 'E-Wallets' },
+                            { id: 'cash', label: 'Cash' }
+                        ].map((cat) => {
+                            const isSelected = selectedFilter === cat.id;
+                            return (
+                                <Pressable
+                                    key={cat.id}
+                                    accessibilityRole="tab"
+                                    accessibilityState={{ selected: isSelected }}
+                                    onPress={() => setSelectedFilter(cat.id as FilterCategory)}
+                                    hitSlop={6}
+                                    pressRetentionOffset={10}
+                                    className={`flex-1 py-1.5 rounded-xl border items-center justify-center ${
+                                        isSelected ? 'bg-stone-900 border-stone-900' : 'bg-white border-stone-200/80'
+                                    }`}
+                                >
+                                    <Text numberOfLines={1} className={`text-xs font-semibold ${isSelected ? 'text-white' : 'text-stone-600'}`}>
+                                        {cat.label}
+                                    </Text>
+                                </Pressable>
+                            );
+                        })}
+                    </View>
+                ) : (
+                    <View accessibilityRole="tablist" className="flex-row gap-1.5">
+                        {[
+                            { id: 'income', label: 'Income & Jobs' },
+                            { id: 'subscriptions', label: 'Subscriptions' },
+                            { id: 'loans', label: 'Loans & Debt' }
+                        ].map((cat) => {
+                            const isSelected = selectedFilter === cat.id;
+                            return (
+                                <Pressable
+                                    key={cat.id}
+                                    accessibilityRole="tab"
+                                    accessibilityState={{ selected: isSelected }}
+                                    onPress={() => setSelectedFilter(cat.id as FilterCategory)}
+                                    hitSlop={6}
+                                    pressRetentionOffset={10}
+                                    className={`flex-1 py-1.5 rounded-xl border items-center justify-center ${
+                                        isSelected ? 'bg-stone-900 border-stone-900' : 'bg-white border-stone-200/80'
+                                    }`}
+                                >
+                                    <Text numberOfLines={1} className={`text-xs font-semibold ${isSelected ? 'text-white' : 'text-stone-600'}`}>
+                                        {cat.label}
+                                    </Text>
+                                </Pressable>
+                            );
+                        })}
+                    </View>
+                )}
+            </View>
+
             {/* Stat Banner: Total Money, Total Loans, Monthly Subscriptions, or Monthly Income */}
             <View className="px-5 mb-3">
                 {isIncomeTab ? (
-                    <View className="bg-emerald-50/90 p-4 rounded-2xl border border-emerald-200 shadow-sm">
+                    <View className="bg-emerald-50/90 p-4 rounded-2xl border border-emerald-200">
                         <View className="flex-row items-center justify-between mb-2">
                             <View>
                                 <Text className="text-[11px] font-bold uppercase tracking-wider text-[#18342B]">Expected Monthly Take-Home</Text>
@@ -603,7 +705,7 @@ export default function AccountsScreen() {
                         </View>
                     </View>
                 ) : isLoansTab ? (
-                    <View className="bg-amber-50/90 p-4 rounded-2xl border border-amber-200 shadow-sm flex-row items-center justify-between">
+                    <View className="bg-amber-50/90 p-4 rounded-2xl border border-amber-200 flex-row items-center justify-between">
                         <View>
                             <Text className="text-[11px] font-bold uppercase tracking-wider text-amber-800">Total Active Debt</Text>
                             <Text className="text-2xl font-bold text-stone-900 tracking-tight mt-0.5">{formatCurrency(totalLoans)}</Text>
@@ -616,7 +718,7 @@ export default function AccountsScreen() {
                         </View>
                     </View>
                 ) : isSubsTab ? (
-                    <View className="bg-emerald-50/90 p-4 rounded-2xl border border-emerald-200 shadow-sm flex-row items-center justify-between">
+                    <View className="bg-emerald-50/90 p-4 rounded-2xl border border-emerald-200 flex-row items-center justify-between">
                         <View className="flex-1 mr-3">
                             <Text className="text-[11px] font-bold uppercase tracking-wider text-[#18342B]">Monthly Subscription Spend</Text>
                             <Text className="text-2xl font-bold text-stone-900 tracking-tight mt-0.5">
@@ -640,7 +742,7 @@ export default function AccountsScreen() {
                         </View>
                     </View>
                 ) : (
-                    <View className="bg-white p-4 rounded-2xl border border-stone-200/80 shadow-sm flex-row items-center justify-between">
+                    <View className="bg-white p-4 rounded-2xl border border-stone-200/80 flex-row items-center justify-between">
                         <View>
                             <Text className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">Total Money (Assets)</Text>
                             <Text className="text-2xl font-bold text-[#18342B] tracking-tight mt-0.5">{formatCurrency(totalMoney)}</Text>
@@ -678,37 +780,12 @@ export default function AccountsScreen() {
                         placeholderTextColor="#A8A29E"
                         className="flex-1 ml-2 text-xs text-stone-900"
                     />
+                    {searchQuery.length > 0 && (
+                        <Pressable onPress={() => setSearchQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search input">
+                            <X size={15} color="#A8A29E" />
+                        </Pressable>
+                    )}
                 </View>
-            </View>
-
-            {/* Filter Category Pills */}
-            <View className="px-5 mb-4">
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                    {[
-                        { id: 'all', label: 'All' },
-                        { id: 'bank', label: 'Banks' },
-                        { id: 'ewallet', label: 'E-Wallets' },
-                        { id: 'income', label: 'Income & Jobs' },
-                        { id: 'subscriptions', label: 'Subscriptions' },
-                        { id: 'loans', label: 'Loans & Debt' },
-                        { id: 'cash', label: 'Cash' }
-                    ].map((cat) => {
-                        const isSelected = selectedFilter === cat.id;
-                        return (
-                            <Pressable
-                                key={cat.id}
-                                onPress={() => setSelectedFilter(cat.id as FilterCategory)}
-                                hitSlop={8}
-                                pressRetentionOffset={20}
-                                className={`px-3.5 py-1.5 rounded-xl mr-2 border ${
-                                    isSelected ? 'bg-stone-900 border-stone-900' : 'bg-white border-stone-200/80'
-                                }`}
-                            >
-                                <Text className={`text-xs font-semibold ${isSelected ? 'text-white' : 'text-stone-600'}`}>{cat.label}</Text>
-                            </Pressable>
-                        );
-                    })}
-                </ScrollView>
             </View>
 
             {/* Main Content Area */}

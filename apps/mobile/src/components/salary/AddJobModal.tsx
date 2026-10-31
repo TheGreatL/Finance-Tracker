@@ -38,6 +38,14 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
 
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const [fieldErrors, setFieldErrors] = useState<{
+        title?: string;
+        companyName?: string;
+        grossSalary?: string;
+        payDay1?: string;
+        payDay2?: string;
+        targetPocketId?: string;
+    }>({});
     const keyboardInset = useKeyboardBottomInset(36);
 
     useEffect(() => {
@@ -52,6 +60,7 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
             setTargetPocketId(pockets[0]?.id || '');
             setNotes('');
             setError('');
+            setFieldErrors({});
             // Default common deductions
             setDeductions([
                 {

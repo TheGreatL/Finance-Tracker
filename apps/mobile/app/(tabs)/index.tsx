@@ -17,9 +17,7 @@ import { EditPocketModal } from '@/src/components/accounts/EditPocketModal';
 import { TransactionFormModal } from '@/src/components/transactions/TransactionFormModal';
 import { TransactionDetailSheet } from '@/src/components/transactions/TransactionDetailSheet';
 import { EditTransactionModal } from '@/src/components/transactions/EditTransactionModal';
-import { ActiveLoansBanner } from '@/src/components/loans/ActiveLoansBanner';
-import { SubscriptionsBanner } from '@/src/components/subscriptions/SubscriptionsBanner';
-import { UpcomingPaydayBanner } from '@/src/components/salary/UpcomingPaydayBanner';
+import { FinancialPulseStrip } from '@/src/components/dashboard/FinancialPulseStrip';
 import { AddLoanModal } from '@/src/components/loans/AddLoanModal';
 import { LoanDetailSheet } from '@/src/components/loans/LoanDetailSheet';
 import { EditLoanModal } from '@/src/components/loans/EditLoanModal';
@@ -494,25 +492,14 @@ export default function DashboardScreen() {
                 {/* Hero Card with Pistachio & Deep Pine */}
                 <BalanceHeroCard totalBalance={totalBalance} totalIncome={totalIncome} totalExpense={totalExpense} currency="₱" />
 
-                {/* Active Loans & Debt Summary Banner */}
-                <ActiveLoansBanner
-                    totalLoanBalance={loansSummary.totalLoanBalance}
-                    nextDueLoan={loansSummary.nextDueLoan}
-                    onPress={() => router.push({ pathname: '/(tabs)/accounts', params: { tab: 'loans' } })}
-                />
-
-                {/* Active Subscriptions Summary Banner */}
-                <SubscriptionsBanner
-                    monthlyTotal={subsSummary.monthlyTotal}
-                    activeCount={subsSummary.activeCount}
-                    nextUpcoming={subsSummary.nextUpcoming}
-                    onPress={() => router.push({ pathname: '/(tabs)/accounts', params: { tab: 'subscriptions' } })}
-                />
-
-                {/* Upcoming Salary & Payday Banner */}
-                <UpcomingPaydayBanner
-                    nextPayday={incomeSummary.nextPayday}
-                    onPress={() => router.push({ pathname: '/(tabs)/accounts', params: { tab: 'income' } })}
+                {/* Unified Financial Pulse Strip (Payday, Debt Due, Recurring Bills) */}
+                <FinancialPulseStrip
+                    incomeSummary={incomeSummary}
+                    loansSummary={loansSummary}
+                    subsSummary={subsSummary}
+                    onPaydayPress={() => router.push({ pathname: '/(tabs)/accounts', params: { tab: 'income' } })}
+                    onLoansPress={() => router.push({ pathname: '/(tabs)/accounts', params: { tab: 'loans' } })}
+                    onSubsPress={() => router.push({ pathname: '/(tabs)/accounts', params: { tab: 'subscriptions' } })}
                 />
 
                 {/* Philippine Institution Accounts 2-Column Grid */}
@@ -533,7 +520,7 @@ export default function DashboardScreen() {
                 />
 
                 {/* Recent Transactions List */}
-                <RecentTransactionsList transactions={formattedRecentTransactions} currency="₱" onSeeAllPress={() => {}} />
+                <RecentTransactionsList transactions={formattedRecentTransactions} currency="₱" onSeeAllPress={() => router.push('/(tabs)/two')} />
 
                 {/* Dedicated Section: Reset, Export, and Import Database */}
                 <DatabaseManagementCard onDataChanged={loadData} />

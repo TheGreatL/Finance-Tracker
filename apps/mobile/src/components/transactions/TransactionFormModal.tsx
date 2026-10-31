@@ -55,10 +55,13 @@ export function TransactionFormModal({
     const [notes, setNotes] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const [fieldErrors, setFieldErrors] = useState<{ amount?: string; title?: string; pocketId?: string; toPocketId?: string }>({});
     const keyboardInset = useKeyboardBottomInset(36);
 
     useEffect(() => {
         if (visible) {
+            setError('');
+            setFieldErrors({});
             setType(initialType);
             setCategory(initialType === 'income' ? 'Salary' : initialType === 'transfer' ? 'Transfer' : 'Groceries');
             if (preselectedPocketId) {
@@ -75,32 +78,32 @@ export function TransactionFormModal({
 
     const handleSave = async () => {
         setError('');
+        const errors: { amount?: string; title?: string; pocketId?: string; toPocketId?: string } = {};
         const rawAmount = parseMoneyInput(amountStr);
 
         if (rawAmount <= 0) {
-            setError('Please enter a valid amount greater than 0.');
-            return;
+            errors.amount = 'Please enter an amount greater than ₱0.';
         }
 
         if (!title.trim()) {
-            setError('Please enter a payee or description title.');
-            return;
+            errors.title = 'Please enter a payee or description title.';
         }
 
         if (!pocketId) {
-            setError('Please select a payment pocket/account.');
-            return;
+            errors.pocketId = 'Please select a payment pocket/account.';
         }
 
         if (type === 'transfer') {
             if (!toPocketId) {
-                setError('Please select a destination pocket for the transfer.');
-                return;
+                errors.toPocketId = 'Please select a destination pocket for the transfer.';
+            } else if (toPocketId === pocketId) {
+                errors.toPocketId = 'Source and destination pockets must be different.';
             }
-            if (toPocketId === pocketId) {
-                setError('Source and destination pockets must be different.');
-                return;
-            }
+        }
+
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(errors);
+            return;
         }
 
         try {
@@ -119,6 +122,7 @@ export function TransactionFormModal({
             setAmountStr('');
             setTitle('');
             setNotes('');
+            setFieldErrors({});
             onClose();
         } catch (err: any) {
             setError(err?.message || 'Failed to record transaction');
@@ -209,28 +213,43 @@ export function TransactionFormModal({
 
                         {/* Large Amount Input */}
                         <View className="mb-5 items-center">
-                            <Text className="text-xs text-stone-400 mb-1">Amount</Text>
-                            <View className="flex-row items-center justify-center">
-                                <Text className="text-3xl font-bold text-stone-400 mr-1.5">₱</Text>
+                            <Text className={`text-xs mb-1 ${fieldErrors.amount ? 'text-rose-600 font-semibold' : 'text-stone-400'}`}>Amount</Text>
+                            <View
+                                className={`flex-row items-center justify-center px-4 py-1.5 rounded-2xl ${
+                                    fieldErrors.amount ? 'border border-rose-300 bg-rose-50/40' : ''
+                                }`}
+                            >
+                                <Text className={`text-3xl font-bold mr-1.5 ${fieldErrors.amount ? 'text-rose-500' : 'text-stone-400'}`}>₱</Text>
                                 <TextInput
                                     value={amountStr}
-                                    onChangeText={(val) => setAmountStr(formatMoneyInput(val))}
+                                    onChangeText={(val) => {
+                                        setAmountStr(formatMoneyInput(val));
+                                        if (fieldErrors.amount) setFieldErrors((prev) => ({ ...prev, amount: undefined }));
+                                    }}
                                     editable={!submitting}
                                     placeholder="0.00"
                                     keyboardType="decimal-pad"
                                     autoFocus
                                     placeholderTextColor="#D6D3D1"
-                                    className={`text-4xl font-bold text-stone-900 min-w-[120px] text-center ${submitting ? 'opacity-60' : ''}`}
+                                    className={`text-4xl font-bold min-w-[120px] text-center ${
+                                        fieldErrors.amount ? 'text-rose-700' : 'text-stone-900'
+                                    } ${submitting ? 'opacity-60' : ''}`}
                                 />
                             </View>
+                            {fieldErrors.amount ? <Text className="text-[11px] font-medium text-rose-600 mt-1">{fieldErrors.amount}</Text> : null}
                         </View>
 
                         {/* Payee / Title */}
                         <View className="mb-4">
-                            <Text className="text-xs font-medium text-stone-600 mb-1">Title / Payee</Text>
+                            <Text className={`text-xs font-medium mb-1 ${fieldErrors.title ? 'text-rose-600 font-semibold' : 'text-stone-600'}`}>
+                                Title / Payee
+                            </Text>
                             <TextInput
                                 value={title}
-                                onChangeText={setTitle}
+                                onChangeText={(val) => {
+                                    setTitle(val);
+                                    if (fieldErrors.title) setFieldErrors((prev) => ({ ...prev, title: undefined }));
+                                }}
                                 editable={!submitting}
                                 placeholder={
                                     type === 'expense'
@@ -240,10 +259,11 @@ export function TransactionFormModal({
                                           : 'e.g. Top up GoTyme from Maya'
                                 }
                                 placeholderTextColor="#A8A29E"
-                                className={`border border-stone-200 rounded-xl px-4 py-3 text-sm text-stone-900 ${
-                                    submitting ? 'bg-stone-100 opacity-60' : 'bg-stone-50'
-                                }`}
+                                className={`rounded-xl px-4 py-3 text-sm text-stone-900 border ${
+                                    fieldErrors.title ? 'border-rose-400 bg-rose-50/30' : 'border-stone-200 bg-stone-50'
+                                } ${submitting ? 'bg-stone-100 opacity-60' : ''}`}
                             />
+                            {fieldErrors.title ? <Text className="text-[11px] font-medium text-rose-600 mt-1">{fieldErrors.title}</Text> : null}
                         </View>
 
                         {/* Source Pocket Selector */}
@@ -262,28 +282,42 @@ export function TransactionFormModal({
                                 icon: <InstitutionLogo code={p.institution_code} size={26} />
                             }))}
                             selectedId={pocketId}
-                            onSelect={(opt) => setPocketId(opt.id)}
+                            onSelect={(opt) => {
+                                setPocketId(opt.id);
+                                if (fieldErrors.pocketId) setFieldErrors((prev) => ({ ...prev, pocketId: undefined }));
+                            }}
                         />
+                        {fieldErrors.pocketId ? (
+                            <Text className="text-[11px] font-medium text-rose-600 -mt-2 mb-3 px-1">{fieldErrors.pocketId}</Text>
+                        ) : null}
 
                         {/* Destination Pocket Selector (If Transfer) */}
                         {type === 'transfer' ? (
-                            <SearchableSelectField
-                                label="To Pocket"
-                                modalTitle="Select Destination Pocket"
-                                searchPlaceholder="Search destination pocket..."
-                                disabled={submitting}
-                                options={pockets
-                                    .filter((p) => p.id !== pocketId)
-                                    .map((p): SelectOption => ({
-                                        id: p.id,
-                                        label: `${p.institution_name} • ${p.name}`,
-                                        subtitle: p.pocket_type === 'savings' ? 'Interest Savings' : 'Everyday Wallet',
-                                        badge: formatCurrency(p.current_balance),
-                                        icon: <InstitutionLogo code={p.institution_code} size={26} />
-                                    }))}
-                                selectedId={toPocketId}
-                                onSelect={(opt) => setToPocketId(opt.id)}
-                            />
+                            <>
+                                <SearchableSelectField
+                                    label="To Pocket"
+                                    modalTitle="Select Destination Pocket"
+                                    searchPlaceholder="Search destination pocket..."
+                                    disabled={submitting}
+                                    options={pockets
+                                        .filter((p) => p.id !== pocketId)
+                                        .map((p): SelectOption => ({
+                                            id: p.id,
+                                            label: `${p.institution_name} • ${p.name}`,
+                                            subtitle: p.pocket_type === 'savings' ? 'Interest Savings' : 'Everyday Wallet',
+                                            badge: formatCurrency(p.current_balance),
+                                            icon: <InstitutionLogo code={p.institution_code} size={26} />
+                                        }))}
+                                    selectedId={toPocketId}
+                                    onSelect={(opt) => {
+                                        setToPocketId(opt.id);
+                                        if (fieldErrors.toPocketId) setFieldErrors((prev) => ({ ...prev, toPocketId: undefined }));
+                                    }}
+                                />
+                                {fieldErrors.toPocketId ? (
+                                    <Text className="text-[11px] font-medium text-rose-600 -mt-2 mb-3 px-1">{fieldErrors.toPocketId}</Text>
+                                ) : null}
+                            </>
                         ) : null}
 
                         {/* Category Selector (If not Transfer) */}

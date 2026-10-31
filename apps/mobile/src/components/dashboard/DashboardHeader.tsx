@@ -27,7 +27,7 @@ export function DashboardHeader({
     });
 
     return (
-        <View className="flex-row items-center justify-between px-5 pt-3 pb-4">
+        <View className="flex-row items-center justify-between px-5 pt-3 pb-3">
             <View className="flex-row items-center flex-1 mr-2">
                 {onMenuPress && (
                     <Pressable
@@ -41,10 +41,10 @@ export function DashboardHeader({
                     </Pressable>
                 )}
                 <View className="flex-1">
-                    <Text className="text-xs font-semibold tracking-wider uppercase text-muted-foreground">{currentDate}</Text>
                     <Text className="text-2xl font-bold tracking-tight text-foreground" numberOfLines={1}>
                         {userName}
                     </Text>
+                    <Text className="text-xs font-medium text-muted-foreground mt-0.5">{currentDate}</Text>
                 </View>
             </View>
 

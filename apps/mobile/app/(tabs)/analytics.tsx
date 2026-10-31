@@ -151,7 +151,7 @@ export default function AnalyticsScreen() {
                 </View>
 
                 {/* 1. Cash Flow Summary Card */}
-                <View className="mx-4 sm:mx-5 mb-4 p-4 sm:p-5 bg-[#18342B] rounded-3xl shadow-sm">
+                <View className="mx-4 sm:mx-5 mb-4 p-4 sm:p-5 bg-[#18342B] rounded-2xl">
                     <View className="flex-row items-center justify-between mb-4">
                         <View className="flex-1 min-w-0 mr-3">
                             <Text className="text-xs font-semibold text-[#BBD583]">Net Savings This Period</Text>
@@ -198,7 +198,7 @@ export default function AnalyticsScreen() {
 
                 {/* 1.5. Career Salary & Itemized Payroll Deductions (True Outflow Accuracy) */}
                 {incomeSummary.activeJobsCount > 0 && (
-                    <View className="mx-4 sm:mx-5 mb-4 p-4 sm:p-5 bg-white rounded-3xl border border-stone-200/90 shadow-xs">
+                    <View className="mx-4 sm:mx-5 mb-4 p-4 sm:p-5 bg-white rounded-2xl border border-stone-200/90">
                         <View className="flex-row items-center justify-between mb-3 gap-2">
                             <View className="flex-row items-center flex-1 min-w-0 mr-1.5">
                                 <View className="w-8 h-8 rounded-xl bg-emerald-100/80 items-center justify-center mr-2.5 flex-shrink-0">
@@ -267,7 +267,7 @@ export default function AnalyticsScreen() {
 
                 {/* 2. Fixed Monthly Commitments Banner (Subscriptions + Loans) */}
                 {(fixedCommitments.monthlyTotal > 0 || loansAnalytics.activeCount > 0 || subscriptionsAnalytics.activeCount > 0) && (
-                    <View className="mx-4 sm:mx-5 mb-4 p-4 sm:p-5 bg-white rounded-3xl border border-stone-200/90 shadow-xs">
+                    <View className="mx-4 sm:mx-5 mb-4 p-4 sm:p-5 bg-white rounded-2xl border border-stone-200/90">
                         <View className="flex-row items-center justify-between mb-3.5 gap-2">
                             <View className="flex-row items-center flex-1 min-w-0 mr-1.5">
                                 <View className="w-8 h-8 rounded-xl bg-[#18342B]/10 items-center justify-center mr-2.5 flex-shrink-0">
@@ -334,7 +334,7 @@ export default function AnalyticsScreen() {
                 )}
 
                 {/* 3. Recurring Subscriptions Analytics Card */}
-                <View className="mx-4 sm:mx-5 mb-4 p-4 sm:p-5 bg-white rounded-3xl border border-stone-200/90 shadow-xs">
+                <View className="mx-4 sm:mx-5 mb-4 p-4 sm:p-5 bg-white rounded-2xl border border-stone-200/90">
                     <View className="flex-row items-center justify-between mb-3 gap-2">
                         <View className="flex-row items-center flex-1 min-w-0 mr-1.5">
                             <View className="w-8 h-8 rounded-xl bg-emerald-100/80 items-center justify-center mr-2.5 flex-shrink-0">
@@ -438,7 +438,7 @@ export default function AnalyticsScreen() {
                 </View>
 
                 {/* 4. Loans & Debt Obligations Analytics Card */}
-                <View className="mx-4 sm:mx-5 mb-4 p-4 sm:p-5 bg-white rounded-3xl border border-stone-200/90 shadow-xs">
+                <View className="mx-4 sm:mx-5 mb-4 p-4 sm:p-5 bg-white rounded-2xl border border-stone-200/90">
                     <View className="flex-row items-center justify-between mb-3 gap-2">
                         <View className="flex-row items-center flex-1 min-w-0 mr-1.5">
                             <View className="w-8 h-8 rounded-xl bg-rose-100 items-center justify-center mr-2.5 flex-shrink-0">
@@ -578,7 +578,7 @@ export default function AnalyticsScreen() {
                 </View>
 
                 {/* 5. Category Spending Breakdown */}
-                <View className="mx-4 sm:mx-5 mb-4 p-4 sm:p-5 bg-white rounded-3xl border border-stone-200/80 shadow-xs">
+                <View className="mx-4 sm:mx-5 mb-4 p-4 sm:p-5 bg-white rounded-2xl border border-stone-200/80">
                     <View className="flex-row items-center justify-between mb-4 gap-2">
                         <View className="flex-1 min-w-0 mr-2">
                             <Text className="text-base font-bold text-stone-900" numberOfLines={1}>
@@ -641,7 +641,7 @@ export default function AnalyticsScreen() {
                 </View>
 
                 {/* 6. Asset Distribution */}
-                <View className="mx-4 sm:mx-5 mb-4 p-4 sm:p-5 bg-white rounded-3xl border border-stone-200/80 shadow-xs">
+                <View className="mx-4 sm:mx-5 mb-4 p-4 sm:p-5 bg-white rounded-2xl border border-stone-200/80">
                     <Text className="text-base font-bold text-stone-900 mb-1" numberOfLines={1}>
                         Asset Allocation
                     </Text>
