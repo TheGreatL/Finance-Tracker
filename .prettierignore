@@ -1,0 +1,16 @@
+node_modules/
+.next/
+dist/
+build/
+.expo/
+android/
+ios/
+coverage/
+.turbo/
+package-lock.json
+*.log
+apps/api/
+.husky/_/
+.husky/
+brain/
+.agents/
