@@ -371,22 +371,29 @@ export default function AssistantScreen() {
 
                 {/* Input Bar */}
                 <View
-                    className="px-4 py-2.5 bg-white border-t border-stone-200/80 flex-row items-center space-x-2"
+                    className="px-4 py-2.5 bg-white border-t border-stone-200/80 flex-row items-end space-x-2"
                     style={{
                         paddingBottom: isKeyboardVisible ? 10 : Math.max(insets.bottom, 12)
                     }}
                 >
-                    <View className="flex-1 bg-stone-100 rounded-2xl px-4 py-2.5 flex-row items-center border border-stone-200/80 mr-2">
+                    <View className="flex-1 bg-stone-100 rounded-2xl px-4 py-2 border border-stone-200/80 mr-2 justify-center">
                         <TextInput
                             value={input}
                             onChangeText={setInput}
+                            multiline={true}
+                            textAlignVertical="center"
+                            scrollEnabled={true}
                             placeholder={
                                 chatMode === 'gemini' ? "Ask Gemini AI 'Can I afford ₱15,000?'..." : "Ask Offline Engine 'Can I afford ₱15,000?'..."
                             }
                             placeholderTextColor="#A8A29E"
-                            returnKeyType="send"
-                            onSubmitEditing={() => handleSend()}
-                            className="flex-1 text-sm text-stone-900 p-0"
+                            className="text-sm text-stone-900 p-0 leading-5"
+                            style={{
+                                maxHeight: 120,
+                                minHeight: 24,
+                                paddingTop: Platform.OS === 'android' ? 2 : 0,
+                                paddingBottom: Platform.OS === 'android' ? 2 : 0
+                            }}
                         />
                     </View>
 
@@ -394,7 +401,7 @@ export default function AssistantScreen() {
                         onPress={() => handleSend()}
                         disabled={!input.trim() || loading}
                         hitSlop={8}
-                        className={`w-11 h-11 rounded-2xl items-center justify-center shadow-xs ${
+                        className={`w-11 h-11 rounded-2xl items-center justify-center shadow-xs mb-0.5 ${
                             input.trim() && !loading ? 'bg-[#18342B] active:opacity-90' : 'bg-stone-200'
                         }`}
                     >
