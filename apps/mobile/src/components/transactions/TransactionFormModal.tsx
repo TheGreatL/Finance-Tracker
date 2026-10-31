@@ -5,7 +5,7 @@ import type { AccountPocket, TransactionType } from '../../types/database';
 import type { CreateTransactionInput } from '../../services/transactionService';
 import { InstitutionLogo } from '../accounts/InstitutionLogo';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency, formatMoneyInput, parseMoneyInput } from '../../utils/formatters';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 
 interface ActivePocket extends AccountPocket {
@@ -75,7 +75,7 @@ export function TransactionFormModal({
 
     const handleSave = async () => {
         setError('');
-        const rawAmount = parseFloat(amountStr.replace(/[^0-9.]/g, '')) || 0;
+        const rawAmount = parseMoneyInput(amountStr);
 
         if (rawAmount <= 0) {
             setError('Please enter a valid amount greater than 0.');
@@ -214,10 +214,10 @@ export function TransactionFormModal({
                                 <Text className="text-3xl font-extrabold text-stone-400 mr-1.5">₱</Text>
                                 <TextInput
                                     value={amountStr}
-                                    onChangeText={setAmountStr}
+                                    onChangeText={(val) => setAmountStr(formatMoneyInput(val))}
                                     editable={!submitting}
                                     placeholder="0.00"
-                                    keyboardType="numeric"
+                                    keyboardType="decimal-pad"
                                     autoFocus
                                     placeholderTextColor="#D6D3D1"
                                     className={`text-4xl font-extrabold text-stone-900 min-w-[120px] text-center ${submitting ? 'opacity-60' : ''}`}

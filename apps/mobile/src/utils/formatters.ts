@@ -3,100 +3,143 @@
  * Negative numbers place the minus sign before the currency symbol (e.g., -₱1,200.00).
  */
 export function formatCurrency(amount: number, currency: string = '₱'): string {
-  const isNegative = amount < 0;
-  const absAmount = Math.abs(amount);
-  const formattedNumber = absAmount.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+    const isNegative = amount < 0;
+    const absAmount = Math.abs(amount);
+    const formattedNumber = absAmount.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
 
-  return isNegative ? `-${currency}${formattedNumber}` : `${currency}${formattedNumber}`;
+    return isNegative ? `-${currency}${formattedNumber}` : `${currency}${formattedNumber}`;
 }
 
 /**
  * Formats an amount with an explicit sign based on transaction type.
  * Ensures expenses do not display as double negatives (--₱X) and zero amounts do not display with negative signs (-₱0.00).
  */
-export function formatSignedCurrency(
-  amount: number,
-  type: 'income' | 'expense' | 'transfer',
-  currency: string = '₱'
-): string {
-  const absAmount = Math.abs(amount);
-  const formatted = formatCurrency(absAmount, currency);
+export function formatSignedCurrency(amount: number, type: 'income' | 'expense' | 'transfer', currency: string = '₱'): string {
+    const absAmount = Math.abs(amount);
+    const formatted = formatCurrency(absAmount, currency);
 
-  if (absAmount === 0) {
+    if (absAmount === 0) {
+        return formatted;
+    }
+
+    if (type === 'income') {
+        return `+${formatted}`;
+    }
+
+    if (type === 'expense') {
+        return `-${formatted}`;
+    }
+
     return formatted;
-  }
-
-  if (type === 'income') {
-    return `+${formatted}`;
-  }
-
-  if (type === 'expense') {
-    return `-${formatted}`;
-  }
-
-  return formatted;
 }
 
 /**
  * Returns a human-friendly relative date string ("Today", "Yesterday", or formatted month/day).
  */
 export function formatRelativeDate(dateString: string): string {
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) {
-    return 'Invalid date';
-  }
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+        return 'Invalid date';
+    }
 
-  const now = new Date();
+    const now = new Date();
 
-  const isToday =
-    date.getDate() === now.getDate() &&
-    date.getMonth() === now.getMonth() &&
-    date.getFullYear() === now.getFullYear();
+    const isToday = date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
 
-  if (isToday) {
-    return 'Today';
-  }
+    if (isToday) {
+        return 'Today';
+    }
 
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  const isYesterday =
-    date.getDate() === yesterday.getDate() &&
-    date.getMonth() === yesterday.getMonth() &&
-    date.getFullYear() === yesterday.getFullYear();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday =
+        date.getDate() === yesterday.getDate() && date.getMonth() === yesterday.getMonth() && date.getFullYear() === yesterday.getFullYear();
 
-  if (isYesterday) {
-    return 'Yesterday';
-  }
+    if (isYesterday) {
+        return 'Yesterday';
+    }
 
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
+    return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+    });
 }
 
 /**
  * Formats a YYYY-MM-DD date string into a human-readable display string (e.g. "Nov 24, 2026").
  */
 export function formatDisplayDate(dateString?: string): string {
-  if (!dateString) return 'Select date';
-  if (dateString.includes('-')) {
-    const parts = dateString.split('-');
-    if (parts.length === 3) {
-      const y = parseInt(parts[0], 10);
-      const m = parseInt(parts[1], 10) - 1;
-      const d = parseInt(parts[2], 10);
-      const date = new Date(y, m, d);
-      if (!isNaN(date.getTime())) {
-        return date.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        });
-      }
+    if (!dateString) return 'Select date';
+    if (dateString.includes('-')) {
+        const parts = dateString.split('-');
+        if (parts.length === 3) {
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) - 1;
+            const d = parseInt(parts[2], 10);
+            const date = new Date(y, m, d);
+            if (!isNaN(date.getTime())) {
+                return date.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                });
+            }
+        }
     }
-  }
-  return dateString;
+    return dateString;
+}
+
+/**
+ * Formats a raw user input string into real-time money display format with comma thousands separators.
+ * Preserves incomplete decimal typing (e.g., "1,234." or "0.") and restricts to at most 2 decimal places.
+ */
+export function formatMoneyInput(raw: string): string {
+    if (!raw) return '';
+
+    // Keep only digits and decimal points
+    const sanitized = raw.replace(/[^0-9.]/g, '');
+    if (!sanitized) return '';
+
+    // Handle multiple dots by treating the first dot as the decimal separator
+    const parts = sanitized.split('.');
+    let integerPart = parts[0];
+    const hasDecimal = parts.length > 1;
+
+    // Handle leading zeros: if integerPart is e.g. "05", strip leading zeros to "5".
+    // If it is "00", keep a single "0".
+    if (integerPart.length > 1 && integerPart.startsWith('0')) {
+        integerPart = integerPart.replace(/^0+(?=\d)/, '');
+        if (integerPart === '') {
+            integerPart = '0';
+        }
+    }
+
+    // If user started directly with a dot (e.g. "."), integerPart is empty -> normalize to "0"
+    if (integerPart === '' && hasDecimal) {
+        integerPart = '0';
+    }
+
+    // Format integer part with thousands separators
+    const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+    if (!hasDecimal) {
+        return formattedInteger;
+    }
+
+    // Join everything after the first dot as decimal part, capped to 2 digits
+    const decimalPart = parts.slice(1).join('').slice(0, 2);
+    return `${formattedInteger}.${decimalPart}`;
+}
+
+/**
+ * Safely parses a formatted money input string back into a numeric number.
+ */
+export function parseMoneyInput(formatted: string): number {
+    if (!formatted) return 0;
+    const clean = formatted.replace(/,/g, '').trim();
+    const num = parseFloat(clean);
+    return isNaN(num) ? 0 : num;
 }

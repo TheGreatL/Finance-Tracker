@@ -10,7 +10,7 @@ import type {
 } from '../../types/database';
 import { SUBSCRIPTION_PRESETS, SUBSCRIPTION_CATEGORIES, getSubscriptionPreset } from '../../constants/subscriptions';
 import { advanceBillingDate, toLocalISODate } from '../../services/subscriptionService';
-import { formatCurrency, formatDisplayDate } from '../../utils/formatters';
+import { formatCurrency, formatDisplayDate, formatMoneyInput, parseMoneyInput } from '../../utils/formatters';
 import { DatePickerModal } from '../common/DatePickerModal';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
 import { SubscriptionLogo } from './SubscriptionLogo';
@@ -55,7 +55,7 @@ export function AddSubscriptionModal({ visible, pockets, editingSubscription, on
             setSelectedCode(editingSubscription.service_code || 'custom');
             setServiceName(editingSubscription.service_name);
             setSelectedPocketId(editingSubscription.pocket_id);
-            setAmountStr(String(editingSubscription.amount));
+            setAmountStr(formatMoneyInput(String(editingSubscription.amount)));
             setFrequency(editingSubscription.frequency);
             setStartDate(editingSubscription.start_date);
             setNextBillingDate(editingSubscription.next_billing_date);
@@ -95,7 +95,7 @@ export function AddSubscriptionModal({ visible, pockets, editingSubscription, on
 
     const handleSave = async () => {
         setError('');
-        const amount = parseFloat(amountStr.replace(/[^0-9.]/g, '')) || 0;
+        const amount = parseMoneyInput(amountStr);
 
         if (!serviceName.trim()) {
             setError('Please enter the subscription service name.');
@@ -224,11 +224,11 @@ export function AddSubscriptionModal({ visible, pockets, editingSubscription, on
                                     <Text className="text-xs font-medium text-stone-600 mb-1">Billing Amount (₱) *</Text>
                                     <TextInput
                                         value={amountStr}
-                                        onChangeText={setAmountStr}
+                                        onChangeText={(val) => setAmountStr(formatMoneyInput(val))}
                                         editable={!submitting}
                                         placeholder="₱549"
                                         placeholderTextColor="#A8A29E"
-                                        keyboardType="numeric"
+                                        keyboardType="decimal-pad"
                                         className={`border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-900 font-extrabold ${
                                             submitting ? 'bg-stone-100 opacity-60' : 'bg-stone-50'
                                         }`}

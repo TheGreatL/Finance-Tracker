@@ -9,7 +9,7 @@ import { InstitutionLogo } from '../accounts/InstitutionLogo';
 import { saveAttachment } from '../../utils/fileStorage';
 import { DatePickerModal } from '../common/DatePickerModal';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency, formatMoneyInput, parseMoneyInput } from '../../utils/formatters';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 
 interface EditLoanModalProps {
@@ -47,7 +47,7 @@ export function EditLoanModal({ visible, loan, onClose, onSave }: EditLoanModalP
         if (loan) {
             setSelectedProvider(loan.institution_code || loan.institution_id || 'billease');
             setTitle(loan.title || '');
-            setMonthlyPaymentStr(loan.monthly_payment ? loan.monthly_payment.toString() : '');
+            setMonthlyPaymentStr(loan.monthly_payment ? formatMoneyInput(loan.monthly_payment.toString()) : '');
             setDueDateStr(loan.due_date || '');
             setNotes(loan.notes || '');
             setAttachmentUri(loan.attachment_path || null);
@@ -109,8 +109,8 @@ export function EditLoanModal({ visible, loan, onClose, onSave }: EditLoanModalP
             Alert.alert('Required', 'Please enter a loan title.');
             return;
         }
-        const monthlyPayment = parseFloat(monthlyPaymentStr.replace(/,/g, ''));
-        if (isNaN(monthlyPayment) || monthlyPayment < 0) {
+        const monthlyPayment = parseMoneyInput(monthlyPaymentStr);
+        if (monthlyPayment <= 0) {
             Alert.alert('Invalid Payment', 'Please enter a valid monthly payment amount.');
             return;
         }
@@ -208,9 +208,9 @@ export function EditLoanModal({ visible, loan, onClose, onSave }: EditLoanModalP
                                 <Text className="text-xs font-bold text-stone-700 mb-1.5">Monthly Payment (₱)</Text>
                                 <TextInput
                                     value={monthlyPaymentStr}
-                                    onChangeText={setMonthlyPaymentStr}
+                                    onChangeText={(val) => setMonthlyPaymentStr(formatMoneyInput(val))}
                                     editable={!saving}
-                                    keyboardType="numeric"
+                                    keyboardType="decimal-pad"
                                     placeholder="0.00"
                                     placeholderTextColor="#A8A29E"
                                     className={`px-4 py-3 rounded-2xl border border-stone-200 text-sm text-stone-900 ${

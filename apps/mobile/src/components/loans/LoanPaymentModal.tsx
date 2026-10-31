@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
 import { X, Check, Wallet, Calendar, ChevronDown } from 'lucide-react-native';
 import type { LoanRecord, AccountPocket } from '../../types/database';
-import { formatCurrency, formatDisplayDate } from '../../utils/formatters';
+import { formatCurrency, formatDisplayDate, formatMoneyInput, parseMoneyInput } from '../../utils/formatters';
 import { DatePickerModal } from '../common/DatePickerModal';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
@@ -27,7 +27,7 @@ export function LoanPaymentModal({ visible, loan, pockets, onClose, onSubmit }: 
 
     useEffect(() => {
         if (loan) {
-            setAmountStr(String(Math.min(loan.monthly_payment, loan.remaining_balance)));
+            setAmountStr(formatMoneyInput(String(Math.min(loan.monthly_payment, loan.remaining_balance))));
             setDateStr(new Date().toISOString().split('T')[0]);
             setNotes(`Payment for ${loan.title}`);
         }
@@ -40,7 +40,7 @@ export function LoanPaymentModal({ visible, loan, pockets, onClose, onSubmit }: 
 
     const handleConfirm = async () => {
         setError('');
-        const amount = parseFloat(amountStr.replace(/[^0-9.]/g, '')) || 0;
+        const amount = parseMoneyInput(amountStr);
 
         if (!selectedPocketId) {
             setError('Please select an account to pay from.');
@@ -130,11 +130,11 @@ export function LoanPaymentModal({ visible, loan, pockets, onClose, onSubmit }: 
                                     <Text className="text-xs font-medium text-stone-600 mb-1">Amount to Pay (₱) *</Text>
                                     <TextInput
                                         value={amountStr}
-                                        onChangeText={setAmountStr}
+                                        onChangeText={(val) => setAmountStr(formatMoneyInput(val))}
                                         editable={!submitting}
                                         placeholder="₱2,500"
                                         placeholderTextColor="#A8A29E"
-                                        keyboardType="numeric"
+                                        keyboardType="decimal-pad"
                                         className={`border border-stone-200 rounded-xl px-4 py-3 text-base text-stone-900 font-extrabold ${
                                             submitting ? 'bg-stone-100 opacity-60' : 'bg-stone-50'
                                         }`}

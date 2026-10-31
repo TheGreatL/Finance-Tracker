@@ -10,7 +10,7 @@ import { saveAttachment } from '../../utils/fileStorage';
 import { scheduleLoanReminder } from '../../services/notificationService';
 import { DatePickerModal } from '../common/DatePickerModal';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
-import { formatDisplayDate } from '../../utils/formatters';
+import { formatDisplayDate, formatMoneyInput, parseMoneyInput } from '../../utils/formatters';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 
 interface AddLoanModalProps {
@@ -101,9 +101,9 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
 
     const handleSave = async () => {
         setError('');
-        const totalAmount = parseFloat(totalAmountStr.replace(/[^0-9.]/g, '')) || 0;
-        const remaining = remainingBalanceStr ? parseFloat(remainingBalanceStr.replace(/[^0-9.]/g, '')) || 0 : totalAmount;
-        const monthlyPayment = parseFloat(monthlyPaymentStr.replace(/[^0-9.]/g, '')) || 0;
+        const totalAmount = parseMoneyInput(totalAmountStr);
+        const remaining = remainingBalanceStr ? parseMoneyInput(remainingBalanceStr) : totalAmount;
+        const monthlyPayment = parseMoneyInput(monthlyPaymentStr);
         const rate = interestRateStr ? parseFloat(interestRateStr) : null;
 
         if (!title.trim()) {
@@ -245,15 +245,16 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
                                     <TextInput
                                         value={totalAmountStr}
                                         onChangeText={(val) => {
-                                            setTotalAmountStr(val);
-                                            if (!remainingBalanceStr) {
-                                                setRemainingBalanceStr(val);
+                                            const formatted = formatMoneyInput(val);
+                                            setTotalAmountStr(formatted);
+                                            if (!remainingBalanceStr || remainingBalanceStr === totalAmountStr) {
+                                                setRemainingBalanceStr(formatted);
                                             }
                                         }}
                                         editable={!submitting}
                                         placeholder="₱15,000"
                                         placeholderTextColor="#A8A29E"
-                                        keyboardType="numeric"
+                                        keyboardType="decimal-pad"
                                         className={`border border-stone-200 rounded-xl px-4 py-3 text-sm text-stone-900 font-bold ${
                                             submitting ? 'bg-stone-100 opacity-60' : 'bg-stone-50'
                                         }`}
@@ -264,11 +265,11 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
                                     <Text className="text-xs font-medium text-stone-600 mb-1">Remaining Debt (₱)</Text>
                                     <TextInput
                                         value={remainingBalanceStr}
-                                        onChangeText={setRemainingBalanceStr}
+                                        onChangeText={(val) => setRemainingBalanceStr(formatMoneyInput(val))}
                                         editable={!submitting}
                                         placeholder="₱15,000"
                                         placeholderTextColor="#A8A29E"
-                                        keyboardType="numeric"
+                                        keyboardType="decimal-pad"
                                         className={`border border-stone-200 rounded-xl px-4 py-3 text-sm text-stone-900 font-bold ${
                                             submitting ? 'bg-stone-100 opacity-60' : 'bg-stone-50'
                                         }`}
@@ -282,11 +283,11 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
                                     <Text className="text-xs font-medium text-stone-600 mb-1">Monthly Payment (₱) *</Text>
                                     <TextInput
                                         value={monthlyPaymentStr}
-                                        onChangeText={setMonthlyPaymentStr}
+                                        onChangeText={(val) => setMonthlyPaymentStr(formatMoneyInput(val))}
                                         editable={!submitting}
                                         placeholder="₱2,500"
                                         placeholderTextColor="#A8A29E"
-                                        keyboardType="numeric"
+                                        keyboardType="decimal-pad"
                                         className={`border border-stone-200 rounded-xl px-4 py-3 text-sm text-stone-900 font-bold ${
                                             submitting ? 'bg-stone-100 opacity-60' : 'bg-stone-50'
                                         }`}

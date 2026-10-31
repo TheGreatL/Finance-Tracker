@@ -6,6 +6,7 @@ import { InstitutionLogo } from './InstitutionLogo';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
 import type { PocketType } from '../../types/database';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
+import { formatMoneyInput, parseMoneyInput } from '../../utils/formatters';
 
 interface AddAccountModalProps {
     visible: boolean;
@@ -51,7 +52,7 @@ export function AddAccountModal({ visible, onClose, onSubmit, onSwitchToLoan }: 
 
     const handleSave = async () => {
         setError('');
-        const rawAmount = parseFloat(startingBalanceStr.replace(/[^0-9.]/g, '')) || 0;
+        const rawAmount = parseMoneyInput(startingBalanceStr);
         const rate = interestRateStr ? parseFloat(interestRateStr) : null;
 
         if (!pocketName.trim()) {
@@ -233,10 +234,10 @@ export function AddAccountModal({ visible, onClose, onSubmit, onSwitchToLoan }: 
                             <Text className="text-xs font-medium text-stone-600 mb-1">Starting Base Money (₱)</Text>
                             <TextInput
                                 value={startingBalanceStr}
-                                onChangeText={setStartingBalanceStr}
+                                onChangeText={(val) => setStartingBalanceStr(formatMoneyInput(val))}
                                 editable={!submitting}
                                 placeholder="0.00"
-                                keyboardType="numeric"
+                                keyboardType="decimal-pad"
                                 placeholderTextColor="#A8A29E"
                                 className={`border border-stone-200 rounded-xl px-4 py-3 text-base font-semibold text-stone-900 ${
                                     submitting ? 'bg-stone-100 opacity-60' : 'bg-stone-50'
