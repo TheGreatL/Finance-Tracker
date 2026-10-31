@@ -86,10 +86,14 @@ export function SidebarDrawer({ onNotificationPress, onDataChanged }: SidebarDra
         outputRange: [-drawerWidth, 0]
     });
 
-    const navigateTo = (route: string) => {
+    const navigateTo = (route: string, params?: Record<string, string>) => {
         closeSidebar();
         setTimeout(() => {
-            router.navigate(route as any);
+            if (params) {
+                router.navigate({ pathname: route as any, params });
+            } else {
+                router.navigate(route as any);
+            }
         }, 80);
     };
 
@@ -249,7 +253,7 @@ export function SidebarDrawer({ onNotificationPress, onDataChanged }: SidebarDra
                             subtitle="Multi-job earnings & deductions"
                             badge="Gold"
                             badgeColor="bg-amber-100 text-amber-800"
-                            onPress={() => navigateTo('/accounts')}
+                            onPress={() => navigateTo('/accounts', { tab: 'income' })}
                         />
                         <SidebarItem
                             icon={Bot}

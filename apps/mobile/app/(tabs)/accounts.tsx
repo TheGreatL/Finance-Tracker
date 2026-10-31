@@ -2,7 +2,8 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { View, Text, ScrollView, RefreshControl, TextInput, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { Search, Plus, WalletCards, HandCoins, Repeat, Briefcase } from 'lucide-react-native';
+import { Search, Plus, WalletCards, HandCoins, Repeat, Briefcase, Menu } from 'lucide-react-native';
+import { useSidebar } from '../../src/context/SidebarContext';
 import { getDatabase } from '../../src/database/db';
 import {
     getInstitutionsWithBalances,
@@ -82,6 +83,7 @@ type ModalStackItem =
 
 export default function AccountsScreen() {
     const insets = useSafeAreaInsets();
+    const { openSidebar } = useSidebar();
     const params = useLocalSearchParams<{ tab?: string }>();
 
     const [institutions, setInstitutions] = useState<Institution[]>([]);
@@ -541,9 +543,22 @@ export default function AccountsScreen() {
         <View className="flex-1 bg-stone-50" style={{ paddingTop: Math.max(insets.top, 12) }}>
             {/* Page Header */}
             <View className="px-5 pt-3 pb-3 flex-row items-center justify-between">
-                <View>
-                    <Text className="text-2xl font-black text-stone-900 tracking-tight">{headerTitle}</Text>
-                    <Text className="text-xs text-stone-500 font-medium">{headerSubtitle}</Text>
+                <View className="flex-row items-center flex-1 mr-2">
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Open sidebar navigation"
+                        onPress={openSidebar}
+                        hitSlop={8}
+                        className="items-center justify-center w-10 h-10 rounded-full bg-stone-200/70 active:opacity-70 mr-3"
+                    >
+                        <Menu size={20} color="#18342B" strokeWidth={2.2} />
+                    </Pressable>
+                    <View className="flex-1">
+                        <Text className="text-2xl font-black text-stone-900 tracking-tight">{headerTitle}</Text>
+                        <Text className="text-xs text-stone-500 font-medium" numberOfLines={1}>
+                            {headerSubtitle}
+                        </Text>
+                    </View>
                 </View>
 
                 <Pressable

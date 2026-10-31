@@ -15,8 +15,10 @@ import {
     Layers,
     ArrowRight,
     ShieldCheck,
-    Briefcase
+    Briefcase,
+    Menu
 } from 'lucide-react-native';
+import { useSidebar } from '../../src/context/SidebarContext';
 import { getDatabase } from '../../src/database/db';
 import { getAnalyticsSummary, type AnalyticsSummary } from '../../src/services/analyticsService';
 import { getIncomeSummary, type IncomeSummary } from '../../src/services/salaryService';
@@ -43,6 +45,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 export default function AnalyticsScreen() {
     const insets = useSafeAreaInsets();
+    const { openSidebar } = useSidebar();
     const [refreshing, setRefreshing] = useState(false);
     const [data, setData] = useState<AnalyticsSummary>({
         monthlyFlow: { totalIncome: 0, totalExpense: 0, netSavings: 0 },
@@ -122,13 +125,24 @@ export default function AnalyticsScreen() {
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#BBD583" colors={['#18342B', '#BBD583']} />}
             >
                 {/* Header */}
-                <View className="px-5 pt-3 pb-4">
-                    <Text className="text-2xl font-bold text-stone-900" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
-                        Analytics & Insights
-                    </Text>
-                    <Text className="text-xs text-stone-400 mt-0.5" numberOfLines={2}>
-                        Cash flow, subscriptions, loans, and spending breakdown
-                    </Text>
+                <View className="px-5 pt-3 pb-4 flex-row items-center">
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Open sidebar navigation"
+                        onPress={openSidebar}
+                        hitSlop={8}
+                        className="items-center justify-center w-10 h-10 rounded-full bg-stone-200/70 active:opacity-70 mr-3"
+                    >
+                        <Menu size={20} color="#18342B" strokeWidth={2.2} />
+                    </Pressable>
+                    <View className="flex-1">
+                        <Text className="text-2xl font-bold text-stone-900" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                            Analytics & Insights
+                        </Text>
+                        <Text className="text-xs text-stone-400 mt-0.5" numberOfLines={2}>
+                            Cash flow, subscriptions, loans, and spending breakdown
+                        </Text>
+                    </View>
                 </View>
 
                 {/* 1. Cash Flow Summary Card */}

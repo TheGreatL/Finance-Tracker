@@ -15,7 +15,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
-import { Bot, Send, Trash2, Sparkles, Zap, Calendar } from 'lucide-react-native';
+import { Bot, Send, Trash2, Sparkles, Zap, Calendar, Menu } from 'lucide-react-native';
+import { useSidebar } from '../../src/context/SidebarContext';
 import { getDatabase } from '../../src/database/db';
 import { evaluateChatPrompt } from '../../src/services/chatEngine';
 import { queryGeminiAdvisor, verifyGeminiConnection } from '../../src/services/geminiService';
@@ -44,6 +45,7 @@ const DEFAULT_WELCOME_MESSAGE: ChatMessage = {
 
 export default function AssistantScreen() {
     const insets = useSafeAreaInsets();
+    const { openSidebar } = useSidebar();
     const listRef = useRef<FlatList<ChatTimelineItem>>(null);
 
     const [input, setInput] = useState('');
@@ -312,6 +314,15 @@ export default function AssistantScreen() {
                 <View className="px-4 pt-3 pb-3 border-b border-stone-200/80 bg-white">
                     <View className="flex-row items-center justify-between">
                         <View className="flex-row items-center flex-1 mr-2">
+                            <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel="Open sidebar navigation"
+                                onPress={openSidebar}
+                                hitSlop={8}
+                                className="items-center justify-center w-9 h-9 rounded-full bg-stone-100 active:opacity-70 mr-2.5"
+                            >
+                                <Menu size={18} color="#18342B" strokeWidth={2.2} />
+                            </Pressable>
                             <View className="w-9 h-9 rounded-full bg-[#BBD583] items-center justify-center shadow-xs">
                                 <Bot size={20} color="#18342B" />
                             </View>

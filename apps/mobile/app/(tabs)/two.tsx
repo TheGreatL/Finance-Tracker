@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, RefreshControl, TextInput, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Plus, Filter } from 'lucide-react-native';
+import { Search, Plus, Filter, Menu } from 'lucide-react-native';
 
+import { useSidebar } from '@/src/context/SidebarContext';
 import { getDatabase, closeDatabase } from '@/src/database/db';
 import { seedDevData, resetDatabase } from '@/src/database/seed';
 import {
@@ -21,6 +22,7 @@ import { EditTransactionModal } from '@/src/components/transactions/EditTransact
 
 export default function LedgerScreen() {
     const insets = useSafeAreaInsets();
+    const { openSidebar } = useSidebar();
     const [refreshing, setRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedType, setSelectedType] = useState<'all' | TransactionType>('all');
@@ -108,9 +110,20 @@ export default function LedgerScreen() {
         <View className="flex-1 bg-stone-50" style={{ paddingTop: Math.max(insets.top, 12) }}>
             {/* Top Header */}
             <View className="px-5 pt-3 pb-3 flex-row items-center justify-between">
-                <View>
-                    <Text className="text-2xl font-black text-stone-900 tracking-tight">Ledger</Text>
-                    <Text className="text-xs text-stone-500 font-medium">All financial movements</Text>
+                <View className="flex-row items-center">
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Open sidebar navigation"
+                        onPress={openSidebar}
+                        hitSlop={8}
+                        className="items-center justify-center w-10 h-10 rounded-full bg-stone-200/70 active:opacity-70 mr-3"
+                    >
+                        <Menu size={20} color="#18342B" strokeWidth={2.2} />
+                    </Pressable>
+                    <View>
+                        <Text className="text-2xl font-black text-stone-900 tracking-tight">Ledger</Text>
+                        <Text className="text-xs text-stone-500 font-medium">All financial movements</Text>
+                    </View>
                 </View>
 
                 <Pressable
