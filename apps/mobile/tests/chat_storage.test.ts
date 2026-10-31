@@ -3,6 +3,8 @@ import {
   saveChatMessage,
   getStoredChatMessages,
   clearChatStorage,
+  formatChatDayHeader,
+  buildChatTimelineItems,
   type StoredChatMessage,
 } from '../src/services/chatStorageService';
 
@@ -87,5 +89,60 @@ describe('chatStorageService', () => {
     expect(mockDb.runAsync).toHaveBeenCalled();
     const runCall = executedSql[0];
     expect(runCall.sql).toContain('DELETE FROM chat_messages');
+  });
+
+  it('formats day headers for Today, Yesterday, and older dates', () => {
+    const refDate = new Date(2026, 9, 31, 12, 0, 0); // Oct 31, 2026 local
+
+    expect(formatChatDayHeader('2026-10-31T09:15:00', refDate)).toBe('Today • Oct 31, 2026');
+    expect(formatChatDayHeader('2026-10-30T21:00:00', refDate)).toBe('Yesterday • Oct 30, 2026');
+    expect(formatChatDayHeader('2026-10-24T10:00:00', refDate)).toBe('Sat, Oct 24, 2026');
+  });
+
+  it('groups chat messages by calendar day and inserts date headers', () => {
+    const refDate = new Date(2026, 9, 31, 12, 0, 0);
+    const messages: StoredChatMessage[] = [
+      {
+        id: 'm1',
+        sender: 'user',
+        text: 'Yesterday question',
+        timestamp: '08:00 PM',
+        created_at: '2026-10-30T20:00:00',
+      },
+      {
+        id: 'm2',
+        sender: 'bot',
+        text: 'Yesterday answer',
+        timestamp: '08:00 PM',
+        created_at: '2026-10-30T20:00:05',
+      },
+      {
+        id: 'm3',
+        sender: 'user',
+        text: 'Today question',
+        timestamp: '11:00 AM',
+        created_at: '2026-10-31T11:00:00',
+      },
+    ];
+
+    const timeline = buildChatTimelineItems(messages, refDate);
+
+    expect(timeline.map((t) => t.type)).toEqual([
+      'date_header',
+      'message',
+      'message',
+      'date_header',
+      'message',
+    ]);
+    expect(timeline[0]).toMatchObject({
+      type: 'date_header',
+      dateKey: '2026-10-30',
+      label: 'Yesterday • Oct 30, 2026',
+    });
+    expect(timeline[3]).toMatchObject({
+      type: 'date_header',
+      dateKey: '2026-10-31',
+      label: 'Today • Oct 31, 2026',
+    });
   });
 });

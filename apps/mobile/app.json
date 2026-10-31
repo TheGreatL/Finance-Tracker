@@ -18,6 +18,9 @@
     "android": {
       "package": "com.kenth3great.financetrackermonorepo",
       "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_WIFI_STATE",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",

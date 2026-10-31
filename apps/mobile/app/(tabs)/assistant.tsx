@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
-import { Bot, Send, Trash2, Sparkles } from 'lucide-react-native';
+import { Bot, Send, Trash2, Sparkles, Zap, Calendar } from 'lucide-react-native';
 import { getDatabase } from '../../src/database/db';
 import { evaluateChatPrompt } from '../../src/services/chatEngine';
 import { queryGeminiAdvisor } from '../../src/services/geminiService';
@@ -22,6 +22,8 @@ import {
   saveChatMessage,
   getStoredChatMessages,
   clearChatStorage,
+  buildChatTimelineItems,
+  type ChatTimelineItem,
 } from '../../src/services/chatStorageService';
 import {
   ChatMessageBubble,
@@ -33,18 +35,20 @@ import { computeKeyboardOverlap } from '../../src/utils/keyboard';
 const DEFAULT_WELCOME_MESSAGE: ChatMessage = {
   id: 'welcome',
   sender: 'bot',
-  text: `👋 **Welcome! I'm your personal financial assistant.**\n\nI combine **Google Gemini AI** for smart financial reasoning when online, with an **instant offline calculation engine** when you're without internet.\n\nAsk me scenario questions like:\n• **"Can I afford ₱15,000?"**\n• **"How much will I have if I buy a phone for 25k?"**\n• **"How much do I owe right now?"**\n• **"How much in Maya?"**`,
+  text: `👋 **Welcome! I'm your personal financial assistant.**\n\nUse the toggle at the top to switch between **✨ Gemini AI** (smart online reasoning) and **⚡ Offline Mode** (instant local SQLite engine).\n\nAsk me scenario questions like:\n• **"Can I afford ₱15,000?"**\n• **"How much will I have if I buy a phone for 25k?"**\n• **"How much do I owe right now?"**\n• **"How much in Maya?"**`,
   status: 'info',
   source: 'gemini',
   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+  created_at: new Date().toISOString(),
 };
 
 export default function AssistantScreen() {
   const insets = useSafeAreaInsets();
-  const listRef = useRef<FlatList>(null);
+  const listRef = useRef<FlatList<ChatTimelineItem>>(null);
 
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [chatMode, setChatMode] = useState<'gemini' | 'offline'>('gemini');
   const [messages, setMessages] = useState<ChatMessage[]>([DEFAULT_WELCOME_MESSAGE]);
 
   // Track container bottom Y and active keyboard metrics to position input bar right at the top of the keyboard
@@ -113,7 +117,7 @@ export default function AssistantScreen() {
   const loadChatHistory = useCallback(async () => {
     try {
       const db = await getDatabase();
-      const stored = await getStoredChatMessages(db, 60);
+      const stored = await getStoredChatMessages(db, 100);
       if (stored.length > 0) {
         setMessages(
           stored.map((m) => ({
@@ -123,6 +127,7 @@ export default function AssistantScreen() {
             status: m.status,
             source: m.source,
             timestamp: m.timestamp,
+            created_at: m.created_at,
           }))
         );
       }
@@ -137,10 +142,16 @@ export default function AssistantScreen() {
     }, [loadChatHistory])
   );
 
+  const timelineItems = useMemo(
+    () => buildChatTimelineItems(messages),
+    [messages]
+  );
+
   const handleSend = async (textToSend?: string) => {
     const prompt = (textToSend || input).trim();
     if (!prompt || loading) return;
 
+    const nowIso = new Date().toISOString();
     const userTimestamp = new Date().toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit',
@@ -151,6 +162,7 @@ export default function AssistantScreen() {
       sender: 'user',
       text: prompt,
       timestamp: userTimestamp,
+      created_at: nowIso,
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -163,22 +175,42 @@ export default function AssistantScreen() {
       await saveChatMessage(db, userMessage);
 
       let botMessage: ChatMessage;
+      const botCreatedAt = new Date().toISOString();
+      const botTimestamp = new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
 
-      // 1. Try Gemini Online AI first
-      try {
-        const geminiRes = await queryGeminiAdvisor(db, prompt, { timeoutMs: 8000 });
-        botMessage = {
-          id: `bot-${Date.now()}`,
-          sender: 'bot',
-          text: geminiRes.text,
-          status: geminiRes.status,
-          source: 'gemini',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        };
-      } catch (geminiErr) {
-        console.log('Gemini request failed/timed out, falling back to offline engine:', geminiErr);
+      if (chatMode === 'gemini') {
+        // 1. Try Gemini Online AI first when Gemini mode is toggled ON
+        try {
+          const geminiRes = await queryGeminiAdvisor(db, prompt, { timeoutMs: 8000 });
+          botMessage = {
+            id: `bot-${Date.now()}`,
+            sender: 'bot',
+            text: geminiRes.text,
+            status: geminiRes.status,
+            source: 'gemini',
+            timestamp: botTimestamp,
+            created_at: botCreatedAt,
+          };
+        } catch (geminiErr) {
+          console.log('Gemini request failed/timed out, falling back to offline engine:', geminiErr);
 
-        // 2. Fallback seamlessly to local offline chatEngine
+          // 2. Fallback seamlessly to local offline chatEngine
+          const offlineRes = await evaluateChatPrompt(db, prompt);
+          botMessage = {
+            id: `bot-${Date.now()}`,
+            sender: 'bot',
+            text: offlineRes.text,
+            status: offlineRes.status,
+            source: 'offline',
+            timestamp: botTimestamp,
+            created_at: botCreatedAt,
+          };
+        }
+      } else {
+        // Offline mode explicitly selected by user
         const offlineRes = await evaluateChatPrompt(db, prompt);
         botMessage = {
           id: `bot-${Date.now()}`,
@@ -186,7 +218,8 @@ export default function AssistantScreen() {
           text: offlineRes.text,
           status: offlineRes.status,
           source: 'offline',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          timestamp: botTimestamp,
+          created_at: botCreatedAt,
         };
       }
 
@@ -202,6 +235,7 @@ export default function AssistantScreen() {
         status: 'tight',
         source: 'offline',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        created_at: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
@@ -228,11 +262,12 @@ export default function AssistantScreen() {
                   sender: 'bot',
                   text: `✨ Conversation history cleared. Ask me a question or tap a prompt chip below!`,
                   status: 'info',
-                  source: 'gemini',
+                  source: chatMode,
                   timestamp: new Date().toLocaleTimeString([], {
                     hour: '2-digit',
                     minute: '2-digit',
                   }),
+                  created_at: new Date().toISOString(),
                 },
               ]);
             } catch (err) {
@@ -250,7 +285,7 @@ export default function AssistantScreen() {
       listRef.current?.scrollToEnd({ animated: true });
     }, 100);
     return () => clearTimeout(timer);
-  }, [messages]);
+  }, [timelineItems.length]);
 
   return (
     <View
@@ -258,41 +293,98 @@ export default function AssistantScreen() {
       className="flex-1 bg-stone-50"
       style={{ paddingTop: Math.max(insets.top, 12) }}>
       <View className="flex-1" style={{ paddingBottom: keyboardOffset }}>
-        {/* Header */}
-        <View className="px-5 py-3 border-b border-stone-200/80 bg-white flex-row items-center justify-between">
-          <View className="flex-row items-center space-x-2.5">
-            <View className="w-9 h-9 rounded-full bg-[#BBD583] items-center justify-center shadow-xs">
-              <Bot size={20} color="#18342B" />
-            </View>
-            <View className="ml-2">
-              <View className="flex-row items-center">
-                <Text className="text-base font-bold text-stone-900">PocketBot</Text>
-                <View className="flex-row items-center bg-emerald-100/70 px-1.5 py-0.5 rounded-full ml-2">
-                  <Sparkles size={10} color="#065F46" />
-                  <Text className="text-[10px] font-semibold text-emerald-800 ml-0.5">
-                    Gemini + Offline
-                  </Text>
-                </View>
+        {/* Header with Engine Mode Toggle */}
+        <View className="px-4 py-3 border-b border-stone-200/80 bg-white">
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center">
+              <View className="w-9 h-9 rounded-full bg-[#BBD583] items-center justify-center shadow-xs">
+                <Bot size={20} color="#18342B" />
               </View>
-              <Text className="text-xs text-stone-400">Smart Financial Advisor</Text>
+              <View className="ml-2.5">
+                <Text className="text-base font-bold text-stone-900">PocketBot</Text>
+                <Text className="text-[11px] text-stone-400">
+                  {chatMode === 'gemini'
+                    ? 'Gemini AI active (auto-offline fallback)'
+                    : 'Offline SQLite engine only'}
+                </Text>
+              </View>
+            </View>
+
+            <View className="flex-row items-center">
+              {/* Interactive Gemini AI vs Offline Toggle */}
+              <View className="flex-row bg-stone-100 p-0.5 rounded-full border border-stone-200 mr-2">
+                <Pressable
+                  onPress={() => setChatMode('gemini')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Switch to Gemini AI mode"
+                  className={`flex-row items-center px-2.5 py-1.5 rounded-full ${
+                    chatMode === 'gemini' ? 'bg-[#18342B]' : ''
+                  }`}>
+                  <Sparkles
+                    size={11}
+                    color={chatMode === 'gemini' ? '#BBD583' : '#78716C'}
+                  />
+                  <Text
+                    className={`text-[10px] font-bold ml-1 ${
+                      chatMode === 'gemini' ? 'text-white' : 'text-stone-600'
+                    }`}>
+                    Gemini AI
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setChatMode('offline')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Switch to Offline engine mode"
+                  className={`flex-row items-center px-2.5 py-1.5 rounded-full ${
+                    chatMode === 'offline' ? 'bg-[#18342B]' : ''
+                  }`}>
+                  <Zap
+                    size={11}
+                    color={chatMode === 'offline' ? '#BBD583' : '#78716C'}
+                  />
+                  <Text
+                    className={`text-[10px] font-bold ml-1 ${
+                      chatMode === 'offline' ? 'text-white' : 'text-stone-600'
+                    }`}>
+                    Offline
+                  </Text>
+                </Pressable>
+              </View>
+
+              <Pressable
+                onPress={handleClearHistory}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Clear conversation history"
+                className="p-2 rounded-full active:bg-stone-100">
+                <Trash2 size={17} color="#78716C" />
+              </Pressable>
             </View>
           </View>
-
-          <Pressable
-            onPress={handleClearHistory}
-            hitSlop={8}
-            className="p-2 rounded-full active:bg-stone-100">
-            <Trash2 size={18} color="#78716C" />
-          </Pressable>
         </View>
 
-        {/* Messages Feed */}
+        {/* Messages Feed Grouped by Day */}
         <FlatList
           ref={listRef}
-          data={messages}
+          data={timelineItems}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <ChatMessageBubble message={item} />}
-          contentContainerStyle={{ paddingVertical: 16 }}
+          renderItem={({ item }) => {
+            if (item.type === 'date_header') {
+              return (
+                <View className="items-center my-3 px-4">
+                  <View className="flex-row items-center bg-stone-200/75 px-3 py-1 rounded-full">
+                    <Calendar size={11} color="#57534E" />
+                    <Text className="text-[11px] font-bold text-stone-600 ml-1.5">
+                      {item.label}
+                    </Text>
+                  </View>
+                </View>
+              );
+            }
+            return <ChatMessageBubble message={item.message} />;
+          }}
+          contentContainerStyle={{ paddingVertical: 14 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           className="flex-1"
@@ -311,7 +403,11 @@ export default function AssistantScreen() {
             <TextInput
               value={input}
               onChangeText={setInput}
-              placeholder="Ask 'Can I afford ₱15,000?'..."
+              placeholder={
+                chatMode === 'gemini'
+                  ? "Ask Gemini AI 'Can I afford ₱15,000?'..."
+                  : "Ask Offline Engine 'Can I afford ₱15,000?'..."
+              }
               placeholderTextColor="#A8A29E"
               returnKeyType="send"
               onSubmitEditing={() => handleSend()}

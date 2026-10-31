@@ -10,6 +10,7 @@ export interface ChatMessage {
   status?: ChatStatus;
   source?: 'gemini' | 'offline';
   timestamp: string;
+  created_at?: string;
 }
 
 interface ChatMessageBubbleProps {
