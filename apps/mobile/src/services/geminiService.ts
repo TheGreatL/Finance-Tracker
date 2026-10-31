@@ -2,6 +2,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { GEMINI_API_KEY } from '../constants/config';
 import { getAllActivePockets } from './accountService';
 import { getActiveLoans, getLoansSummary } from './loanService';
+import { getIncomeSummary, type IncomeSummary } from './salaryService';
 import type { AccountPocket, LoanRecord } from '../types/database';
 import type { ChatStatus } from './chatEngine';
 
@@ -17,7 +18,8 @@ export interface GeminiAdvisorResult {
 export function buildFinancialSystemContext(
     pockets: (AccountPocket & { institution_name?: string })[],
     loans: LoanRecord[],
-    loansSummary: { totalLoanBalance: number; nextDueLoan: LoanRecord | null; activeCount: number }
+    loansSummary: { totalLoanBalance: number; nextDueLoan: LoanRecord | null; activeCount: number },
+    incomeSummary?: IncomeSummary
 ): string {
     const totalLiquid = pockets.reduce((sum, p) => sum + p.current_balance, 0);
 
@@ -37,6 +39,14 @@ export function buildFinancialSystemContext(
         ? `₱${loansSummary.nextDueLoan.monthly_payment.toLocaleString()} due on ${loansSummary.nextDueLoan.due_date} (${loansSummary.nextDueLoan.title})`
         : 'None';
 
+    const incomeSection =
+        incomeSummary && incomeSummary.activeJobsCount > 0
+            ? `- Monthly Gross Earnings: ₱${incomeSummary.monthlyGross.toLocaleString()} across ${incomeSummary.activeJobsCount} active job(s)
+- Total Monthly Payroll Deductions: -₱${incomeSummary.monthlyDeductions.toLocaleString()} (Taxes: ₱${incomeSummary.deductionBreakdown.tax.toLocaleString()}, Statutory: ₱${incomeSummary.deductionBreakdown.statutory.toLocaleString()})
+- Net Expected Monthly Take-Home: ₱${incomeSummary.monthlyNetTakeHome.toLocaleString()}
+${incomeSummary.nextPayday ? `- Next Upcoming Payday: ₱${incomeSummary.nextPayday.netAmount.toLocaleString()} from ${incomeSummary.nextPayday.companyName} on ${incomeSummary.nextPayday.payDate}` : ''}`
+            : '- Active Jobs & Salary: No active jobs configured';
+
     return `You are PocketBot, a smart, encouraging, and prudent personal financial advisor for a user in the Philippines.
 All currency values are in Philippine Pesos (₱).
 
@@ -44,6 +54,8 @@ CURRENT REAL-TIME FINANCIAL STATE FROM USER'S SQLITE DATABASE:
 - Total Available Liquid Money: ₱${totalLiquid.toLocaleString()}
 - Individual Pockets & Balances:
 ${pocketLines || '• No accounts configured yet'}
+- Employment & Income Streams:
+${incomeSection}
 - Total Outstanding Active Loans: ₱${loansSummary.totalLoanBalance.toLocaleString()} across ${loans.length} active loans
 - Active Loan Obligations:
 ${loanLines}
@@ -54,7 +66,7 @@ INSTRUCTIONS FOR RESPONDING:
    - If they have enough, check if spending this amount would leave them with less than their upcoming loan payment (${nextDueText}). If so, warn them that their budget will be tight and caution them!
    - If the purchase exceeds total money, clearly say no and state how much they are short by.
    - If safe, warmly confirm they can afford it and show what their remaining balance will be.
-2. When asked "How much money will I have if I buy X?", calculate the exact remaining amount and provide helpful commentary.
+2. When asked about income, paycheck, job changes, or taxes, reference their gross earnings, itemized deductions (taxes, statutory SSS/PhilHealth/Pag-IBIG), and net take-home pay.
 3. Keep answers concise, clear, and well-structured with markdown bolding (**₱Amount**) and bullet points.
 4. If asked about general money topics, answer helpfully while referencing their current financial reality when relevant.`;
 }
@@ -84,6 +96,7 @@ export interface QueryGeminiOptions {
     fetchPockets?: (db: SQLiteDatabase) => Promise<(AccountPocket & { institution_name?: string })[]>;
     fetchLoans?: (db: SQLiteDatabase) => Promise<LoanRecord[]>;
     fetchLoansSummary?: (db: SQLiteDatabase) => Promise<{ totalLoanBalance: number; nextDueLoan: LoanRecord | null; activeCount: number }>;
+    fetchIncomeSummary?: (db: SQLiteDatabase) => Promise<IncomeSummary>;
 }
 
 /**
@@ -99,10 +112,16 @@ export async function queryGeminiAdvisor(db: SQLiteDatabase, prompt: string, opt
     const getPockets = options?.fetchPockets || getAllActivePockets;
     const getLoans = options?.fetchLoans || getActiveLoans;
     const getLoansSum = options?.fetchLoansSummary || getLoansSummary;
+    const getIncSum = options?.fetchIncomeSummary || getIncomeSummary;
 
-    const [pockets, loans, loansSummary] = await Promise.all([getPockets(db), getLoans(db), getLoansSum(db)]);
+    const [pockets, loans, loansSummary, incomeSummary] = await Promise.all([
+        getPockets(db),
+        getLoans(db),
+        getLoansSum(db),
+        getIncSum(db).catch(() => undefined)
+    ]);
 
-    const systemInstruction = buildFinancialSystemContext(pockets, loans, loansSummary);
+    const systemInstruction = buildFinancialSystemContext(pockets, loans, loansSummary, incomeSummary);
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
