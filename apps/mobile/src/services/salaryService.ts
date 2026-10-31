@@ -597,3 +597,184 @@ export async function getPaySlipsByJob(db: SQLiteDatabase, jobId: string): Promi
   `;
     return await db.getAllAsync<PaySlipRecord>(query, [jobId]);
 }
+
+/**
+ * Internal helper to record an income transaction, update target pocket balance,
+ * insert an itemized pay slip, and queue an in-app notification.
+ */
+async function executePaydayDeposit(db: SQLiteDatabase, job: JobRecord, payDate: string, customNotes?: string): Promise<PaySlipRecord> {
+    const deductions = await getDeductionsByJobId(db, job.id);
+    const breakdown = calculateNetTakeHome(job.gross_salary, deductions);
+
+    // Check target pocket exists
+    const pocket = await db.getFirstAsync<{ id: string; current_balance: number; name?: string }>(
+        `SELECT id, current_balance, name FROM account_pockets WHERE id = ?;`,
+        [job.target_pocket_id]
+    );
+    if (!pocket) {
+        throw new Error(`Target account pocket '${job.target_pocket_id}' not found for job '${job.title}'`);
+    }
+
+    const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const paySlipId = `ps_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const notifId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const now = new Date().toISOString();
+    const newBalance = Math.round((pocket.current_balance + breakdown.netTakeHome) * 100) / 100;
+    const snapshotJson = JSON.stringify(breakdown.itemized);
+
+    await db.withTransactionAsync(async () => {
+        // 1. Insert income transaction
+        await db.runAsync(
+            `INSERT INTO transactions (
+        id, title, pocket_id, to_pocket_id, type, amount, category, date, notes, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            [
+                txId,
+                `Salary: ${job.title} (${job.company_name})`,
+                job.target_pocket_id,
+                null,
+                'income',
+                breakdown.netTakeHome,
+                'Salary',
+                payDate,
+                customNotes || `Automated salary deposit for ${job.title}`,
+                now,
+                now
+            ]
+        );
+
+        // 2. Update target pocket balance
+        await db.runAsync(`UPDATE account_pockets SET current_balance = ?, updated_at = ? WHERE id = ?;`, [newBalance, now, job.target_pocket_id]);
+
+        // 3. Insert pay slip record
+        await db.runAsync(
+            `INSERT INTO pay_slips (
+        id, job_id, pocket_id, transaction_id, pay_date, gross_amount,
+        total_deductions, net_amount, deductions_snapshot, status, notes, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            [
+                paySlipId,
+                job.id,
+                job.target_pocket_id,
+                txId,
+                payDate,
+                job.gross_salary,
+                breakdown.totalDeductions,
+                breakdown.netTakeHome,
+                snapshotJson,
+                'paid',
+                customNotes || 'Automated deposit',
+                now,
+                now
+            ]
+        );
+
+        // 4. Queue in-app notification
+        const formattedNet = breakdown.netTakeHome.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+        const pocketName = pocket.name || 'Account Pocket';
+        await db.runAsync(
+            `INSERT INTO app_notifications (
+        id, type, title, body, data, is_read, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?);`,
+            [
+                notifId,
+                'salary_deposit',
+                `💰 Payday Deposited: ${job.company_name}`,
+                `Net salary of ₱${formattedNet} for ${job.title} has been deposited to ${pocketName}.`,
+                JSON.stringify({ jobId: job.id, payDate, amount: breakdown.netTakeHome, pocketId: job.target_pocket_id }),
+                0,
+                now
+            ]
+        );
+    });
+
+    const createdSlip = await db.getFirstAsync<PaySlipRecord>(`SELECT * FROM pay_slips WHERE id = ?;`, [paySlipId]);
+    if (!createdSlip) {
+        throw new Error(`Failed to retrieve newly created pay slip ${paySlipId}`);
+    }
+    return createdSlip;
+}
+
+/**
+ * Automated cron/dashboard runner: detects due pay dates for all active jobs
+ * on or before referenceDate and records transactions and pay slips if not already processed.
+ */
+export async function processDuePaydays(
+    db: SQLiteDatabase,
+    referenceDate: Date = new Date()
+): Promise<{ processedCount: number; totalCredited: number }> {
+    const activeJobs = await getAllJobs(db, 'active');
+    let processedCount = 0;
+    let totalCredited = 0;
+
+    const refYear = referenceDate.getFullYear();
+    const refMonth = referenceDate.getMonth();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const refDateStr = `${refYear}-${pad(refMonth + 1)}-${pad(referenceDate.getDate())}`;
+
+    for (const job of activeJobs) {
+        const candidatePayDates: string[] = [];
+
+        if (job.pay_schedule === 'monthly') {
+            const clampedDay = clampDayToMonth(refYear, refMonth, job.pay_day_1);
+            candidatePayDates.push(`${refYear}-${pad(refMonth + 1)}-${pad(clampedDay)}`);
+        } else if (job.pay_schedule === 'semi_monthly') {
+            const d1 = Math.min(job.pay_day_1, job.pay_day_2 || 30);
+            const d2 = Math.max(job.pay_day_1, job.pay_day_2 || 30);
+            const clamped1 = clampDayToMonth(refYear, refMonth, d1);
+            const clamped2 = clampDayToMonth(refYear, refMonth, d2);
+            candidatePayDates.push(`${refYear}-${pad(refMonth + 1)}-${pad(clamped1)}`);
+            candidatePayDates.push(`${refYear}-${pad(refMonth + 1)}-${pad(clamped2)}`);
+        } else if (job.pay_schedule === 'weekly' || job.pay_schedule === 'biweekly') {
+            const interval = job.pay_schedule === 'weekly' ? 7 : 14;
+            const startDay = clampDayToMonth(refYear, refMonth, job.pay_day_1);
+            const cur = new Date(refYear, refMonth, startDay);
+            while (cur.getDate() > interval) {
+                cur.setDate(cur.getDate() - interval);
+            }
+            while (cur.getMonth() === refMonth) {
+                candidatePayDates.push(`${refYear}-${pad(refMonth + 1)}-${pad(cur.getDate())}`);
+                cur.setDate(cur.getDate() + interval);
+            }
+        }
+
+        for (const payDate of candidatePayDates) {
+            if (payDate <= refDateStr) {
+                const alreadyPaid = await db.getFirstAsync<{ id: string }>(`SELECT id FROM pay_slips WHERE job_id = ? AND pay_date = ?;`, [
+                    job.id,
+                    payDate
+                ]);
+                if (!alreadyPaid) {
+                    const slip = await executePaydayDeposit(db, job, payDate);
+                    processedCount++;
+                    totalCredited += slip.net_amount;
+                }
+            }
+        }
+    }
+
+    return {
+        processedCount,
+        totalCredited: Math.round(totalCredited * 100) / 100
+    };
+}
+
+/**
+ * Manually records and deposits a paycheck for a specific job on a specified date.
+ */
+export async function recordPaydayManual(db: SQLiteDatabase, jobId: string, payDate: string, notes?: string): Promise<PaySlipRecord> {
+    const job = await getJobById(db, jobId);
+    if (!job) {
+        throw new Error(`Job '${jobId}' not found.`);
+    }
+
+    const existing = await db.getFirstAsync<PaySlipRecord>(`SELECT * FROM pay_slips WHERE job_id = ? AND pay_date = ?;`, [jobId, payDate]);
+    if (existing) {
+        throw new Error(`A pay slip has already been recorded for ${job.title} on ${payDate}.`);
+    }
+
+    return await executePaydayDeposit(db, job, payDate, notes || 'Manual payday recording');
+}
