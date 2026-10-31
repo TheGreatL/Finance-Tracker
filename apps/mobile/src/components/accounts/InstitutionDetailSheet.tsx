@@ -6,6 +6,7 @@ import { formatCurrency } from '../../utils/formatters';
 import { PocketCard } from './PocketCard';
 import { InstitutionLogo } from './InstitutionLogo';
 import { LoanCard } from '../loans/LoanCard';
+import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 
 interface InstitutionDetailSheetProps {
     visible: boolean;
@@ -37,6 +38,7 @@ export function InstitutionDetailSheet({
     const [isEditingNote, setIsEditingNote] = useState(false);
     const [noteText, setNoteText] = useState('');
     const [savingNote, setSavingNote] = useState(false);
+    const keyboardInset = useKeyboardBottomInset(36);
 
     useEffect(() => {
         if (institution) {
@@ -235,7 +237,12 @@ export function InstitutionDetailSheet({
                     </View>
 
                     {/* Content List: Pockets + Loans */}
-                    <ScrollView className="p-5" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                    <ScrollView
+                        className="p-5"
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={{ paddingBottom: keyboardInset }}
+                    >
                         {/* Pockets Section */}
                         <View className="flex-row items-center justify-between mb-3">
                             <Text className="text-xs font-semibold uppercase tracking-wider text-stone-500">Pockets ({pockets.length})</Text>

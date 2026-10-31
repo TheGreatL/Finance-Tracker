@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Modal, View, Text, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { X } from 'lucide-react-native';
 import type { PocketType } from '../../types/database';
+import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 
 interface AddPocketModalProps {
     visible: boolean;
@@ -26,6 +27,7 @@ export function AddPocketModal({ visible, institutionId, institutionName, onClos
     const [savingsDetails, setSavingsDetails] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const keyboardInset = useKeyboardBottomInset(36);
 
     const handleSave = async () => {
         setError('');
@@ -82,7 +84,12 @@ export function AddPocketModal({ visible, institutionId, institutionName, onClos
                         </Pressable>
                     </View>
 
-                    <ScrollView showsVerticalScrollIndicator={false} className="mt-4">
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={{ paddingBottom: keyboardInset }}
+                        className="mt-4"
+                    >
                         {error ? (
                             <View className="bg-red-50 p-3 rounded-xl mb-4 border border-red-200">
                                 <Text className="text-xs text-red-600 font-medium">{error}</Text>

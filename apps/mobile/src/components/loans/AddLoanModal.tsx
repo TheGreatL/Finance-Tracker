@@ -11,6 +11,7 @@ import { scheduleLoanReminder } from '../../services/notificationService';
 import { DatePickerModal } from '../common/DatePickerModal';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
 import { formatDisplayDate } from '../../utils/formatters';
+import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 
 interface AddLoanModalProps {
     visible: boolean;
@@ -38,6 +39,7 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
     const [datePickerVisible, setDatePickerVisible] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const keyboardInset = useKeyboardBottomInset(36);
 
     useEffect(() => {
         if (initialProvider) {
@@ -171,7 +173,7 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
     return (
         <>
             <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={submitting ? () => {} : onClose}>
-                <KeyboardAvoidingView behavior="padding" className="flex-1 justify-end bg-black/50">
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 justify-end bg-black/50">
                     <View className="bg-white rounded-t-3xl p-6 max-h-[92%] border-t border-stone-100">
                         {/* Header */}
                         <View className="flex-row items-center justify-between pb-3 border-b border-stone-100">
@@ -193,7 +195,12 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
                             </Pressable>
                         </View>
 
-                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" className="mt-4">
+                        <ScrollView
+                            showsVerticalScrollIndicator={false}
+                            keyboardShouldPersistTaps="handled"
+                            contentContainerStyle={{ paddingBottom: keyboardInset }}
+                            className="mt-4"
+                        >
                             {error ? (
                                 <View className="bg-red-50 p-3 rounded-xl mb-4 border border-red-200">
                                     <Text className="text-xs text-red-600 font-medium">{error}</Text>

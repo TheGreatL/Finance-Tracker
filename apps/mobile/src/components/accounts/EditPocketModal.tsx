@@ -3,6 +3,7 @@ import { Modal, View, Text, TextInput, Pressable, ScrollView, Platform, Keyboard
 import { X, Lock, Check, Wallet, PiggyBank } from 'lucide-react-native';
 import type { AccountPocket, PocketType } from '../../types/database';
 import { formatCurrency } from '../../utils/formatters';
+import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 
 interface EditPocketModalProps {
     visible: boolean;
@@ -26,6 +27,7 @@ export function EditPocketModal({ visible, pocket, institutionName, onClose, onS
     const [interestRateStr, setInterestRateStr] = useState('');
     const [savingsDetails, setSavingsDetails] = useState('');
     const [saving, setSaving] = useState(false);
+    const keyboardInset = useKeyboardBottomInset(36);
 
     useEffect(() => {
         if (pocket) {
@@ -89,7 +91,12 @@ export function EditPocketModal({ visible, pocket, institutionName, onClose, onS
                         </Pressable>
                     </View>
 
-                    <ScrollView className="px-6 py-4 space-y-4" showsVerticalScrollIndicator={false}>
+                    <ScrollView
+                        className="px-6 py-4 space-y-4"
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={{ paddingBottom: keyboardInset }}
+                    >
                         {/* Protected Balance Banner */}
                         <View className="bg-amber-50 p-4 rounded-2xl border border-amber-200/70 mb-2">
                             <View className="flex-row items-center justify-between mb-1">

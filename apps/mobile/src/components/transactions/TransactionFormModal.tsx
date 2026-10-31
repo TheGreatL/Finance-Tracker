@@ -6,6 +6,7 @@ import type { CreateTransactionInput } from '../../services/transactionService';
 import { InstitutionLogo } from '../accounts/InstitutionLogo';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
 import { formatCurrency } from '../../utils/formatters';
+import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 
 interface ActivePocket extends AccountPocket {
     institution_name: string;
@@ -54,6 +55,7 @@ export function TransactionFormModal({
     const [notes, setNotes] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const keyboardInset = useKeyboardBottomInset(36);
 
     useEffect(() => {
         if (visible) {
@@ -129,7 +131,7 @@ export function TransactionFormModal({
 
     return (
         <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={submitting ? () => {} : onClose}>
-            <KeyboardAvoidingView behavior="padding" className="flex-1 justify-end bg-black/50">
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 justify-end bg-black/50">
                 <View className="bg-white rounded-t-3xl p-6 max-h-[90%] border-t border-stone-100">
                     {/* Header */}
                     <View className="flex-row items-center justify-between pb-4 border-b border-stone-100">
@@ -146,7 +148,12 @@ export function TransactionFormModal({
                         </Pressable>
                     </View>
 
-                    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" className="mt-4">
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={{ paddingBottom: keyboardInset }}
+                        className="mt-4"
+                    >
                         {error ? (
                             <View className="bg-red-50 p-3 rounded-xl mb-4 border border-red-200">
                                 <Text className="text-xs text-red-600 font-medium">{error}</Text>

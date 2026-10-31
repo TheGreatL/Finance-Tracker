@@ -6,6 +6,7 @@ import { DatePickerModal } from '../common/DatePickerModal';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
 import { formatSignedCurrency } from '../../utils/formatters';
 import { InstitutionLogo } from '../accounts/InstitutionLogo';
+import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 
 interface EditTransactionModalProps {
     visible: boolean;
@@ -40,6 +41,7 @@ export function EditTransactionModal({ visible, transaction, onClose, onSave }: 
     const [notes, setNotes] = useState('');
     const [datePickerVisible, setDatePickerVisible] = useState(false);
     const [saving, setSaving] = useState(false);
+    const keyboardInset = useKeyboardBottomInset(36);
 
     useEffect(() => {
         if (transaction) {
@@ -94,7 +96,12 @@ export function EditTransactionModal({ visible, transaction, onClose, onSave }: 
                         </Pressable>
                     </View>
 
-                    <ScrollView className="px-6 py-4 space-y-4" showsVerticalScrollIndicator={false}>
+                    <ScrollView
+                        className="px-6 py-4 space-y-4"
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={{ paddingBottom: keyboardInset }}
+                    >
                         {/* Protected Financial Movement Banner */}
                         <View className="bg-amber-50 p-4 rounded-2xl border border-amber-200/70 mb-2">
                             <View className="flex-row items-center justify-between mb-1">

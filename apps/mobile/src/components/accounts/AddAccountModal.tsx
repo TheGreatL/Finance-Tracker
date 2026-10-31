@@ -5,6 +5,7 @@ import { INSTITUTION_OPTIONS, getInstitutionConfig, type InstitutionConfig } fro
 import { InstitutionLogo } from './InstitutionLogo';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
 import type { PocketType } from '../../types/database';
+import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 
 interface AddAccountModalProps {
     visible: boolean;
@@ -33,6 +34,7 @@ export function AddAccountModal({ visible, onClose, onSubmit, onSwitchToLoan }: 
     const [savingsDetails, setSavingsDetails] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const keyboardInset = useKeyboardBottomInset(36);
 
     const selectedConfig = getInstitutionConfig(selectedCode);
 
@@ -85,7 +87,7 @@ export function AddAccountModal({ visible, onClose, onSubmit, onSwitchToLoan }: 
 
     return (
         <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={submitting ? () => {} : onClose}>
-            <KeyboardAvoidingView behavior="padding" className="flex-1 justify-end bg-black/50">
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 justify-end bg-black/50">
                 <View className="bg-white rounded-t-3xl p-6 max-h-[90%] border-t border-stone-100">
                     {/* Header */}
                     <View className="flex-row items-center justify-between pb-4 border-b border-stone-100">
@@ -102,7 +104,12 @@ export function AddAccountModal({ visible, onClose, onSubmit, onSwitchToLoan }: 
                         </Pressable>
                     </View>
 
-                    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" className="mt-4">
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={{ paddingBottom: keyboardInset }}
+                        className="mt-4"
+                    >
                         {error ? (
                             <View className="bg-red-50 p-3 rounded-xl mb-4 border border-red-200">
                                 <Text className="text-xs text-red-600 font-medium">{error}</Text>
