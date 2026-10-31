@@ -31,8 +31,8 @@ export function DatabaseResetDialog({ visible, onClose, onConfirmReset }: Databa
 
                     <Text className="text-lg font-bold text-stone-900 mb-1">Reset Database?</Text>
                     <Text className="text-xs text-stone-500 leading-relaxed mb-6">
-                        This will permanently erase all institutions, pockets, and transactions. You will start with a completely empty, zero-balance
-                        database.
+                        This will permanently erase all institutions, pockets, transactions, loans, subscriptions, and jobs. You will start with a
+                        completely empty, zero-balance database.
                     </Text>
 
                     <View className="space-y-2">

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { SCHEMA_SQL } from '../src/database/schema';
+import { resetDatabase } from '../src/database/seed';
 
 describe('salary database schema & migrations', () => {
     it('SCHEMA_SQL defines jobs table with appropriate columns and constraints', () => {
@@ -20,7 +21,6 @@ describe('salary database schema & migrations', () => {
         expect(SCHEMA_SQL).toContain('CREATE TABLE IF NOT EXISTS job_deductions');
         expect(SCHEMA_SQL).toContain("category TEXT NOT NULL CHECK(category IN ('tax', 'statutory', 'workplace', 'other'))");
         expect(SCHEMA_SQL).toContain("pay_cutoff TEXT NOT NULL DEFAULT 'both' CHECK(pay_cutoff IN ('both', 'first_cutoff', 'second_cutoff'))");
-        expect(SCHEMA_SQL).toContain("pay_cutoff TEXT NOT NULL DEFAULT 'both' CHECK(pay_cutoff IN ('both', 'first_cutoff', 'second_cutoff'))");
         expect(SCHEMA_SQL).toContain('FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE');
         expect(SCHEMA_SQL).toContain('CREATE INDEX IF NOT EXISTS idx_job_deductions_job ON job_deductions(job_id)');
     });
@@ -32,5 +32,25 @@ describe('salary database schema & migrations', () => {
         expect(SCHEMA_SQL).toContain('FOREIGN KEY (pocket_id) REFERENCES account_pockets(id) ON DELETE RESTRICT');
         expect(SCHEMA_SQL).toContain('CREATE INDEX IF NOT EXISTS idx_pay_slips_job ON pay_slips(job_id)');
         expect(SCHEMA_SQL).toContain('CREATE INDEX IF NOT EXISTS idx_pay_slips_pay_date ON pay_slips(pay_date DESC)');
+    });
+
+    it('resetDatabase drops salary and income tables (pay_slips, job_deductions, jobs) along with other core tables', async () => {
+        let executedSql = '';
+        const mockDb: any = {
+            execAsync: vi.fn(async (sql: string) => {
+                executedSql += sql;
+            }),
+            runAsync: vi.fn(async () => {})
+        };
+
+        await resetDatabase(mockDb);
+
+        expect(mockDb.execAsync).toHaveBeenCalled();
+        expect(executedSql).toContain('DROP TABLE IF EXISTS pay_slips;');
+        expect(executedSql).toContain('DROP TABLE IF EXISTS job_deductions;');
+        expect(executedSql).toContain('DROP TABLE IF EXISTS jobs;');
+        expect(executedSql).toContain('DROP TABLE IF EXISTS transactions;');
+        expect(executedSql).toContain('DROP TABLE IF EXISTS loans;');
+        expect(executedSql).toContain('DROP TABLE IF EXISTS subscriptions;');
     });
 });
