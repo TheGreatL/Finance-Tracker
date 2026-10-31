@@ -66,6 +66,9 @@ import type {
     RecordLoanPaymentInput
 } from '@/src/types/database';
 
+type ModalStackItem =
+    { type: 'institution'; institutionId: string } | { type: 'loanDetail'; loanId: string } | { type: 'transactionDetail'; transactionId: string };
+
 export default function DashboardScreen() {
     const insets = useSafeAreaInsets();
     const [refreshing, setRefreshing] = useState(false);
@@ -123,6 +126,59 @@ export default function DashboardScreen() {
 
     // Mirror of the open institution's id for use inside async loaders
     const selectedInstitutionIdRef = useRef<string | null>(null);
+    const modalBackStackRef = useRef<ModalStackItem[]>([]);
+
+    const pushModalBackStack = useCallback((item: ModalStackItem) => {
+        modalBackStackRef.current.push(item);
+    }, []);
+
+    const popAndRestoreModal = useCallback(async () => {
+        const prev = modalBackStackRef.current.pop();
+        if (!prev) return;
+
+        setTimeout(async () => {
+            try {
+                const db = await getDatabase();
+                if (prev.type === 'institution') {
+                    const insts = await getInstitutionsWithBalances(db);
+                    const target = insts.find((i) => i.id === prev.institutionId);
+                    if (target) {
+                        const [pocks, instLoans] = await Promise.all([getPocketsByInstitution(db, target.id), getLoansByInstitution(db, target.id)]);
+                        setSelectedInstitution(target);
+                        setSelectedInstPockets(pocks);
+                        setSelectedInstLoans(instLoans);
+                    }
+                } else if (prev.type === 'loanDetail') {
+                    const target = await db.getFirstAsync<LoanRecord>(
+                        `SELECT l.*, i.name AS institution_name, i.code AS institution_code, i.color AS institution_color
+                         FROM loans l JOIN institutions i ON l.institution_id = i.id WHERE l.id = ? LIMIT 1;`,
+                        [prev.loanId]
+                    );
+                    if (target) {
+                        setSelectedLoan(target);
+                        setLoanDetailVisible(true);
+                    } else if (modalBackStackRef.current.length > 0) {
+                        popAndRestoreModal();
+                    }
+                } else if (prev.type === 'transactionDetail') {
+                    const tx = await db.getFirstAsync<TransactionRecord>(
+                        `SELECT t.*, p.name AS pocket_name, i.name AS institution_name, i.code AS institution_code
+                         FROM transactions t
+                         LEFT JOIN account_pockets p ON t.pocket_id = p.id
+                         LEFT JOIN institutions i ON p.institution_id = i.id
+                         WHERE t.id = ? LIMIT 1;`,
+                        [prev.transactionId]
+                    );
+                    if (tx) {
+                        setDetailTx(tx);
+                    }
+                }
+            } catch (err) {
+                console.warn('Failed to restore parent modal on dashboard:', err);
+            }
+        }, 120);
+    }, []);
+
     useEffect(() => {
         selectedInstitutionIdRef.current = selectedInstitution?.id ?? null;
     }, [selectedInstitution]);
@@ -470,20 +526,39 @@ export default function DashboardScreen() {
                 onClose={() => {
                     setSelectedInstitution(null);
                     setSelectedInstLoans([]);
+                    modalBackStackRef.current = [];
                 }}
-                onAddPocket={() => setAddPocketVisible(true)}
+                onAddPocket={() => {
+                    if (selectedInstitution) {
+                        pushModalBackStack({ type: 'institution', institutionId: selectedInstitution.id });
+                    }
+                    setSelectedInstitution(null);
+                    setAddPocketVisible(true);
+                }}
                 onAddLoan={() => {
+                    if (selectedInstitution) {
+                        pushModalBackStack({ type: 'institution', institutionId: selectedInstitution.id });
+                    }
                     setAddLoanInitialProvider(selectedInstitution?.code);
                     setSelectedInstitution(null);
                     setAddLoanVisible(true);
                 }}
                 onSelectLoan={(loan) => {
+                    if (selectedInstitution) {
+                        pushModalBackStack({ type: 'institution', institutionId: selectedInstitution.id });
+                    }
                     setSelectedInstitution(null);
                     setSelectedLoan(loan);
                     setLoanDetailVisible(true);
                 }}
                 onUpdateNotes={handleUpdateNotes}
-                onEditPocket={(pocket) => setEditingPocket(pocket)}
+                onEditPocket={(pocket) => {
+                    if (selectedInstitution) {
+                        pushModalBackStack({ type: 'institution', institutionId: selectedInstitution.id });
+                    }
+                    setSelectedInstitution(null);
+                    setEditingPocket(pocket);
+                }}
                 onQuickExpense={(pocket) => {
                     setSelectedInstitution(null);
                     handleOpenTransactionModal('expense', pocket.id);
@@ -497,47 +572,100 @@ export default function DashboardScreen() {
                 onClose={() => {
                     setAddLoanVisible(false);
                     setAddLoanInitialProvider(undefined);
+                    popAndRestoreModal();
                 }}
-                onSubmit={handleCreateLoan}
+                onSubmit={async (input) => {
+                    await handleCreateLoan(input);
+                    setAddLoanVisible(false);
+                    setAddLoanInitialProvider(undefined);
+                    popAndRestoreModal();
+                }}
             />
 
             <LoanDetailSheet
                 visible={loanDetailVisible}
                 loan={selectedLoan}
-                onClose={() => setLoanDetailVisible(false)}
+                onClose={() => {
+                    setLoanDetailVisible(false);
+                    setSelectedLoan(null);
+                    popAndRestoreModal();
+                }}
                 onRecordPayment={(loan) => {
+                    pushModalBackStack({ type: 'loanDetail', loanId: loan.id });
                     setLoanDetailVisible(false);
                     setSelectedLoan(loan);
                     setPaymentModalVisible(true);
                 }}
-                onDelete={handleDeleteLoan}
-                onEdit={(loan) => setEditingLoan(loan)}
+                onDelete={async (loanId) => {
+                    await handleDeleteLoan(loanId);
+                    setLoanDetailVisible(false);
+                    setSelectedLoan(null);
+                    popAndRestoreModal();
+                }}
+                onEdit={(loan) => {
+                    pushModalBackStack({ type: 'loanDetail', loanId: loan.id });
+                    setLoanDetailVisible(false);
+                    setEditingLoan(loan);
+                }}
             />
 
-            <EditLoanModal visible={!!editingLoan} loan={editingLoan} onClose={() => setEditingLoan(null)} onSave={handleUpdateLoan} />
+            <EditLoanModal
+                visible={!!editingLoan}
+                loan={editingLoan}
+                onClose={() => {
+                    setEditingLoan(null);
+                    popAndRestoreModal();
+                }}
+                onSave={async (loanId, updates) => {
+                    await handleUpdateLoan(loanId, updates);
+                    setEditingLoan(null);
+                    popAndRestoreModal();
+                }}
+            />
 
             <LoanPaymentModal
                 visible={paymentModalVisible}
                 loan={selectedLoan}
                 pockets={allPockets}
-                onClose={() => setPaymentModalVisible(false)}
-                onSubmit={handleRecordLoanPayment}
+                onClose={() => {
+                    setPaymentModalVisible(false);
+                    popAndRestoreModal();
+                }}
+                onSubmit={async (input) => {
+                    await handleRecordLoanPayment(input);
+                    setPaymentModalVisible(false);
+                    popAndRestoreModal();
+                }}
             />
 
             <EditPocketModal
                 visible={!!editingPocket}
                 pocket={editingPocket}
                 institutionName={selectedInstitution?.name}
-                onClose={() => setEditingPocket(null)}
-                onSave={handleUpdatePocket}
+                onClose={() => {
+                    setEditingPocket(null);
+                    popAndRestoreModal();
+                }}
+                onSave={async (pocketId, updates) => {
+                    await handleUpdatePocket(pocketId, updates);
+                    setEditingPocket(null);
+                    popAndRestoreModal();
+                }}
             />
 
             <AddPocketModal
                 visible={addPocketVisible}
                 institutionId={selectedInstitution?.id || ''}
                 institutionName={selectedInstitution?.name || 'Account'}
-                onClose={() => setAddPocketVisible(false)}
-                onSubmit={handleAddPocket}
+                onClose={() => {
+                    setAddPocketVisible(false);
+                    popAndRestoreModal();
+                }}
+                onSubmit={async (input) => {
+                    await handleAddPocket(input);
+                    setAddPocketVisible(false);
+                    popAndRestoreModal();
+                }}
             />
 
             <TransactionFormModal
@@ -552,12 +680,31 @@ export default function DashboardScreen() {
             <TransactionDetailSheet
                 visible={!!detailTx}
                 transaction={detailTx}
-                onClose={() => setDetailTx(null)}
+                onClose={() => {
+                    setDetailTx(null);
+                    modalBackStackRef.current = [];
+                }}
                 onDelete={handleDeleteTransaction}
-                onEdit={(tx) => setEditingTx(tx)}
+                onEdit={(tx) => {
+                    pushModalBackStack({ type: 'transactionDetail', transactionId: tx.id });
+                    setDetailTx(null);
+                    setEditingTx(tx);
+                }}
             />
 
-            <EditTransactionModal visible={!!editingTx} transaction={editingTx} onClose={() => setEditingTx(null)} onSave={handleUpdateTransaction} />
+            <EditTransactionModal
+                visible={!!editingTx}
+                transaction={editingTx}
+                onClose={() => {
+                    setEditingTx(null);
+                    popAndRestoreModal();
+                }}
+                onSave={async (id, updates) => {
+                    await handleUpdateTransaction(id, updates);
+                    setEditingTx(null);
+                    popAndRestoreModal();
+                }}
+            />
 
             <NotificationCenterModal
                 visible={notificationCenterVisible}

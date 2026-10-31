@@ -53,6 +53,9 @@ import { SubscriptionDetailSheet } from '../../src/components/subscriptions/Subs
 
 type FilterCategory = 'all' | 'bank' | 'ewallet' | 'loans' | 'subscriptions' | 'cash';
 
+type ModalStackItem =
+    { type: 'institution'; institutionId: string } | { type: 'loanDetail'; loanId: string } | { type: 'subscriptionDetail'; subscriptionId: string };
+
 export default function AccountsScreen() {
     const insets = useSafeAreaInsets();
     const params = useLocalSearchParams<{ tab?: string }>();
@@ -98,6 +101,52 @@ export default function AccountsScreen() {
     const selectedInstitutionIdRef = useRef<string | null>(null);
     const selectedLoanIdRef = useRef<string | null>(null);
     const selectedSubscriptionIdRef = useRef<string | null>(null);
+    const modalBackStackRef = useRef<ModalStackItem[]>([]);
+
+    const pushModalBackStack = useCallback((item: ModalStackItem) => {
+        modalBackStackRef.current.push(item);
+    }, []);
+
+    const popAndRestoreModal = useCallback(async () => {
+        const prev = modalBackStackRef.current.pop();
+        if (!prev) return;
+
+        setTimeout(async () => {
+            try {
+                const db = await getDatabase();
+                if (prev.type === 'institution') {
+                    const insts = await getInstitutionsWithBalances(db);
+                    const target = insts.find((i) => i.id === prev.institutionId);
+                    if (target) {
+                        const pocks = await getPocketsByInstitution(db, target.id);
+                        setSelectedInstitution(target);
+                        setInstitutionPockets(pocks);
+                        setDetailSheetVisible(true);
+                    }
+                } else if (prev.type === 'loanDetail') {
+                    const all = await getAllLoans(db);
+                    const target = all.find((l) => l.id === prev.loanId);
+                    if (target) {
+                        setSelectedLoan(target);
+                        setLoanDetailVisible(true);
+                    } else if (modalBackStackRef.current.length > 0) {
+                        popAndRestoreModal();
+                    }
+                } else if (prev.type === 'subscriptionDetail') {
+                    const allSubs = await getAllSubscriptions(db);
+                    const target = allSubs.find((s) => s.id === prev.subscriptionId);
+                    if (target) {
+                        setSelectedSubscription(target);
+                        setSubDetailVisible(true);
+                    } else if (modalBackStackRef.current.length > 0) {
+                        popAndRestoreModal();
+                    }
+                }
+            } catch (err) {
+                console.warn('Failed to restore parent modal:', err);
+            }
+        }, 120);
+    }, []);
 
     useEffect(() => {
         selectedInstitutionIdRef.current = selectedInstitution?.id ?? null;
@@ -649,36 +698,72 @@ export default function AccountsScreen() {
                         l.institution_id === selectedInstitution?.id ||
                         (!!selectedInstitution?.code && l.institution_code === selectedInstitution?.code)
                 )}
-                onClose={() => setDetailSheetVisible(false)}
-                onAddPocket={() => setAddPocketVisible(true)}
+                onClose={() => {
+                    setDetailSheetVisible(false);
+                    setSelectedInstitution(null);
+                    modalBackStackRef.current = [];
+                }}
+                onAddPocket={() => {
+                    if (selectedInstitution) {
+                        pushModalBackStack({ type: 'institution', institutionId: selectedInstitution.id });
+                    }
+                    setDetailSheetVisible(false);
+                    setAddPocketVisible(true);
+                }}
                 onAddLoan={() => {
+                    if (selectedInstitution) {
+                        pushModalBackStack({ type: 'institution', institutionId: selectedInstitution.id });
+                    }
                     setDetailSheetVisible(false);
                     setAddLoanInitialProvider(selectedInstitution?.code);
                     setAddLoanVisible(true);
                 }}
                 onSelectLoan={(loan) => {
+                    if (selectedInstitution) {
+                        pushModalBackStack({ type: 'institution', institutionId: selectedInstitution.id });
+                    }
                     setDetailSheetVisible(false);
                     setSelectedLoan(loan);
                     setLoanDetailVisible(true);
                 }}
                 onUpdateNotes={handleUpdateNotes}
-                onEditPocket={(pocket) => setEditingPocket(pocket)}
+                onEditPocket={(pocket) => {
+                    if (selectedInstitution) {
+                        pushModalBackStack({ type: 'institution', institutionId: selectedInstitution.id });
+                    }
+                    setDetailSheetVisible(false);
+                    setEditingPocket(pocket);
+                }}
             />
 
             <EditPocketModal
                 visible={!!editingPocket}
                 pocket={editingPocket}
                 institutionName={selectedInstitution?.name}
-                onClose={() => setEditingPocket(null)}
-                onSave={handleUpdatePocket}
+                onClose={() => {
+                    setEditingPocket(null);
+                    popAndRestoreModal();
+                }}
+                onSave={async (pocketId, updates) => {
+                    await handleUpdatePocket(pocketId, updates);
+                    setEditingPocket(null);
+                    popAndRestoreModal();
+                }}
             />
 
             <AddPocketModal
                 visible={addPocketVisible}
                 institutionId={selectedInstitution?.id || ''}
                 institutionName={selectedInstitution?.name || ''}
-                onClose={() => setAddPocketVisible(false)}
-                onSubmit={handleAddPocket}
+                onClose={() => {
+                    setAddPocketVisible(false);
+                    popAndRestoreModal();
+                }}
+                onSubmit={async (input) => {
+                    await handleAddPocket(input);
+                    setAddPocketVisible(false);
+                    popAndRestoreModal();
+                }}
             />
 
             {/* Modals for Loans */}
@@ -688,31 +773,70 @@ export default function AccountsScreen() {
                 onClose={() => {
                     setAddLoanVisible(false);
                     setAddLoanInitialProvider(undefined);
+                    popAndRestoreModal();
                 }}
-                onSubmit={handleCreateLoan}
+                onSubmit={async (input) => {
+                    await handleCreateLoan(input);
+                    setAddLoanVisible(false);
+                    setAddLoanInitialProvider(undefined);
+                    popAndRestoreModal();
+                }}
             />
 
             <LoanDetailSheet
                 visible={loanDetailVisible}
                 loan={selectedLoan}
-                onClose={() => setLoanDetailVisible(false)}
+                onClose={() => {
+                    setLoanDetailVisible(false);
+                    setSelectedLoan(null);
+                    popAndRestoreModal();
+                }}
                 onRecordPayment={(loan) => {
+                    pushModalBackStack({ type: 'loanDetail', loanId: loan.id });
                     setLoanDetailVisible(false);
                     setSelectedLoan(loan);
                     setPaymentModalVisible(true);
                 }}
-                onDelete={handleDeleteLoan}
-                onEdit={(loan) => setEditingLoan(loan)}
+                onDelete={async (loanId) => {
+                    await handleDeleteLoan(loanId);
+                    setLoanDetailVisible(false);
+                    setSelectedLoan(null);
+                    popAndRestoreModal();
+                }}
+                onEdit={(loan) => {
+                    pushModalBackStack({ type: 'loanDetail', loanId: loan.id });
+                    setLoanDetailVisible(false);
+                    setEditingLoan(loan);
+                }}
             />
 
-            <EditLoanModal visible={!!editingLoan} loan={editingLoan} onClose={() => setEditingLoan(null)} onSave={handleUpdateLoan} />
+            <EditLoanModal
+                visible={!!editingLoan}
+                loan={editingLoan}
+                onClose={() => {
+                    setEditingLoan(null);
+                    popAndRestoreModal();
+                }}
+                onSave={async (loanId, updates) => {
+                    await handleUpdateLoan(loanId, updates);
+                    setEditingLoan(null);
+                    popAndRestoreModal();
+                }}
+            />
 
             <LoanPaymentModal
                 visible={paymentModalVisible}
                 loan={selectedLoan}
                 pockets={allPockets}
-                onClose={() => setPaymentModalVisible(false)}
-                onSubmit={handleRecordPayment}
+                onClose={() => {
+                    setPaymentModalVisible(false);
+                    popAndRestoreModal();
+                }}
+                onSubmit={async (input) => {
+                    await handleRecordPayment(input);
+                    setPaymentModalVisible(false);
+                    popAndRestoreModal();
+                }}
             />
 
             {/* Modals for Subscriptions */}
@@ -723,23 +847,44 @@ export default function AccountsScreen() {
                 onClose={() => {
                     setAddSubVisible(false);
                     setEditingSubscription(null);
+                    popAndRestoreModal();
                 }}
-                onSubmit={handleCreateSubscription}
-                onUpdate={handleUpdateSubscription}
+                onSubmit={async (input) => {
+                    await handleCreateSubscription(input);
+                    setAddSubVisible(false);
+                    setEditingSubscription(null);
+                    popAndRestoreModal();
+                }}
+                onUpdate={async (subId, input) => {
+                    await handleUpdateSubscription(subId, input);
+                    setAddSubVisible(false);
+                    setEditingSubscription(null);
+                    popAndRestoreModal();
+                }}
             />
 
             <SubscriptionDetailSheet
                 visible={subDetailVisible}
                 subscription={selectedSubscription}
-                onClose={() => setSubDetailVisible(false)}
+                onClose={() => {
+                    setSubDetailVisible(false);
+                    setSelectedSubscription(null);
+                    popAndRestoreModal();
+                }}
                 onEdit={(sub) => {
+                    pushModalBackStack({ type: 'subscriptionDetail', subscriptionId: sub.id });
                     setSubDetailVisible(false);
                     setEditingSubscription(sub);
                     setAddSubVisible(true);
                 }}
                 onTogglePause={handleTogglePauseSubscription}
                 onCancelSubscription={handleCancelSubscription}
-                onDelete={handleDeleteSubscription}
+                onDelete={async (subId) => {
+                    await handleDeleteSubscription(subId);
+                    setSubDetailVisible(false);
+                    setSelectedSubscription(null);
+                    popAndRestoreModal();
+                }}
             />
         </View>
     );
