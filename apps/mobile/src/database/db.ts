@@ -64,6 +64,7 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
       DROP TABLE IF EXISTS categories;
       DROP TABLE IF EXISTS loans;
       DROP TABLE IF EXISTS chat_messages;
+      DROP TABLE IF EXISTS app_notifications;
       DROP TABLE IF EXISTS transaction_deductions;
       DROP TABLE IF EXISTS recurring_rules;
       DROP TABLE IF EXISTS savings_goals;
@@ -166,6 +167,27 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
           created_at TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at);
+      `);
+    }
+  }
+
+  // 8. Ensure app_notifications table exists
+  try {
+    await db.getFirstAsync('SELECT id FROM app_notifications LIMIT 1;');
+  } catch (err: any) {
+    const msg = String(err?.message || err);
+    if (msg.includes('no such table')) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS app_notifications (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          title TEXT NOT NULL,
+          body TEXT NOT NULL,
+          data TEXT DEFAULT '',
+          is_read INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_notifications_created ON app_notifications(created_at DESC);
       `);
     }
   }

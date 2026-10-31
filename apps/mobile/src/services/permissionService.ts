@@ -95,3 +95,24 @@ export async function requestInitialAppPermissions(): Promise<AppPermissionsStat
   }
 }
 
+/**
+ * Specifically verifies and requests file/media storage permission before opening file pickers
+ * (such as importing a database backup).
+ */
+export async function requestFileStoragePermission(): Promise<boolean> {
+  if (Platform.OS === 'web') return true;
+
+  try {
+    const existing = await ImagePicker.getMediaLibraryPermissionsAsync();
+    if (existing.status === 'granted') {
+      return true;
+    }
+    const requested = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    return requested.status === 'granted';
+  } catch (err) {
+    console.warn('File storage permission check failed:', err);
+    return false;
+  }
+}
+
+

@@ -12,6 +12,7 @@ import {
   sendSubscriptionPaymentConfirmation,
   cancelLoanReminder,
 } from './notificationService';
+import { addAppNotification } from './notificationCenterService';
 
 const MAX_CATCHUP_CYCLES = 60;
 
@@ -500,6 +501,15 @@ async function runProcessDueSubscriptions(
         pocket_label: pocketLabel,
         cycles: cyclesProcessed,
       });
+
+      await addAppNotification(db, {
+        type: 'subscription_paid',
+        title: `Subscription Paid: ${sub.service_name}`,
+        body: `₱${totalDeducted.toLocaleString()} was automatically deducted from ${pocketLabel}${
+          cyclesProcessed > 1 ? ` (${cyclesProcessed} cycles caught up)` : ''
+        }.`,
+        data: { subscriptionId: sub.id, totalDeducted },
+      }).catch(() => {});
 
       const nextNotifId =
         (await scheduleSubscriptionReminder({

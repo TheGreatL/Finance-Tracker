@@ -7,12 +7,14 @@ export interface DashboardHeaderProps {
   userName?: string;
   onNotificationPress?: () => void;
   onScanPress?: () => void;
+  unreadNotificationsCount?: number;
 }
 
 export function DashboardHeader({
   userName = 'Welcome back',
   onNotificationPress,
   onScanPress,
+  unreadNotificationsCount = 0,
 }: DashboardHeaderProps) {
   const colorScheme = useColorScheme();
   const iconColor = colorScheme === 'dark' ? '#EBF0E6' : '#18342B';
@@ -52,9 +54,16 @@ export function DashboardHeader({
           onPress={onNotificationPress}
           hitSlop={8}
           pressRetentionOffset={20}
-          className="items-center justify-center w-10 h-10 rounded-full bg-muted/60 active:opacity-70"
+          className="items-center justify-center w-10 h-10 rounded-full bg-muted/60 active:opacity-70 relative"
         >
           <Bell size={18} color={iconColor} />
+          {unreadNotificationsCount > 0 && (
+            <View className="absolute -top-1 -right-1 bg-red-600 rounded-full min-w-[18px] h-[18px] px-1 items-center justify-center border-2 border-white shadow-xs">
+              <Text className="text-[10px] font-extrabold text-white">
+                {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+              </Text>
+            </View>
+          )}
         </Pressable>
       </View>
     </View>

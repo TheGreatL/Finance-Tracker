@@ -7,6 +7,9 @@ vi.mock('react-native', () => ({
     OS: 'android',
     select: (obj: any) => obj.android ?? obj.default,
   },
+  Share: {
+    share: vi.fn(async () => ({ action: 'sharedAction' })),
+  },
 }));
 
 vi.mock('lucide-react-native', () => ({
@@ -22,10 +25,16 @@ const mockFileSystem = {
   makeDirectoryAsync: vi.fn(async () => {}),
   copyAsync: vi.fn(async () => {}),
   deleteAsync: vi.fn(async () => {}),
+  writeAsStringAsync: vi.fn(async () => {}),
+  readAsStringAsync: vi.fn(async () => '{}'),
 };
 
 vi.mock('expo-file-system', () => mockFileSystem);
 vi.mock('expo-file-system/legacy', () => mockFileSystem);
+
+vi.mock('expo-document-picker', () => ({
+  getDocumentAsync: vi.fn(async () => ({ canceled: true, assets: [] })),
+}));
 
 vi.mock('expo-notifications', () => ({
   setNotificationHandler: vi.fn(),

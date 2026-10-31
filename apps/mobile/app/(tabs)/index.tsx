@@ -15,9 +15,10 @@ import { AddPocketModal } from '@/src/components/accounts/AddPocketModal';
 import { InstitutionDetailSheet } from '@/src/components/accounts/InstitutionDetailSheet';
 import { TransactionFormModal } from '@/src/components/transactions/TransactionFormModal';
 import { TransactionDetailSheet } from '@/src/components/transactions/TransactionDetailSheet';
-import { DatabaseResetDialog } from '@/src/components/dev/DatabaseResetDialog';
 import { ActiveLoansBanner } from '@/src/components/loans/ActiveLoansBanner';
 import { SubscriptionsBanner } from '@/src/components/subscriptions/SubscriptionsBanner';
+import { NotificationCenterModal } from '@/src/components/notifications/NotificationCenterModal';
+import { DatabaseManagementCard } from '@/src/components/dashboard/DatabaseManagementCard';
 
 import { getDatabase, closeDatabase } from '@/src/database/db';
 import { seedDevData, resetDatabase } from '@/src/database/seed';
@@ -41,6 +42,15 @@ import {
   getSubscriptionsSummary,
   type SubscriptionsSummary,
 } from '@/src/services/subscriptionService';
+import {
+  getAppNotifications,
+  getUnreadNotificationCount,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  clearAllNotifications,
+  syncAppNotificationsFromSchedule,
+  type AppNotificationRecord,
+} from '@/src/services/notificationCenterService';
 import type {
   Institution,
   AccountPocket,
@@ -81,6 +91,11 @@ export default function DashboardScreen() {
     nextUpcoming: null,
   });
 
+  // Notifications state
+  const [notifications, setNotifications] = useState<AppNotificationRecord[]>([]);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState<number>(0);
+  const [notificationCenterVisible, setNotificationCenterVisible] = useState<boolean>(false);
+
   // Modals state
   const [addAccountVisible, setAddAccountVisible] = useState(false);
   const [selectedInstitution, setSelectedInstitution] = useState<Institution | null>(null);
@@ -90,7 +105,6 @@ export default function DashboardScreen() {
   const [txModalType, setTxModalType] = useState<TransactionType>('expense');
   const [preselectedPocketId, setPreselectedPocketId] = useState<string | undefined>();
   const [detailTx, setDetailTx] = useState<TransactionRecord | null>(null);
-  const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
   // Mirror of the open institution's id for use inside async loaders
   const selectedInstitutionIdRef = useRef<string | null>(null);
@@ -108,22 +122,27 @@ export default function DashboardScreen() {
       // Catch up any due or missed subscription charges automatically
       await processDueSubscriptions(db);
 
-      const [insts, pocks, txs, loansSum, subsSum] = await Promise.all([
+      // Sync upcoming scheduled bills & loans into app notification records
+      await syncAppNotificationsFromSchedule(db);
+
+      const [insts, pocks, txs, loansSum, subsSum, notifs, unread] = await Promise.all([
         getInstitutionsWithBalances(db),
         getAllActivePockets(db),
         getRecentTransactions(db, 20),
         getLoansSummary(db),
         getSubscriptionsSummary(db),
+        getAppNotifications(db, 50),
+        getUnreadNotificationCount(db),
       ]);
       setInstitutions(insts);
       setAllPockets(pocks);
       setRecentTransactions(txs);
       setLoansSummary(loansSum);
       setSubsSummary(subsSum);
+      setNotifications(notifs);
+      setUnreadNotificationsCount(unread);
 
       // If an institution sheet is open, refresh its institution data & pockets.
-      // Read the open id from a ref (not state) so loadData stays stable and a
-      // sheet closed mid-fetch is never re-opened by a stale closure.
       const openId = selectedInstitutionIdRef.current;
       if (openId) {
         const refreshedInst = insts.find((i: Institution) => i.id === openId) || null;
@@ -145,18 +164,23 @@ export default function DashboardScreen() {
           await resetDatabase(db);
           await seedDevData(db);
           await processDueSubscriptions(db);
-          const [insts, pocks, txs, loansSum, subsSum] = await Promise.all([
+          await syncAppNotificationsFromSchedule(db);
+          const [insts, pocks, txs, loansSum, subsSum, notifs, unread] = await Promise.all([
             getInstitutionsWithBalances(db),
             getAllActivePockets(db),
             getRecentTransactions(db, 20),
             getLoansSummary(db),
             getSubscriptionsSummary(db),
+            getAppNotifications(db, 50),
+            getUnreadNotificationCount(db),
           ]);
           setInstitutions(insts);
           setAllPockets(pocks);
           setRecentTransactions(txs);
           setLoansSummary(loansSum);
           setSubsSummary(subsSum);
+          setNotifications(notifs);
+          setUnreadNotificationsCount(unread);
         } catch (recoverErr) {
           console.error('Database auto-recovery failed:', recoverErr);
         }
@@ -186,25 +210,26 @@ export default function DashboardScreen() {
     setRefreshing(false);
   }, [loadData]);
 
-  // Handle Institution Card tap
-  const handleSelectInstitution = async (inst: Institution) => {
-    const db = await getDatabase();
-    const pocks = await getPocketsByInstitution(db, inst.id);
-    setSelectedInstitution(inst);
-    setSelectedInstPockets(pocks);
-  };
-
-  // Quick Action Triggers
+  // Open transaction modal
   const handleOpenTransactionModal = (type: TransactionType, pocketId?: string) => {
     setTxModalType(type);
     setPreselectedPocketId(pocketId);
     setTxModalVisible(true);
   };
 
-  // Create Account handler
+  // Select an institution card to open details
+  const handleSelectInstitution = async (inst: Institution) => {
+    setSelectedInstitution(inst);
+    const db = await getDatabase();
+    const pocks = await getPocketsByInstitution(db, inst.id);
+    setSelectedInstPockets(pocks);
+  };
+
+  // Add Account handler
   const handleCreateAccount = async (data: {
     code: string;
     customName?: string;
+    notes?: string;
     pocketName: string;
     pocketType: PocketType;
     startingBalance: number;
@@ -248,14 +273,23 @@ export default function DashboardScreen() {
     await loadData();
   };
 
-  // Reset database handler
-  const handleResetConfirm = async () => {
+  // Notification action handlers
+  const handleMarkNotificationRead = async (id: string) => {
     const db = await getDatabase();
-    await resetDatabase(db);
-    setSelectedInstitution(null);
-    setSelectedInstPockets([]);
+    await markNotificationAsRead(db, id);
     await loadData();
-    Alert.alert('Reset Complete', 'Database has been cleared to 0.');
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    const db = await getDatabase();
+    await markAllNotificationsAsRead(db);
+    await loadData();
+  };
+
+  const handleClearAllNotifications = async () => {
+    const db = await getDatabase();
+    await clearAllNotifications(db);
+    await loadData();
   };
 
   // Compute total aggregates
@@ -292,10 +326,11 @@ export default function DashboardScreen() {
             colors={['#18342B', '#BBD583']}
           />
         }>
-        {/* Header with greeting and Reset tool */}
+        {/* Header with greeting, unread notifications badge, and Notifications trigger */}
         <DashboardHeader
           userName="Personal Ledger"
-          onNotificationPress={() => setResetDialogOpen(true)}
+          unreadNotificationsCount={unreadNotificationsCount}
+          onNotificationPress={() => setNotificationCenterVisible(true)}
           onScanPress={() => handleOpenTransactionModal('expense')}
         />
 
@@ -347,6 +382,9 @@ export default function DashboardScreen() {
           currency="₱"
           onSeeAllPress={() => {}}
         />
+
+        {/* Dedicated Section: Reset, Export, and Import Database */}
+        <DatabaseManagementCard onDataChanged={loadData} />
       </ScrollView>
 
       {/* Modals & Sheets */}
@@ -393,10 +431,13 @@ export default function DashboardScreen() {
         onDelete={handleDeleteTransaction}
       />
 
-      <DatabaseResetDialog
-        visible={resetDialogOpen}
-        onClose={() => setResetDialogOpen(false)}
-        onConfirmReset={handleResetConfirm}
+      <NotificationCenterModal
+        visible={notificationCenterVisible}
+        notifications={notifications}
+        onClose={() => setNotificationCenterVisible(false)}
+        onMarkAsRead={handleMarkNotificationRead}
+        onMarkAllAsRead={handleMarkAllNotificationsRead}
+        onClearAll={handleClearAllNotifications}
       />
     </View>
   );
