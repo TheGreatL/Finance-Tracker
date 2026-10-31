@@ -1,6 +1,81 @@
 # 💰 Personal Finance Tracker (Monorepo)
 
-A private, full-stack personal finance tracker and ledger system architected as a **Turborepo monorepo** with **React Native** (mobile), **Next.js** (web), **FastAPI** (OCR & AI receipt parser), and **MySQL** orchestrated via **Docker**.
+A private personal finance tracker built for Philippine banks, e-wallets, and lending apps. It is a **Turborepo monorepo**:
+
+- **Mobile app (React Native / Expo).** This is the main app and it works today. It stores everything on the phone in SQLite and needs no internet.
+- **Web app (Next.js), API (FastAPI), and MySQL (Docker).** These are early scaffolding for future sync and receipt OCR.
+
+> [!NOTE]
+> **Current status:** the mobile app has all the features. It keeps your data on the device with `expo-sqlite`. `apps/web` and `apps/api` are placeholders. The OCR endpoint returns sample data until a real OCR engine is added.
+
+---
+
+## ✨ Current Features (Mobile App)
+
+The app has five tabs: **Dashboard · Accounts · Advisor · Ledger · Analytics**.
+
+### 🏠 Dashboard
+- **Balance hero card** shows your total balance plus recent income and expenses.
+- **Active Loans banner** shows your total active debt and the next loan due. Tap it to open the Loans view.
+- **Account grid** shows your top institutions with their logos and balances.
+- **Quick actions** let you add an **Expense**, **Income**, or **Transfer** in one tap.
+- **Recent transactions** lists your latest ledger entries.
+- **Dev tools:** a database reset dialog that clears all data back to zero.
+
+### 🏦 Accounts & Pockets
+- **Institution presets** come with official names, colors, and logos:
+  - **Banks:** BDO, BPI, UnionBank, Metrobank, RCBC, Security Bank, CIMB, Tonik, GoTyme, SeaBank, Maya
+  - **E-wallets:** GCash, GrabPay, ShopeePay, Lazada Wallet, TikTok Wallet
+  - **Other:** Physical Cash, or a Custom institution
+- **Pockets:** each institution can hold several pockets.
+  - **Wallet** pockets are for everyday spending.
+  - **Interest Savings** pockets have an annual interest rate (% p.a.) and savings details.
+- **Account notes:** add and edit free-form notes on any institution.
+- **Search and filter** by name, code, or notes. Filter tabs: **All · Banks · E-Wallets · Loans & Debt · Cash**.
+- **Institution detail sheet** shows pocket balances, adds pockets, records a quick expense from a pocket, or adds a loan for that institution.
+
+### 💳 Loans & Debt
+- **Lending app presets:** BillEase, Tala, Home Credit, Cashalo, plus any bank or e-wallet as the lender.
+- **Loan details:** total amount, remaining balance, monthly payment, interest rate, and notes.
+- **Due date picker:** a calendar with month navigation and quick presets (*Today*, *+15 Days*, *+30 Days*, *End of Month*).
+- **Attachments:** attach a contract or statement, either a photo from the camera or gallery, or a document.
+- **Payment reminders:** a local notification is scheduled before each due date (`expo-notifications`).
+- **Record payments:** pick the pocket to pay from and the payment date. The app then:
+  - deducts the amount from that pocket
+  - lowers the loan balance
+  - logs a `Loan Payment` expense
+  - marks the loan **Paid** once the balance reaches zero
+- **Loan summary:** total active debt, active and paid-off counts, and loans due within 7 days.
+- If you add a loan for a lender you haven't set up yet, the app creates that institution automatically.
+
+### 📒 Ledger (Transactions)
+- **Three transaction types:**
+  - **Expense** and **Income** each have their own preset categories.
+  - **Transfer** moves money between pockets and isolates it from income and expense totals.
+- Pocket balances update right away and stay consistent through atomic SQLite transactions.
+- Filter by type (All / Income / Expense / Transfer).
+- Tap a transaction to see its details. Deleting a transaction reverses its effect on the balance.
+
+### 🤖 Advisor ("PocketBot")
+- **Chat assistant** that answers questions about your finances in English or Taglish:
+  - *"Can I afford a ₱15k phone?"* checks affordability and gives a verdict: **safe**, **tight**, or **unaffordable**
+  - *"How much will I have left if I spend 5k?"* gives a projection
+  - *"How much do I owe?"* or *"utang"* summarizes your debt and loans
+  - *"GCash balance"* or *"total money"* shows balances
+- **Understands many amount formats:** `15000`, `15,000`, `₱15,000`, `php 3500`, `15k`, `2.5k`, `2m`.
+- **Gemini AI** (`gemini-2.5-flash`) answers using your current balances and loans when an API key is set. Without a key or without internet, it falls back to the built-in **offline rules engine**.
+- **Chat history** is saved to SQLite on the device.
+
+### 📊 Analytics & Insights
+- **Net savings** for the period, with total inflow and outflow.
+- **Spending by category** breakdown.
+- **Asset allocation** across Banks, E-Wallets, and Physical Cash.
+- **Active debt burden** summary.
+
+### 🎨 UI / UX
+- Tab bar extends to the screen edges and stays clear of the Android gesture/nav bar and the iOS Home indicator.
+- Styled with Tailwind via **Uniwind**, **PanelUI** components, and **Lucide** icons.
+- Built-in date picker and modals use pure React Native, so no extra native modules are needed.
 
 ---
 
@@ -9,49 +84,26 @@ A private, full-stack personal finance tracker and ledger system architected as 
 ```mermaid
 graph TD
     subgraph Clients ["Apps (Frontends)"]
-        Mobile["📱 apps/mobile<br/>(React Native / Expo SDK 57)"]
-        Web["💻 apps/web<br/>(Next.js App Router / Tailwind)"]
+        Mobile["📱 apps/mobile<br/>(Expo SDK 58 / React Native 0.88)"]
+        Web["💻 apps/web<br/>(Next.js — scaffold)"]
     end
 
-    subgraph Backend ["Backend & Services"]
-        API["⚡ apps/api<br/>(FastAPI / Python 3.11 / Uvicorn)"]
-        OCR["🔍 OCR / AI Engine<br/>(Receipt Parsing & Extraction)"]
+    subgraph Local ["On-Device"]
+        SQLite[("🗄️ expo-sqlite<br/>(offline ledger)")]
+        Gemini["✨ Gemini API<br/>(optional advisor)"]
     end
 
-    subgraph Data ["Database & Infrastructure"]
-        DB[("🐬 MySQL 8.x<br/>(Docker Container)")]
-        Volume[("💾 Persistent Docker Volume<br/>(mysql_data)")]
+    subgraph Backend ["Backend (planned sync & OCR)"]
+        API["⚡ apps/api<br/>(FastAPI)"]
+        DB[("🐬 MySQL 8.x<br/>(Docker, port 3307)")]
     end
 
-    Mobile -->|"REST / JSON"| API
-    Web -->|"REST / SSR"| API
-    API --> OCR
-    API -->|"SQLAlchemy / PyMySQL"| DB
-    DB --- Volume
+    Mobile --> SQLite
+    Mobile -.->|"optional"| Gemini
+    Mobile -.->|"planned"| API
+    Web -.->|"planned"| API
+    API --> DB
 ```
-
-### 1. `apps/mobile` (React Native / Expo)
-- **Daily Financial Logging**: Quick income, expense, and transfer recording with tactile UI.
-- **Camera Receipt Capture**: Capture receipt images directly from mobile and dispatch to FastAPI OCR.
-- **Edge-to-Edge Navigation**: Clean 5-tab navigation bar with safe-area clearance for Android gesture/button bars and iOS Home indicator.
-- **PanelUI & Tailwind Design**: Themeable (Panel, Moon, Grass) in both Light and Dark modes.
-
-### 2. `apps/web` (Next.js)
-- **Desktop Command Center**: Wide-screen dashboard with monthly cashflow trends, ledger analytics, and savings goal projections.
-- **Bulk Ledger Management**: Search, multi-criteria filtering, and batch classification of transactions.
-- **Receipt Verification Workspace**: Side-by-side view of scanned receipt image and extracted OCR transaction fields before confirming into ledger.
-
-### 3. `apps/api` (FastAPI / Python)
-- **Core Financial REST API**: Full CRUD endpoints for accounts, transactions, recurring rules, budgets, and loans.
-- **OCR Receipt Parser (`POST /ocr/receipt`)**:
-  - Image preprocessing and OCR text extraction.
-  - Automatic parsing of vendor name, date, total amount, VAT/tax, and line items.
-  - Heuristic/AI classification into Essential **Needs**, Lifestyle **Wants**, or Debt **Obligations**.
-- **Database Engine**: SQLAlchemy / SQLModel connection pool managing transactions with MySQL.
-
-### 4. `docker-compose.yml` (Infrastructure)
-- Containerizes **MySQL 8.x** and the **FastAPI service** for 1-command startup.
-- Keeps your local Windows machine clean with zero manual MySQL server or C++ OCR dependency installation.
 
 ---
 
@@ -60,167 +112,109 @@ graph TD
 ```text
 finance-tracker/
 ├── apps/
-│   ├── mobile/                  # React Native / Expo Mobile Client
-│   │   ├── app/                 # Expo Router tabs & modal screens
-│   │   ├── src/                 # Mobile context, UI helpers, hooks
+│   ├── mobile/                      # Expo / React Native app (primary)
+│   │   ├── app/(tabs)/              # index (Dashboard), accounts, assistant, two (Ledger), analytics
+│   │   ├── src/
+│   │   │   ├── components/          # accounts, loans, transactions, dashboard, chat, common
+│   │   │   ├── constants/           # Institution presets, config (Gemini key)
+│   │   │   ├── database/            # SQLite schema, migrations, dev seed
+│   │   │   ├── services/            # account, transaction, loan, analytics, chat, gemini, notification
+│   │   │   └── utils/               # formatters, calculations, file storage
+│   │   ├── tests/                   # Vitest unit tests
+│   │   ├── app.json / eas.json      # Expo & EAS Build config
 │   │   └── package.json
-│   │
-│   ├── web/                     # Next.js Web Client
-│   │   ├── app/                 # Next.js App Router pages
-│   │   ├── components/          # Web-tailored dashboard & ledger tables
-│   │   └── package.json
-│   │
-│   └── api/                     # FastAPI Backend & AI Service
-│       ├── app/
-│       │   ├── main.py          # FastAPI application entrypoint
-│       │   ├── config.py        # Environment variables & DB settings
-│       │   ├── database.py      # SQLAlchemy engine & session manager
-│       │   ├── models/          # SQLAlchemy table models (MySQL)
-│       │   ├── schemas/         # Pydantic request/response schemas
-│       │   ├── routes/          # Endpoints: /transactions, /accounts, /ocr
-│       │   └── services/
-│       │       ├── ocr.py       # Receipt image processing & text extraction
-│       │       └── ledger.py    # Double-entry balance calculation math
-│       ├── requirements.txt     # Python dependencies (FastAPI, uvicorn, PyMySQL, etc.)
-│       └── Dockerfile           # FastAPI container definition
-│
-├── packages/
-│   └── shared/                  # Shared TypeScript types, Zod schemas, ledger math
-│       ├── src/
-│       │   ├── types.ts         # Shared interfaces (Transaction, Account, Goal)
-│       │   └── calculations.ts  # Safe-to-spend, savings projection, amortization
-│       └── package.json
-│
-├── docker/
-│   └── mysql/
-│       └── init.sql             # Initial database schema DDL & seed data
-│
-├── docker-compose.yml           # MySQL 8.x + FastAPI orchestration
-├── turbo.json                   # Turborepo build pipeline
-└── package.json                 # Monorepo root workspace configuration
+│   ├── web/                         # Next.js web client (scaffold)
+│   └── api/                         # FastAPI service (/health, /ocr/receipt stub)
+├── packages/shared/                 # Shared TypeScript types & logic
+├── docker/mysql/init.sql            # MySQL schema for the future backend
+├── docker-compose.yml               # MySQL 8.x + FastAPI
+├── turbo.json
+└── package.json
 ```
 
 ---
 
-## 🐬 Database Schema (MySQL)
-
-All tables run in MySQL with strict referential integrity (`InnoDB` engine) and UTF-8 collation (`utf8mb4_unicode_ci`):
+## 🗄️ On-Device Database (SQLite)
 
 | Table | Description |
 | :--- | :--- |
-| `accounts` | Cash, checking banks, eWallets, credit cards with credit limits and cutoff days |
-| `categories` | Income and expense categories with colors and default icons |
-| `transactions` | Immutable ledger records with transfer isolation and expense nature |
-| `transaction_deductions` | Itemized income deductions (withholding tax, statutory contributions) |
-| `recurring_rules` | Scheduled subscriptions and salary rules with automatic cutoff cycle |
-| `savings_goals` | Financial targets, accumulated deposits, and target completion dates |
-| `loans` | Receivables and payables with interest and remaining balances |
-| `wishlist_items` | Planned purchases with live affordability assessment |
-| `receipt_scans` | Stored receipt image metadata, raw OCR text, and matched transaction ID |
+| `institutions` | Banks, e-wallets, cash, and lenders, with color, icon, and notes |
+| `account_pockets` | Wallet and savings pockets with starting/current balance and interest rate |
+| `transactions` | Income, expense, and transfer records (`to_pocket_id` for transfers) |
+| `loans` | Debts with remaining balance, monthly payment, due date, attachment, and status (`active` / `paid` / `defaulted`) |
+| `chat_messages` | Advisor chat history (source: `gemini` or `offline`) |
+| `app_settings` | Key/value app settings |
+
+Foreign keys are enforced (`PRAGMA foreign_keys = ON`) and WAL journaling is enabled.
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (running on Windows with WSL2 backend)
-- [Node.js](https://nodejs.org/) v20 or later
-- [Python](https://www.python.org/) 3.11+ (if running FastAPI outside Docker)
+- [Node.js](https://nodejs.org/) v20+ (npm 11)
+- Android device or emulator (for the mobile app)
+- *(Optional)* [Docker Desktop](https://www.docker.com/products/docker-desktop/) for the API/MySQL scaffold
 
----
-
-### Step 1: Start the Backend & Database (Docker)
-
-Spin up MySQL and the FastAPI service with one command from the project root:
-
-```bash
-docker compose up -d
-```
-
-- **MySQL**: Running at `localhost:3307` (mapped to internal `3306` to prevent conflicts with local MySQL instances) with persistent volume `mysql_data`.
-- **FastAPI**: Running at `http://localhost:8000`.
-- **Interactive API Docs (Swagger UI)**: Open `http://localhost:8000/docs` in your browser.
-
-To stop the containers:
-```bash
-docker compose down
-```
-
----
-
-### Step 2: Install Node Monorepo Dependencies
-
+### 1. Install dependencies
 ```bash
 npm install
 ```
 
----
+### 2. (Optional) Enable the Gemini Advisor
+Create `apps/mobile/.env`:
+```env
+EXPO_PUBLIC_GEMINI_API_KEY=your_key_here
+```
+> [!WARNING]
+> Never commit `.env` or hard-code API keys. GitHub push protection will block the push.
 
-### Step 3: Run the Web App (Next.js)
-
+### 3. Run the mobile app
 ```bash
-npm run dev --filter=web
-# or: cd apps/web && npm run dev
+npm run mobile
+# or: cd apps/mobile && npx expo start
 ```
-Open [http://localhost:3000](http://localhost:3000) to view the Web dashboard.
 
----
-
-### Step 4: Run the Mobile App (React Native)
-
+### 4. Build an installable Android APK (EAS)
 ```bash
-npm run start --filter=mobile
-# or: cd apps/mobile && npm start
+cd apps/mobile
+npm run mobile-preview
+# = npx eas-cli build -p android --profile preview
 ```
+Install the APK from the EAS build link on your phone.
 
-- **Local Android Emulator**: Press `a` in the terminal to launch on the emulator.
-- **Physical Device**: Build the standalone APK via `npm run build:apk` (or install development client) so custom native modules (`react-native-keyboard-controller`) run properly without crashing.
-
----
-
-## 🔍 OCR Receipt Scanning Flow
-
-```text
-[ Mobile / Web Camera ]
-         │
-         ▼ (Multipart Image Upload)
-[ POST /ocr/receipt ]
-         │
-         ├── 1. Preprocess image (contrast enhancement, deskew)
-         ├── 2. Extract raw text & bounding boxes (OCR Engine)
-         ├── 3. Parse total amount, vendor, date, and tax with Regex / NLP
-         └── 4. Classify nature: Needs (Groceries/Utilities) vs. Wants (Dining/Entertainment)
-         │
-         ▼ (JSON Response)
-{
-  "vendor": "Supermarket Corp",
-  "date": "2026-10-22",
-  "amount": 1450.50,
-  "tax": 155.41,
-  "suggested_category": "Groceries",
-  "suggested_nature": "needs"
-}
+### 5. (Optional) Backend scaffold
+```bash
+docker compose up -d
 ```
-
-The user reviews the pre-filled modal on Mobile or Web and taps **Confirm** to commit the immutable transaction into MySQL.
+- **MySQL:** `localhost:3307`. It maps to internal port 3306, so it won't clash with a local MySQL server.
+- **FastAPI:** `http://localhost:8000`, with docs at `http://localhost:8000/docs`.
 
 ---
 
 ## 🧪 Testing & Code Quality
 
 ```bash
-# Typecheck all TypeScript packages & apps
+# Typecheck all packages
 npm run typecheck
 
-# Run unit tests (ledger math, calculators, Zod schemas)
-node --test tests/*.test.ts
+# Mobile unit tests (Vitest)
+npm test --workspace=@finance-tracker/mobile
 ```
+
+The tests cover account and pocket balances, transactions, loans (including auto-creating a missing institution and paying a loan down to zero), analytics, the chat engine's intent and amount parsing, the Gemini service, chat storage, notifications, file storage, and formatters.
+
+---
+
+## 🗺️ Roadmap
+- [ ] Real receipt OCR (`POST /ocr/receipt`) and camera capture flow
+- [ ] Sync from the mobile app to FastAPI and MySQL
+- [ ] Web dashboard (Next.js)
+- [ ] Budgets, recurring rules, and savings goals
+- [ ] Data export and backup
 
 ---
 
 ## 🔒 Personal Use & Privacy
-
-This setup is tailored for self-hosted personal usage:
-- MySQL data remains strictly local in your Docker container volume.
-- Receipt images and financial logs are processed on your local FastAPI microservice without third-party cloud data selling.
-- Nightly or weekly database dumps can be taken via `docker exec -i finance-tracker-db mysqldump -u root -p finance_tracker > backup.sql`.
+- All financial data stays **on your device** in SQLite.
+- The only data that leaves your phone is the optional Gemini Advisor's summary of your balances and loans. It is sent only when an API key is set.
