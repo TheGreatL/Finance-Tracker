@@ -124,4 +124,66 @@ CREATE TABLE IF NOT EXISTS app_notifications (
 );
 
 CREATE INDEX IF NOT EXISTS idx_notifications_created ON app_notifications(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS jobs (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  company_name TEXT NOT NULL,
+  employment_type TEXT NOT NULL CHECK(employment_type IN ('full_time', 'part_time', 'freelance', 'contract', 'other')),
+  pay_schedule TEXT NOT NULL CHECK(pay_schedule IN ('monthly', 'semi_monthly', 'biweekly', 'weekly')),
+  pay_day_1 INTEGER NOT NULL,
+  pay_day_2 INTEGER DEFAULT NULL,
+  gross_salary REAL NOT NULL,
+  salary_period TEXT NOT NULL DEFAULT 'per_paycheck' CHECK(salary_period IN ('monthly', 'per_paycheck')),
+  target_pocket_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'archived')),
+  color TEXT DEFAULT '#4F46E5',
+  notes TEXT DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (target_pocket_id) REFERENCES account_pockets(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+CREATE INDEX IF NOT EXISTS idx_jobs_target_pocket ON jobs(target_pocket_id);
+
+CREATE TABLE IF NOT EXISTS job_deductions (
+  id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL CHECK(category IN ('tax', 'statutory', 'workplace', 'other')),
+  amount REAL NOT NULL,
+  is_percentage INTEGER NOT NULL DEFAULT 0,
+  percentage_rate REAL DEFAULT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_deductions_job ON job_deductions(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_deductions_category ON job_deductions(category);
+
+CREATE TABLE IF NOT EXISTS pay_slips (
+  id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL,
+  pocket_id TEXT NOT NULL,
+  transaction_id TEXT DEFAULT NULL,
+  pay_date TEXT NOT NULL,
+  gross_amount REAL NOT NULL,
+  total_deductions REAL NOT NULL,
+  net_amount REAL NOT NULL,
+  deductions_snapshot TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT 'paid' CHECK(status IN ('paid', 'pending', 'skipped')),
+  notes TEXT DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+  FOREIGN KEY (pocket_id) REFERENCES account_pockets(id) ON DELETE RESTRICT,
+  FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE SET NULL,
+  UNIQUE(job_id, pay_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pay_slips_job ON pay_slips(job_id);
+CREATE INDEX IF NOT EXISTS idx_pay_slips_pay_date ON pay_slips(pay_date DESC);
+CREATE INDEX IF NOT EXISTS idx_pay_slips_pocket ON pay_slips(pocket_id);
 `;
