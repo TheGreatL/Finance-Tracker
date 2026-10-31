@@ -1,7 +1,16 @@
 import React from 'react';
 import { View, StyleProp, ViewStyle } from 'react-native';
 import Svg, { Circle, Path, Polygon, Rect, Text as SvgText } from 'react-native-svg';
+import { SvgCss } from 'react-native-svg/css';
 import { getSubscriptionPreset } from '../../constants/subscriptions';
+import { SUBSCRIPTION_LOGO_SVGS } from './subscriptionLogoSvgs';
+
+const LOGO_ASSET_BY_CODE: Record<string, string> = {
+  chatgpt: 'openai',
+  disney: 'disney_plus',
+  google_one: 'google',
+  prime: 'prime_video',
+};
 
 interface SubscriptionLogoProps {
   code?: string;
@@ -21,6 +30,8 @@ export function SubscriptionLogo({
   const preset = getSubscriptionPreset(code || serviceName);
   const normalized = preset.code;
   const backgroundColor = preset.color;
+  const logoAsset = LOGO_ASSET_BY_CODE[normalized] || normalized;
+  const logoXml = SUBSCRIPTION_LOGO_SVGS[logoAsset];
 
   return (
     <View
@@ -33,9 +44,13 @@ export function SubscriptionLogo({
           justifyContent: 'center',
           borderRadius: size * 0.24,
           overflow: 'hidden',
+          backgroundColor: logoXml ? '#FFFFFF' : backgroundColor,
         },
         style,
       ]}>
+      {logoXml ? (
+        <SvgCss xml={logoXml} width={size * 0.82} height={size * 0.82} />
+      ) : (
       <Svg viewBox="0 0 100 100" width={size} height={size}>
         <Rect width="100" height="100" rx="24" fill={backgroundColor} />
 
@@ -208,6 +223,7 @@ export function SubscriptionLogo({
           </>
         )}
       </Svg>
+      )}
     </View>
   );
 }
