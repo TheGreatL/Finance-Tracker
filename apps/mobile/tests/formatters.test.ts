@@ -4,6 +4,7 @@ import {
     formatSignedCurrency,
     formatRelativeDate,
     formatDisplayDate,
+    formatTime12,
     formatMoneyInput,
     parseMoneyInput
 } from '../src/utils/formatters';
@@ -56,6 +57,42 @@ describe('formatters', () => {
         expect(formatDisplayDate('')).toBe('Select date');
         expect(formatDisplayDate(undefined)).toBe('Select date');
         expect(formatDisplayDate('invalid-date-format')).toBe('invalid-date-format');
+    });
+
+    describe('formatTime12', () => {
+        it('returns empty string for null, undefined, or empty values', () => {
+            expect(formatTime12(null)).toBe('');
+            expect(formatTime12(undefined)).toBe('');
+            expect(formatTime12('')).toBe('');
+        });
+
+        it('formats Date objects to 12-hour format with AM/PM', () => {
+            const morning = new Date(2026, 9, 31, 9, 5);
+            expect(formatTime12(morning)).toBe('9:05 AM');
+
+            const afternoon = new Date(2026, 9, 31, 16, 8);
+            expect(formatTime12(afternoon)).toBe('4:08 PM');
+
+            const midnight = new Date(2026, 9, 31, 0, 15);
+            expect(formatTime12(midnight)).toBe('12:15 AM');
+
+            const noon = new Date(2026, 9, 31, 12, 0);
+            expect(formatTime12(noon)).toBe('12:00 PM');
+        });
+
+        it('converts 24-hour time strings to 12-hour format', () => {
+            expect(formatTime12('16:08')).toBe('4:08 PM');
+            expect(formatTime12('09:30')).toBe('9:30 AM');
+            expect(formatTime12('00:00')).toBe('12:00 AM');
+            expect(formatTime12('12:00')).toBe('12:00 PM');
+            expect(formatTime12('23:59')).toBe('11:59 PM');
+            expect(formatTime12('14:45:00')).toBe('2:45 PM');
+        });
+
+        it('preserves strings that already have AM or PM', () => {
+            expect(formatTime12('4:08 PM')).toBe('4:08 PM');
+            expect(formatTime12('11:30 AM')).toBe('11:30 AM');
+        });
     });
 
     describe('formatMoneyInput', () => {

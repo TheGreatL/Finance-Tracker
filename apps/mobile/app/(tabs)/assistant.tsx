@@ -28,6 +28,7 @@ import {
 import { ChatMessageBubble, type ChatMessage } from '../../src/components/chat/ChatMessageBubble';
 import { PromptSuggestionChips } from '../../src/components/chat/PromptSuggestionChips';
 import { computeKeyboardOverlap } from '../../src/utils/keyboard';
+import { formatTime12 } from '../../src/utils/formatters';
 
 const DEFAULT_WELCOME_MESSAGE: ChatMessage = {
     id: 'welcome',
@@ -35,7 +36,7 @@ const DEFAULT_WELCOME_MESSAGE: ChatMessage = {
     text: `👋 **Welcome! I'm your personal financial assistant.**\n\nUse the toggle at the top to switch between **✨ Gemini AI** (smart online reasoning) and **⚡ Offline Mode** (instant local SQLite engine).\n\nAsk me scenario questions like:\n• **"Can I afford ₱15,000?"**\n• **"How much will I have if I buy a phone for 25k?"**\n• **"How much do I owe right now?"**\n• **"How much in Maya?"**`,
     status: 'info',
     source: 'gemini',
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    timestamp: formatTime12(new Date()),
     created_at: new Date().toISOString()
 };
 
@@ -146,10 +147,7 @@ export default function AssistantScreen() {
         if (!prompt || loading) return;
 
         const nowIso = new Date().toISOString();
-        const userTimestamp = new Date().toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+        const userTimestamp = formatTime12(new Date());
 
         const userMessage: ChatMessage = {
             id: `user-${Date.now()}`,
@@ -170,10 +168,7 @@ export default function AssistantScreen() {
 
             let botMessage: ChatMessage;
             const botCreatedAt = new Date().toISOString();
-            const botTimestamp = new Date().toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit'
-            });
+            const botTimestamp = formatTime12(new Date());
 
             if (chatMode === 'gemini') {
                 // 1. Try Gemini Online AI first when Gemini mode is toggled ON
@@ -229,7 +224,7 @@ export default function AssistantScreen() {
                 text: `⚠️ An error occurred while computing your query: ${err?.message || 'Database unavailable'}. Please try again.`,
                 status: 'tight',
                 source: 'offline',
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                timestamp: formatTime12(new Date()),
                 created_at: new Date().toISOString()
             };
             setMessages((prev) => [...prev, errorMessage]);
@@ -255,10 +250,7 @@ export default function AssistantScreen() {
                                 text: `✨ Conversation history cleared. Ask me a question or tap a prompt chip below!`,
                                 status: 'info',
                                 source: chatMode,
-                                timestamp: new Date().toLocaleTimeString([], {
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                }),
+                                timestamp: formatTime12(new Date()),
                                 created_at: new Date().toISOString()
                             }
                         ]);

@@ -93,6 +93,45 @@ export function formatDisplayDate(dateString?: string): string {
 }
 
 /**
+ * Formats a Date object, timestamp number, ISO date string, or 24-hour time string into a 12-hour time format (e.g. "4:08 PM", "12:15 AM").
+ */
+export function formatTime12(dateOrString?: Date | string | number | null): string {
+    if (!dateOrString && dateOrString !== 0) return '';
+
+    // If it's already in 12-hour format with AM/PM
+    if (typeof dateOrString === 'string') {
+        const trimmed = dateOrString.trim();
+        if (/am|pm/i.test(trimmed)) {
+            return trimmed;
+        }
+
+        // If it's a 24-hour time string (e.g., "16:08" or "09:30" or "16:08:30")
+        const timeMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+        if (timeMatch) {
+            let hours = parseInt(timeMatch[1], 10);
+            const minutes = timeMatch[2];
+            if (hours >= 0 && hours <= 23) {
+                const period = hours >= 12 ? 'PM' : 'AM';
+                hours = hours % 12 || 12;
+                return `${hours}:${minutes} ${period}`;
+            }
+        }
+    }
+
+    const date = typeof dateOrString === 'object' && dateOrString instanceof Date ? dateOrString : new Date(dateOrString);
+
+    if (isNaN(date.getTime())) {
+        return typeof dateOrString === 'string' ? dateOrString : '';
+    }
+
+    return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+}
+
+/**
  * Formats a raw user input string into real-time money display format with comma thousands separators.
  * Preserves incomplete decimal typing (e.g., "1,234." or "0.") and restricts to at most 2 decimal places.
  */
