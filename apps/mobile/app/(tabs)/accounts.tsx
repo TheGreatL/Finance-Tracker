@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, RefreshControl, TextInput, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -56,6 +56,16 @@ export default function AccountsScreen() {
   const [loanDetailVisible, setLoanDetailVisible] = useState(false);
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
 
+  // Mirrors of the open items' ids for use inside async loaders
+  const selectedInstitutionIdRef = useRef<string | null>(null);
+  const selectedLoanIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedInstitutionIdRef.current = selectedInstitution?.id ?? null;
+  }, [selectedInstitution]);
+  useEffect(() => {
+    selectedLoanIdRef.current = selectedLoan?.id ?? null;
+  }, [selectedLoan]);
+
   // Switch to loans tab if navigated via params
   useEffect(() => {
     if (params.tab === 'loans') {
@@ -76,25 +86,30 @@ export default function AccountsScreen() {
       setLoans(loanItems);
       setAllPockets(pocketItems);
 
-      // Refresh opened institution sheet
-      if (selectedInstitution) {
-        const refreshedInst = instItems.find((i: Institution) => i.id === selectedInstitution.id) || null;
-        setSelectedInstitution(refreshedInst);
+      // Refresh opened institution sheet. Read open ids from refs (not state) so
+      // loadData stays stable and a sheet closed mid-fetch is never re-opened.
+      const openInstId = selectedInstitutionIdRef.current;
+      if (openInstId) {
+        const refreshedInst = instItems.find((i: Institution) => i.id === openInstId) || null;
+        setSelectedInstitution((prev) => (prev && prev.id === openInstId ? refreshedInst : prev));
         if (refreshedInst) {
           const pockets = await getPocketsByInstitution(db, refreshedInst.id);
-          setInstitutionPockets(pockets);
+          if (selectedInstitutionIdRef.current === openInstId) {
+            setInstitutionPockets(pockets);
+          }
         }
       }
 
       // Refresh opened loan sheet
-      if (selectedLoan) {
-        const refreshedLoan = loanItems.find((l: LoanRecord) => l.id === selectedLoan.id) || null;
-        setSelectedLoan(refreshedLoan);
+      const openLoanId = selectedLoanIdRef.current;
+      if (openLoanId) {
+        const refreshedLoan = loanItems.find((l: LoanRecord) => l.id === openLoanId) || null;
+        setSelectedLoan((prev) => (prev && prev.id === openLoanId ? refreshedLoan : prev));
       }
     } catch (err) {
       console.error('Failed to load accounts & loans:', err);
     }
-  }, [selectedInstitution, selectedLoan]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ScrollView, RefreshControl, View, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -79,6 +79,12 @@ export default function DashboardScreen() {
   const [detailTx, setDetailTx] = useState<TransactionRecord | null>(null);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
+  // Mirror of the open institution's id for use inside async loaders
+  const selectedInstitutionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedInstitutionIdRef.current = selectedInstitution?.id ?? null;
+  }, [selectedInstitution]);
+
   const loadData = useCallback(async () => {
     try {
       const db = await getDatabase();
@@ -96,13 +102,19 @@ export default function DashboardScreen() {
       setRecentTransactions(txs);
       setLoansSummary(loansSum);
 
-      // If an institution sheet is open, refresh its institution data & pockets
-      if (selectedInstitution) {
-        const refreshedInst = insts.find((i: Institution) => i.id === selectedInstitution.id) || null;
-        setSelectedInstitution(refreshedInst);
+      // If an institution sheet is open, refresh its institution data & pockets.
+      // Read the open id from a ref (not state) so loadData stays stable and a
+      // sheet closed mid-fetch is never re-opened by a stale closure.
+      const openId = selectedInstitutionIdRef.current;
+      if (openId) {
+        const refreshedInst = insts.find((i: Institution) => i.id === openId) || null;
+        // Only update if the same sheet is still open after the await
+        setSelectedInstitution((prev) => (prev && prev.id === openId ? refreshedInst : prev));
         if (refreshedInst) {
           const updatedPockets = await getPocketsByInstitution(db, refreshedInst.id);
-          setSelectedInstPockets(updatedPockets);
+          if (selectedInstitutionIdRef.current === openId) {
+            setSelectedInstPockets(updatedPockets);
+          }
         }
       }
     } catch (err: any) {
@@ -129,7 +141,7 @@ export default function DashboardScreen() {
         }
       }
     }
-  }, [selectedInstitution]);
+  }, []);
 
   useEffect(() => {
     loadData();
