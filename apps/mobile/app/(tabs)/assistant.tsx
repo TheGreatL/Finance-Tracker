@@ -1,16 +1,16 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  FlatList,
-  Keyboard,
-  Dimensions,
-  Platform,
-  Alert,
-  type KeyboardEvent,
-  type LayoutChangeEvent,
+    View,
+    Text,
+    TextInput,
+    Pressable,
+    FlatList,
+    Keyboard,
+    Dimensions,
+    Platform,
+    Alert,
+    type KeyboardEvent,
+    type LayoutChangeEvent
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -19,413 +19,389 @@ import { getDatabase } from '../../src/database/db';
 import { evaluateChatPrompt } from '../../src/services/chatEngine';
 import { queryGeminiAdvisor } from '../../src/services/geminiService';
 import {
-  saveChatMessage,
-  getStoredChatMessages,
-  clearChatStorage,
-  buildChatTimelineItems,
-  type ChatTimelineItem,
+    saveChatMessage,
+    getStoredChatMessages,
+    clearChatStorage,
+    buildChatTimelineItems,
+    type ChatTimelineItem
 } from '../../src/services/chatStorageService';
-import {
-  ChatMessageBubble,
-  type ChatMessage,
-} from '../../src/components/chat/ChatMessageBubble';
+import { ChatMessageBubble, type ChatMessage } from '../../src/components/chat/ChatMessageBubble';
 import { PromptSuggestionChips } from '../../src/components/chat/PromptSuggestionChips';
 import { computeKeyboardOverlap } from '../../src/utils/keyboard';
 
 const DEFAULT_WELCOME_MESSAGE: ChatMessage = {
-  id: 'welcome',
-  sender: 'bot',
-  text: `👋 **Welcome! I'm your personal financial assistant.**\n\nUse the toggle at the top to switch between **✨ Gemini AI** (smart online reasoning) and **⚡ Offline Mode** (instant local SQLite engine).\n\nAsk me scenario questions like:\n• **"Can I afford ₱15,000?"**\n• **"How much will I have if I buy a phone for 25k?"**\n• **"How much do I owe right now?"**\n• **"How much in Maya?"**`,
-  status: 'info',
-  source: 'gemini',
-  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-  created_at: new Date().toISOString(),
+    id: 'welcome',
+    sender: 'bot',
+    text: `👋 **Welcome! I'm your personal financial assistant.**\n\nUse the toggle at the top to switch between **✨ Gemini AI** (smart online reasoning) and **⚡ Offline Mode** (instant local SQLite engine).\n\nAsk me scenario questions like:\n• **"Can I afford ₱15,000?"**\n• **"How much will I have if I buy a phone for 25k?"**\n• **"How much do I owe right now?"**\n• **"How much in Maya?"**`,
+    status: 'info',
+    source: 'gemini',
+    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    created_at: new Date().toISOString()
 };
 
 export default function AssistantScreen() {
-  const insets = useSafeAreaInsets();
-  const listRef = useRef<FlatList<ChatTimelineItem>>(null);
+    const insets = useSafeAreaInsets();
+    const listRef = useRef<FlatList<ChatTimelineItem>>(null);
 
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [chatMode, setChatMode] = useState<'gemini' | 'offline'>('gemini');
-  const [messages, setMessages] = useState<ChatMessage[]>([DEFAULT_WELCOME_MESSAGE]);
+    const [input, setInput] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [chatMode, setChatMode] = useState<'gemini' | 'offline'>('gemini');
+    const [messages, setMessages] = useState<ChatMessage[]>([DEFAULT_WELCOME_MESSAGE]);
 
-  // Track container bottom Y and active keyboard metrics to position input bar right at the top of the keyboard
-  const viewBottomYRef = useRef<number>(Dimensions.get('window').height);
-  const keyboardMetricsRef = useRef<{ height: number; screenY: number }>({
-    height: 0,
-    screenY: 0,
-  });
-  const [keyboardOffset, setKeyboardOffset] = useState<number>(0);
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState<boolean>(false);
-
-  const recalculateKeyboardOffset = useCallback(() => {
-    const windowHeight = Dimensions.get('window').height;
-    const overlap = computeKeyboardOverlap({
-      viewBottomY: viewBottomYRef.current,
-      windowHeight,
-      keyboardHeight: keyboardMetricsRef.current.height,
-      keyboardScreenY: keyboardMetricsRef.current.screenY,
+    // Track container bottom Y and active keyboard metrics to position input bar right at the top of the keyboard
+    const viewBottomYRef = useRef<number>(Dimensions.get('window').height);
+    const keyboardMetricsRef = useRef<{ height: number; screenY: number }>({
+        height: 0,
+        screenY: 0
     });
-    setKeyboardOffset(overlap);
-  }, []);
+    const [keyboardOffset, setKeyboardOffset] = useState<number>(0);
+    const [isKeyboardVisible, setIsKeyboardVisible] = useState<boolean>(false);
 
-  useEffect(() => {
-    const onKeyboardShow = (event: KeyboardEvent) => {
-      keyboardMetricsRef.current = {
-        height: event.endCoordinates?.height ?? 0,
-        screenY: event.endCoordinates?.screenY ?? 0,
-      };
-      setIsKeyboardVisible(true);
-      recalculateKeyboardOffset();
-      setTimeout(() => {
-        listRef.current?.scrollToEnd({ animated: true });
-      }, 80);
-    };
+    const recalculateKeyboardOffset = useCallback(() => {
+        const windowHeight = Dimensions.get('window').height;
+        const overlap = computeKeyboardOverlap({
+            viewBottomY: viewBottomYRef.current,
+            windowHeight,
+            keyboardHeight: keyboardMetricsRef.current.height,
+            keyboardScreenY: keyboardMetricsRef.current.screenY
+        });
+        setKeyboardOffset(overlap);
+    }, []);
 
-    const onKeyboardHide = () => {
-      keyboardMetricsRef.current = { height: 0, screenY: 0 };
-      setIsKeyboardVisible(false);
-      setKeyboardOffset(0);
-    };
-
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-    const showSub = Keyboard.addListener(showEvent, onKeyboardShow);
-    const hideSub = Keyboard.addListener(hideEvent, onKeyboardHide);
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, [recalculateKeyboardOffset]);
-
-  const handleContainerLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      const { y, height } = event.nativeEvent.layout;
-      viewBottomYRef.current = y + height;
-      if (keyboardMetricsRef.current.height > 0) {
-        recalculateKeyboardOffset();
-      }
-    },
-    [recalculateKeyboardOffset]
-  );
-
-  // Load persisted chat history from SQLite
-  const loadChatHistory = useCallback(async () => {
-    try {
-      const db = await getDatabase();
-      const stored = await getStoredChatMessages(db, 100);
-      if (stored.length > 0) {
-        setMessages(
-          stored.map((m) => ({
-            id: m.id,
-            sender: m.sender,
-            text: m.text,
-            status: m.status,
-            source: m.source,
-            timestamp: m.timestamp,
-            created_at: m.created_at,
-          }))
-        );
-      }
-    } catch (err) {
-      console.error('Failed to load chat history from SQLite:', err);
-    }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadChatHistory();
-    }, [loadChatHistory])
-  );
-
-  const timelineItems = useMemo(
-    () => buildChatTimelineItems(messages),
-    [messages]
-  );
-
-  const handleSend = async (textToSend?: string) => {
-    const prompt = (textToSend || input).trim();
-    if (!prompt || loading) return;
-
-    const nowIso = new Date().toISOString();
-    const userTimestamp = new Date().toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      sender: 'user',
-      text: prompt,
-      timestamp: userTimestamp,
-      created_at: nowIso,
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInput('');
-    setLoading(true);
-
-    try {
-      const db = await getDatabase();
-      // Persist user message to SQLite
-      await saveChatMessage(db, userMessage);
-
-      let botMessage: ChatMessage;
-      const botCreatedAt = new Date().toISOString();
-      const botTimestamp = new Date().toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-
-      if (chatMode === 'gemini') {
-        // 1. Try Gemini Online AI first when Gemini mode is toggled ON
-        try {
-          const geminiRes = await queryGeminiAdvisor(db, prompt, { timeoutMs: 8000 });
-          botMessage = {
-            id: `bot-${Date.now()}`,
-            sender: 'bot',
-            text: geminiRes.text,
-            status: geminiRes.status,
-            source: 'gemini',
-            timestamp: botTimestamp,
-            created_at: botCreatedAt,
-          };
-        } catch (geminiErr) {
-          console.log('Gemini request failed/timed out, falling back to offline engine:', geminiErr);
-
-          // 2. Fallback seamlessly to local offline chatEngine
-          const offlineRes = await evaluateChatPrompt(db, prompt);
-          botMessage = {
-            id: `bot-${Date.now()}`,
-            sender: 'bot',
-            text: offlineRes.text,
-            status: offlineRes.status,
-            source: 'offline',
-            timestamp: botTimestamp,
-            created_at: botCreatedAt,
-          };
-        }
-      } else {
-        // Offline mode explicitly selected by user
-        const offlineRes = await evaluateChatPrompt(db, prompt);
-        botMessage = {
-          id: `bot-${Date.now()}`,
-          sender: 'bot',
-          text: offlineRes.text,
-          status: offlineRes.status,
-          source: 'offline',
-          timestamp: botTimestamp,
-          created_at: botCreatedAt,
+    useEffect(() => {
+        const onKeyboardShow = (event: KeyboardEvent) => {
+            keyboardMetricsRef.current = {
+                height: event.endCoordinates?.height ?? 0,
+                screenY: event.endCoordinates?.screenY ?? 0
+            };
+            setIsKeyboardVisible(true);
+            recalculateKeyboardOffset();
+            setTimeout(() => {
+                listRef.current?.scrollToEnd({ animated: true });
+            }, 80);
         };
-      }
 
-      // Persist bot message to SQLite
-      await saveChatMessage(db, botMessage);
-      setMessages((prev) => [...prev, botMessage]);
-    } catch (err: any) {
-      console.error('Critical assistant failure:', err);
-      const errorMessage: ChatMessage = {
-        id: `error-${Date.now()}`,
-        sender: 'bot',
-        text: `⚠️ An error occurred while computing your query: ${err?.message || 'Database unavailable'}. Please try again.`,
-        status: 'tight',
-        source: 'offline',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        created_at: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setLoading(false);
-    }
-  };
+        const onKeyboardHide = () => {
+            keyboardMetricsRef.current = { height: 0, screenY: 0 };
+            setIsKeyboardVisible(false);
+            setKeyboardOffset(0);
+        };
 
-  const handleClearHistory = () => {
-    Alert.alert(
-      'Clear Conversation',
-      'Are you sure you want to clear your conversation history? This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const db = await getDatabase();
-              await clearChatStorage(db);
-              setMessages([
-                {
-                  id: `welcome-${Date.now()}`,
-                  sender: 'bot',
-                  text: `✨ Conversation history cleared. Ask me a question or tap a prompt chip below!`,
-                  status: 'info',
-                  source: chatMode,
-                  timestamp: new Date().toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  }),
-                  created_at: new Date().toISOString(),
-                },
-              ]);
-            } catch (err) {
-              console.error('Failed to clear chat storage:', err);
+        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+        const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+        const showSub = Keyboard.addListener(showEvent, onKeyboardShow);
+        const hideSub = Keyboard.addListener(hideEvent, onKeyboardHide);
+
+        return () => {
+            showSub.remove();
+            hideSub.remove();
+        };
+    }, [recalculateKeyboardOffset]);
+
+    const handleContainerLayout = useCallback(
+        (event: LayoutChangeEvent) => {
+            const { y, height } = event.nativeEvent.layout;
+            viewBottomYRef.current = y + height;
+            if (keyboardMetricsRef.current.height > 0) {
+                recalculateKeyboardOffset();
             }
-          },
         },
-      ]
+        [recalculateKeyboardOffset]
     );
-  };
 
-  // Scroll to bottom when messages update
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      listRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [timelineItems.length]);
-
-  return (
-    <View
-      onLayout={handleContainerLayout}
-      className="flex-1 bg-stone-50"
-      style={{ paddingTop: Math.max(insets.top, 12) }}>
-      <View className="flex-1" style={{ paddingBottom: keyboardOffset }}>
-        {/* Header with Engine Mode Toggle */}
-        <View className="px-4 py-3 border-b border-stone-200/80 bg-white">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center">
-              <View className="w-9 h-9 rounded-full bg-[#BBD583] items-center justify-center shadow-xs">
-                <Bot size={20} color="#18342B" />
-              </View>
-              <View className="ml-2.5">
-                <Text className="text-base font-bold text-stone-900">PocketBot</Text>
-                <Text className="text-[11px] text-stone-400">
-                  {chatMode === 'gemini'
-                    ? 'Gemini AI active (auto-offline fallback)'
-                    : 'Offline SQLite engine only'}
-                </Text>
-              </View>
-            </View>
-
-            <View className="flex-row items-center">
-              {/* Interactive Gemini AI vs Offline Toggle */}
-              <View className="flex-row bg-stone-100 p-0.5 rounded-full border border-stone-200 mr-2">
-                <Pressable
-                  onPress={() => setChatMode('gemini')}
-                  accessibilityRole="button"
-                  accessibilityLabel="Switch to Gemini AI mode"
-                  className={`flex-row items-center px-2.5 py-1.5 rounded-full ${
-                    chatMode === 'gemini' ? 'bg-[#18342B]' : ''
-                  }`}>
-                  <Sparkles
-                    size={11}
-                    color={chatMode === 'gemini' ? '#BBD583' : '#78716C'}
-                  />
-                  <Text
-                    className={`text-[10px] font-bold ml-1 ${
-                      chatMode === 'gemini' ? 'text-white' : 'text-stone-600'
-                    }`}>
-                    Gemini AI
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => setChatMode('offline')}
-                  accessibilityRole="button"
-                  accessibilityLabel="Switch to Offline engine mode"
-                  className={`flex-row items-center px-2.5 py-1.5 rounded-full ${
-                    chatMode === 'offline' ? 'bg-[#18342B]' : ''
-                  }`}>
-                  <Zap
-                    size={11}
-                    color={chatMode === 'offline' ? '#BBD583' : '#78716C'}
-                  />
-                  <Text
-                    className={`text-[10px] font-bold ml-1 ${
-                      chatMode === 'offline' ? 'text-white' : 'text-stone-600'
-                    }`}>
-                    Offline
-                  </Text>
-                </Pressable>
-              </View>
-
-              <Pressable
-                onPress={handleClearHistory}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Clear conversation history"
-                className="p-2 rounded-full active:bg-stone-100">
-                <Trash2 size={17} color="#78716C" />
-              </Pressable>
-            </View>
-          </View>
-        </View>
-
-        {/* Messages Feed Grouped by Day */}
-        <FlatList
-          ref={listRef}
-          data={timelineItems}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => {
-            if (item.type === 'date_header') {
-              return (
-                <View className="items-center my-3 px-4">
-                  <View className="flex-row items-center bg-stone-200/75 px-3 py-1 rounded-full">
-                    <Calendar size={11} color="#57534E" />
-                    <Text className="text-[11px] font-bold text-stone-600 ml-1.5">
-                      {item.label}
-                    </Text>
-                  </View>
-                </View>
-              );
+    // Load persisted chat history from SQLite
+    const loadChatHistory = useCallback(async () => {
+        try {
+            const db = await getDatabase();
+            const stored = await getStoredChatMessages(db, 100);
+            if (stored.length > 0) {
+                setMessages(
+                    stored.map((m) => ({
+                        id: m.id,
+                        sender: m.sender,
+                        text: m.text,
+                        status: m.status,
+                        source: m.source,
+                        timestamp: m.timestamp,
+                        created_at: m.created_at
+                    }))
+                );
             }
-            return <ChatMessageBubble message={item.message} />;
-          }}
-          contentContainerStyle={{ paddingVertical: 14 }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          className="flex-1"
-        />
+        } catch (err) {
+            console.error('Failed to load chat history from SQLite:', err);
+        }
+    }, []);
 
-        {/* Prompt Suggestion Chips */}
-        <PromptSuggestionChips onSelectPrompt={(p) => handleSend(p)} />
+    useFocusEffect(
+        useCallback(() => {
+            loadChatHistory();
+        }, [loadChatHistory])
+    );
 
-        {/* Input Bar */}
-        <View
-          className="px-4 py-2.5 bg-white border-t border-stone-200/80 flex-row items-center space-x-2"
-          style={{
-            paddingBottom: isKeyboardVisible ? 10 : Math.max(insets.bottom, 12),
-          }}>
-          <View className="flex-1 bg-stone-100 rounded-2xl px-4 py-2.5 flex-row items-center border border-stone-200/80 mr-2">
-            <TextInput
-              value={input}
-              onChangeText={setInput}
-              placeholder={
-                chatMode === 'gemini'
-                  ? "Ask Gemini AI 'Can I afford ₱15,000?'..."
-                  : "Ask Offline Engine 'Can I afford ₱15,000?'..."
-              }
-              placeholderTextColor="#A8A29E"
-              returnKeyType="send"
-              onSubmitEditing={() => handleSend()}
-              className="flex-1 text-sm text-stone-900 p-0"
-            />
-          </View>
+    const timelineItems = useMemo(() => buildChatTimelineItems(messages), [messages]);
 
-          <Pressable
-            onPress={() => handleSend()}
-            disabled={!input.trim() || loading}
-            hitSlop={8}
-            className={`w-11 h-11 rounded-2xl items-center justify-center shadow-xs ${
-              input.trim() && !loading ? 'bg-[#18342B] active:opacity-90' : 'bg-stone-200'
-            }`}>
-            <Send size={18} color={input.trim() && !loading ? '#BBD583' : '#A8A29E'} />
-          </Pressable>
+    const handleSend = async (textToSend?: string) => {
+        const prompt = (textToSend || input).trim();
+        if (!prompt || loading) return;
+
+        const nowIso = new Date().toISOString();
+        const userTimestamp = new Date().toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        const userMessage: ChatMessage = {
+            id: `user-${Date.now()}`,
+            sender: 'user',
+            text: prompt,
+            timestamp: userTimestamp,
+            created_at: nowIso
+        };
+
+        setMessages((prev) => [...prev, userMessage]);
+        setInput('');
+        setLoading(true);
+
+        try {
+            const db = await getDatabase();
+            // Persist user message to SQLite
+            await saveChatMessage(db, userMessage);
+
+            let botMessage: ChatMessage;
+            const botCreatedAt = new Date().toISOString();
+            const botTimestamp = new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            if (chatMode === 'gemini') {
+                // 1. Try Gemini Online AI first when Gemini mode is toggled ON
+                try {
+                    const geminiRes = await queryGeminiAdvisor(db, prompt, { timeoutMs: 8000 });
+                    botMessage = {
+                        id: `bot-${Date.now()}`,
+                        sender: 'bot',
+                        text: geminiRes.text,
+                        status: geminiRes.status,
+                        source: 'gemini',
+                        timestamp: botTimestamp,
+                        created_at: botCreatedAt
+                    };
+                } catch (geminiErr: any) {
+                    console.log('Gemini request failed/timed out, falling back to offline engine:', geminiErr);
+
+                    // 2. Fallback seamlessly to local offline chatEngine
+                    const offlineRes = await evaluateChatPrompt(db, prompt);
+                    const reasonText = geminiErr?.message ? ` (${geminiErr.message})` : '';
+                    botMessage = {
+                        id: `bot-${Date.now()}`,
+                        sender: 'bot',
+                        text: `${offlineRes.text}\n\n*(⚡ Offline fallback: Gemini AI was unreachable${reasonText})*`,
+                        status: offlineRes.status,
+                        source: 'offline',
+                        timestamp: botTimestamp,
+                        created_at: botCreatedAt
+                    };
+                }
+            } else {
+                // Offline mode explicitly selected by user
+                const offlineRes = await evaluateChatPrompt(db, prompt);
+                botMessage = {
+                    id: `bot-${Date.now()}`,
+                    sender: 'bot',
+                    text: offlineRes.text,
+                    status: offlineRes.status,
+                    source: 'offline',
+                    timestamp: botTimestamp,
+                    created_at: botCreatedAt
+                };
+            }
+
+            // Persist bot message to SQLite
+            await saveChatMessage(db, botMessage);
+            setMessages((prev) => [...prev, botMessage]);
+        } catch (err: any) {
+            console.error('Critical assistant failure:', err);
+            const errorMessage: ChatMessage = {
+                id: `error-${Date.now()}`,
+                sender: 'bot',
+                text: `⚠️ An error occurred while computing your query: ${err?.message || 'Database unavailable'}. Please try again.`,
+                status: 'tight',
+                source: 'offline',
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                created_at: new Date().toISOString()
+            };
+            setMessages((prev) => [...prev, errorMessage]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleClearHistory = () => {
+        Alert.alert('Clear Conversation', 'Are you sure you want to clear your conversation history? This cannot be undone.', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Clear',
+                style: 'destructive',
+                onPress: async () => {
+                    try {
+                        const db = await getDatabase();
+                        await clearChatStorage(db);
+                        setMessages([
+                            {
+                                id: `welcome-${Date.now()}`,
+                                sender: 'bot',
+                                text: `✨ Conversation history cleared. Ask me a question or tap a prompt chip below!`,
+                                status: 'info',
+                                source: chatMode,
+                                timestamp: new Date().toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                }),
+                                created_at: new Date().toISOString()
+                            }
+                        ]);
+                    } catch (err) {
+                        console.error('Failed to clear chat storage:', err);
+                    }
+                }
+            }
+        ]);
+    };
+
+    // Scroll to bottom when messages update
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            listRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+        return () => clearTimeout(timer);
+    }, [timelineItems.length]);
+
+    return (
+        <View onLayout={handleContainerLayout} className="flex-1 bg-stone-50" style={{ paddingTop: Math.max(insets.top, 12) }}>
+            <View className="flex-1" style={{ paddingBottom: keyboardOffset }}>
+                {/* Header with Engine Mode Toggle Underneath Title */}
+                <View className="px-4 pt-3 pb-3 border-b border-stone-200/80 bg-white">
+                    <View className="flex-row items-center justify-between">
+                        <View className="flex-row items-center flex-1 mr-2">
+                            <View className="w-9 h-9 rounded-full bg-[#BBD583] items-center justify-center shadow-xs">
+                                <Bot size={20} color="#18342B" />
+                            </View>
+                            <View className="ml-2.5 flex-1">
+                                <Text className="text-base font-bold text-stone-900">PocketBot</Text>
+                                <Text className="text-[11px] text-stone-400" numberOfLines={1}>
+                                    {chatMode === 'gemini' ? 'Gemini AI active (auto-offline fallback)' : 'Offline SQLite engine only'}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <Pressable
+                            onPress={handleClearHistory}
+                            hitSlop={8}
+                            accessibilityRole="button"
+                            accessibilityLabel="Clear conversation history"
+                            className="p-2 rounded-full active:bg-stone-100"
+                        >
+                            <Trash2 size={18} color="#78716C" />
+                        </Pressable>
+                    </View>
+
+                    {/* Interactive Gemini AI vs Offline Toggle Placed Underneath Title */}
+                    <View className="flex-row items-center mt-2.5 pt-2 border-t border-stone-100">
+                        <Text className="text-[11px] font-semibold text-stone-500 mr-2">Mode:</Text>
+                        <View className="flex-row bg-stone-100 p-0.5 rounded-full border border-stone-200 flex-1 max-w-[240px]">
+                            <Pressable
+                                onPress={() => setChatMode('gemini')}
+                                accessibilityRole="button"
+                                accessibilityLabel="Switch to Gemini AI mode"
+                                className={`flex-1 flex-row items-center justify-center px-3 py-1.5 rounded-full ${
+                                    chatMode === 'gemini' ? 'bg-[#18342B]' : ''
+                                }`}
+                            >
+                                <Sparkles size={12} color={chatMode === 'gemini' ? '#BBD583' : '#78716C'} />
+                                <Text className={`text-[11px] font-bold ml-1.5 ${chatMode === 'gemini' ? 'text-white' : 'text-stone-600'}`}>
+                                    Gemini AI
+                                </Text>
+                            </Pressable>
+
+                            <Pressable
+                                onPress={() => setChatMode('offline')}
+                                accessibilityRole="button"
+                                accessibilityLabel="Switch to Offline engine mode"
+                                className={`flex-1 flex-row items-center justify-center px-3 py-1.5 rounded-full ${
+                                    chatMode === 'offline' ? 'bg-[#18342B]' : ''
+                                }`}
+                            >
+                                <Zap size={12} color={chatMode === 'offline' ? '#BBD583' : '#78716C'} />
+                                <Text className={`text-[11px] font-bold ml-1.5 ${chatMode === 'offline' ? 'text-white' : 'text-stone-600'}`}>
+                                    Offline
+                                </Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Messages Feed Grouped by Day */}
+                <FlatList
+                    ref={listRef}
+                    data={timelineItems}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => {
+                        if (item.type === 'date_header') {
+                            return (
+                                <View className="items-center my-3 px-4">
+                                    <View className="flex-row items-center bg-stone-200/75 px-3 py-1 rounded-full">
+                                        <Calendar size={11} color="#57534E" />
+                                        <Text className="text-[11px] font-bold text-stone-600 ml-1.5">{item.label}</Text>
+                                    </View>
+                                </View>
+                            );
+                        }
+                        return <ChatMessageBubble message={item.message} />;
+                    }}
+                    contentContainerStyle={{ paddingVertical: 14 }}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    className="flex-1"
+                />
+
+                {/* Prompt Suggestion Chips */}
+                <PromptSuggestionChips onSelectPrompt={(p) => handleSend(p)} />
+
+                {/* Input Bar */}
+                <View
+                    className="px-4 py-2.5 bg-white border-t border-stone-200/80 flex-row items-center space-x-2"
+                    style={{
+                        paddingBottom: isKeyboardVisible ? 10 : Math.max(insets.bottom, 12)
+                    }}
+                >
+                    <View className="flex-1 bg-stone-100 rounded-2xl px-4 py-2.5 flex-row items-center border border-stone-200/80 mr-2">
+                        <TextInput
+                            value={input}
+                            onChangeText={setInput}
+                            placeholder={
+                                chatMode === 'gemini' ? "Ask Gemini AI 'Can I afford ₱15,000?'..." : "Ask Offline Engine 'Can I afford ₱15,000?'..."
+                            }
+                            placeholderTextColor="#A8A29E"
+                            returnKeyType="send"
+                            onSubmitEditing={() => handleSend()}
+                            className="flex-1 text-sm text-stone-900 p-0"
+                        />
+                    </View>
+
+                    <Pressable
+                        onPress={() => handleSend()}
+                        disabled={!input.trim() || loading}
+                        hitSlop={8}
+                        className={`w-11 h-11 rounded-2xl items-center justify-center shadow-xs ${
+                            input.trim() && !loading ? 'bg-[#18342B] active:opacity-90' : 'bg-stone-200'
+                        }`}
+                    >
+                        <Send size={18} color={input.trim() && !loading ? '#BBD583' : '#A8A29E'} />
+                    </Pressable>
+                </View>
+            </View>
         </View>
-      </View>
-    </View>
-  );
+    );
 }

@@ -6,43 +6,38 @@ import type { AccountPocket, LoanRecord } from '../types/database';
 import type { ChatStatus } from './chatEngine';
 
 export interface GeminiAdvisorResult {
-  text: string;
-  status: ChatStatus;
-  source: 'gemini';
+    text: string;
+    status: ChatStatus;
+    source: 'gemini';
 }
 
 /**
  * Builds a dynamic system prompt containing the user's real-time financial snapshot.
  */
 export function buildFinancialSystemContext(
-  pockets: (AccountPocket & { institution_name?: string })[],
-  loans: LoanRecord[],
-  loansSummary: { totalLoanBalance: number; nextDueLoan: LoanRecord | null; activeCount: number }
+    pockets: (AccountPocket & { institution_name?: string })[],
+    loans: LoanRecord[],
+    loansSummary: { totalLoanBalance: number; nextDueLoan: LoanRecord | null; activeCount: number }
 ): string {
-  const totalLiquid = pockets.reduce((sum, p) => sum + p.current_balance, 0);
+    const totalLiquid = pockets.reduce((sum, p) => sum + p.current_balance, 0);
 
-  const pocketLines = pockets
-    .map(
-      (p) =>
-        `• ${p.institution_name || 'Bank'} - ${p.name}: ₱${p.current_balance.toLocaleString()}`
-    )
-    .join('\n');
+    const pocketLines = pockets.map((p) => `• ${p.institution_name || 'Bank'} - ${p.name}: ₱${p.current_balance.toLocaleString()}`).join('\n');
 
-  const loanLines =
-    loans.length === 0
-      ? 'No active loans (Debt-free)'
-      : loans
-          .map(
-            (l) =>
-              `• ${l.title} (${l.institution_name}): ₱${l.remaining_balance.toLocaleString()} remaining • Monthly: ₱${l.monthly_payment.toLocaleString()} (Due: ${l.due_date})`
-          )
-          .join('\n');
+    const loanLines =
+        loans.length === 0
+            ? 'No active loans (Debt-free)'
+            : loans
+                  .map(
+                      (l) =>
+                          `• ${l.title} (${l.institution_name}): ₱${l.remaining_balance.toLocaleString()} remaining • Monthly: ₱${l.monthly_payment.toLocaleString()} (Due: ${l.due_date})`
+                  )
+                  .join('\n');
 
-  const nextDueText = loansSummary.nextDueLoan
-    ? `₱${loansSummary.nextDueLoan.monthly_payment.toLocaleString()} due on ${loansSummary.nextDueLoan.due_date} (${loansSummary.nextDueLoan.title})`
-    : 'None';
+    const nextDueText = loansSummary.nextDueLoan
+        ? `₱${loansSummary.nextDueLoan.monthly_payment.toLocaleString()} due on ${loansSummary.nextDueLoan.due_date} (${loansSummary.nextDueLoan.title})`
+        : 'None';
 
-  return `You are PocketBot, a smart, encouraging, and prudent personal financial advisor for a user in the Philippines.
+    return `You are PocketBot, a smart, encouraging, and prudent personal financial advisor for a user in the Philippines.
 All currency values are in Philippine Pesos (₱).
 
 CURRENT REAL-TIME FINANCIAL STATE FROM USER'S SQLITE DATABASE:
@@ -68,122 +63,98 @@ INSTRUCTIONS FOR RESPONDING:
  * Determines status flag from model output text.
  */
 export function inferStatusFromText(text: string): ChatStatus {
-  const lower = text.toLowerCase();
-  if (
-    lower.includes('cannot afford') ||
-    lower.includes('short by') ||
-    lower.includes("can't afford") ||
-    lower.includes('exceeds your available')
-  ) {
-    return 'unaffordable';
-  }
-  if (
-    lower.includes('caution') ||
-    lower.includes('tight') ||
-    lower.includes('compromise') ||
-    lower.includes('warning') ||
-    lower.includes('risk')
-  ) {
-    return 'tight';
-  }
-  if (
-    lower.includes('can afford') ||
-    lower.includes('comfortably afford') ||
-    lower.includes('yes!') ||
-    lower.includes('safe to buy')
-  ) {
-    return 'safe';
-  }
-  return 'info';
+    const lower = text.toLowerCase();
+    if (lower.includes('cannot afford') || lower.includes('short by') || lower.includes("can't afford") || lower.includes('exceeds your available')) {
+        return 'unaffordable';
+    }
+    if (lower.includes('caution') || lower.includes('tight') || lower.includes('compromise') || lower.includes('warning') || lower.includes('risk')) {
+        return 'tight';
+    }
+    if (lower.includes('can afford') || lower.includes('comfortably afford') || lower.includes('yes!') || lower.includes('safe to buy')) {
+        return 'safe';
+    }
+    return 'info';
 }
 
 export interface QueryGeminiOptions {
-  apiKey?: string;
-  model?: string;
-  timeoutMs?: number;
-  fetchFn?: typeof fetch;
-  fetchPockets?: (db: SQLiteDatabase) => Promise<(AccountPocket & { institution_name?: string })[]>;
-  fetchLoans?: (db: SQLiteDatabase) => Promise<LoanRecord[]>;
-  fetchLoansSummary?: (db: SQLiteDatabase) => Promise<{ totalLoanBalance: number; nextDueLoan: LoanRecord | null; activeCount: number }>;
+    apiKey?: string;
+    model?: string;
+    timeoutMs?: number;
+    fetchFn?: typeof fetch;
+    fetchPockets?: (db: SQLiteDatabase) => Promise<(AccountPocket & { institution_name?: string })[]>;
+    fetchLoans?: (db: SQLiteDatabase) => Promise<LoanRecord[]>;
+    fetchLoansSummary?: (db: SQLiteDatabase) => Promise<{ totalLoanBalance: number; nextDueLoan: LoanRecord | null; activeCount: number }>;
 }
 
 /**
  * Queries Google Gemini API with the user's financial context injected.
  * Throws an error on network/timeout failure so caller can delegate to offline engine.
  */
-export async function queryGeminiAdvisor(
-  db: SQLiteDatabase,
-  prompt: string,
-  options?: QueryGeminiOptions
-): Promise<GeminiAdvisorResult> {
-  const apiKey = options?.apiKey || GEMINI_API_KEY;
-  const model = options?.model || 'gemini-2.5-flash';
-  const timeoutMs = options?.timeoutMs || 8000;
-  const fetchFn = options?.fetchFn || fetch;
+export async function queryGeminiAdvisor(db: SQLiteDatabase, prompt: string, options?: QueryGeminiOptions): Promise<GeminiAdvisorResult> {
+    const apiKey = options?.apiKey || GEMINI_API_KEY;
+    const model = options?.model || 'gemini-3.5-flash-lite';
+    const timeoutMs = options?.timeoutMs || 8000;
+    const fetchFn = options?.fetchFn || fetch;
 
-  const getPockets = options?.fetchPockets || getAllActivePockets;
-  const getLoans = options?.fetchLoans || getActiveLoans;
-  const getLoansSum = options?.fetchLoansSummary || getLoansSummary;
+    const getPockets = options?.fetchPockets || getAllActivePockets;
+    const getLoans = options?.fetchLoans || getActiveLoans;
+    const getLoansSum = options?.fetchLoansSummary || getLoansSummary;
 
-  const [pockets, loans, loansSummary] = await Promise.all([
-    getPockets(db),
-    getLoans(db),
-    getLoansSum(db),
-  ]);
+    const [pockets, loans, loansSummary] = await Promise.all([getPockets(db), getLoans(db), getLoansSum(db)]);
 
-  const systemInstruction = buildFinancialSystemContext(pockets, loans, loansSummary);
+    const systemInstruction = buildFinancialSystemContext(pockets, loans, loansSummary);
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-  try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    const requestBody = {
-      systemInstruction: {
-        parts: [{ text: systemInstruction }],
-      },
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: prompt }],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.4,
-        maxOutputTokens: 600,
-      },
-    };
+        const requestBody = {
+            systemInstruction: {
+                parts: [{ text: systemInstruction }]
+            },
+            contents: [
+                {
+                    role: 'user',
+                    parts: [{ text: prompt }]
+                }
+            ],
+            generationConfig: {
+                temperature: 0.4,
+                maxOutputTokens: 600
+            }
+        };
 
-    const res = await fetchFn(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal,
-    });
+        const res = await fetchFn(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody),
+            signal: controller.signal
+        });
 
-    clearTimeout(timer);
+        clearTimeout(timer);
 
-    if (!res.ok) {
-      throw new Error(`Gemini API error ${res.status}: ${res.statusText}`);
+        if (!res.ok) {
+            throw new Error(`Gemini API error ${res.status}: ${res.statusText}`);
+        }
+
+        const data = await res.json();
+        const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!candidateText || typeof candidateText !== 'string') {
+            throw new Error('Gemini API returned an empty response.');
+        }
+
+        return {
+            text: candidateText.trim(),
+            status: inferStatusFromText(candidateText),
+            source: 'gemini'
+        };
+    } catch (err) {
+        clearTimeout(timer);
+        throw err;
     }
-
-    const data = await res.json();
-    const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!candidateText || typeof candidateText !== 'string') {
-      throw new Error('Gemini API returned an empty response.');
-    }
-
-    return {
-      text: candidateText.trim(),
-      status: inferStatusFromText(candidateText),
-      source: 'gemini',
-    };
-  } catch (err) {
-    clearTimeout(timer);
-    throw err;
-  }
 }
