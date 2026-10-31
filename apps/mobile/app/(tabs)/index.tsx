@@ -26,6 +26,7 @@ import { EditLoanModal } from '@/src/components/loans/EditLoanModal';
 import { LoanPaymentModal } from '@/src/components/loans/LoanPaymentModal';
 import { NotificationCenterModal } from '@/src/components/notifications/NotificationCenterModal';
 import { DatabaseManagementCard } from '@/src/components/dashboard/DatabaseManagementCard';
+import { useSidebar } from '@/src/context/SidebarContext';
 
 import { getDatabase, closeDatabase } from '@/src/database/db';
 import { seedDevData, resetDatabase } from '@/src/database/seed';
@@ -73,6 +74,7 @@ type ModalStackItem =
 
 export default function DashboardScreen() {
     const insets = useSafeAreaInsets();
+    const { openSidebar } = useSidebar();
     const [refreshing, setRefreshing] = useState(false);
 
     // Data state
@@ -483,6 +485,7 @@ export default function DashboardScreen() {
                 {/* Header with greeting, unread notifications badge, and Notifications trigger */}
                 <DashboardHeader
                     userName="Personal Ledger"
+                    onMenuPress={openSidebar}
                     unreadNotificationsCount={unreadNotificationsCount}
                     onNotificationPress={() => setNotificationCenterVisible(true)}
                     onScanPress={() => handleOpenTransactionModal('expense')}
