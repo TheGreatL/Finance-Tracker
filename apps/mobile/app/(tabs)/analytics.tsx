@@ -1,31 +1,44 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
 import {
   TrendingUp,
   TrendingDown,
   PieChart,
-  WalletCards,
   Building2,
   Smartphone,
   Banknote,
-  ShieldAlert,
+  Repeat,
+  CreditCard,
+  Calendar,
+  Layers,
+  ArrowRight,
+  ShieldCheck,
+  AlertCircle,
 } from 'lucide-react-native';
 import { getDatabase } from '../../src/database/db';
 import {
   getAnalyticsSummary,
   type AnalyticsSummary,
 } from '../../src/services/analyticsService';
-import { formatCurrency } from '../../src/utils/formatters';
+import { formatCurrency, formatDisplayDate } from '../../src/utils/formatters';
+import { SubscriptionLogo } from '../../src/components/subscriptions/SubscriptionLogo';
+import { InstitutionLogo } from '../../src/components/accounts/InstitutionLogo';
 
 const CATEGORY_COLORS: Record<string, string> = {
   Food: '#EF4444',
+  'Food & Dining': '#EF4444',
+  Groceries: '#F97316',
   Shopping: '#F59E0B',
   Bills: '#3B82F6',
+  'Bills & Utilities': '#3B82F6',
   Transportation: '#8B5CF6',
   Entertainment: '#EC4899',
   Health: '#10B981',
+  Healthcare: '#10B981',
+  'Housing & Rent': '#6366F1',
+  Subscriptions: '#059669',
   'Loan Payment': '#18342B',
   General: '#6B7280',
 };
@@ -44,6 +57,28 @@ export default function AnalyticsScreen() {
       ewalletPercentage: 0,
       cashTotal: 0,
       cashPercentage: 0,
+    },
+    subscriptionsAnalytics: {
+      monthlyTotal: 0,
+      yearlyProjected: 0,
+      activeCount: 0,
+      pausedCount: 0,
+      subscriptions: [],
+    },
+    loansAnalytics: {
+      totalOutstandingDebt: 0,
+      totalOriginalAmount: 0,
+      totalRepaidSoFar: 0,
+      repaymentPercentage: 0,
+      monthlyPaymentTotal: 0,
+      activeCount: 0,
+      nextDueLoan: null,
+      loans: [],
+    },
+    fixedCommitments: {
+      monthlyTotal: 0,
+      monthlySubscriptions: 0,
+      monthlyLoanPayments: 0,
     },
     totalLoansDebt: 0,
   });
@@ -70,13 +105,20 @@ export default function AnalyticsScreen() {
     setRefreshing(false);
   }, [loadData]);
 
-  const { monthlyFlow, categoryBreakdown, assetDistribution, totalLoansDebt } = data;
+  const {
+    monthlyFlow,
+    categoryBreakdown,
+    assetDistribution,
+    subscriptionsAnalytics,
+    loansAnalytics,
+    fixedCommitments,
+  } = data;
 
   return (
     <View className="flex-1 bg-stone-50" style={{ paddingTop: Math.max(insets.top, 12) }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 36 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -89,7 +131,7 @@ export default function AnalyticsScreen() {
         <View className="px-5 pt-3 pb-4">
           <Text className="text-2xl font-bold text-stone-900">Analytics & Insights</Text>
           <Text className="text-xs text-stone-400 mt-0.5">
-            Spending breakdowns and cash flow overview
+            Cash flow, subscriptions, loans, and spending breakdown
           </Text>
         </View>
 
@@ -135,7 +177,278 @@ export default function AnalyticsScreen() {
           </View>
         </View>
 
-        {/* 2. Category Spending Breakdown */}
+        {/* 2. Fixed Monthly Commitments Banner (Subscriptions + Loans) */}
+        {(fixedCommitments.monthlyTotal > 0 || loansAnalytics.activeCount > 0 || subscriptionsAnalytics.activeCount > 0) && (
+          <View className="mx-5 mb-4 p-5 bg-white rounded-3xl border border-stone-200/90 shadow-xs">
+            <View className="flex-row items-center justify-between mb-3">
+              <View className="flex-row items-center">
+                <View className="w-8 h-8 rounded-xl bg-[#18342B]/10 items-center justify-center mr-2.5">
+                  <Layers size={16} color="#18342B" />
+                </View>
+                <View>
+                  <Text className="text-sm font-bold text-stone-900">Fixed Monthly Commitments</Text>
+                  <Text className="text-[10px] text-stone-400">Recurring bills & mandatory debt</Text>
+                </View>
+              </View>
+              <Text className="text-base font-extrabold text-[#18342B]">
+                {formatCurrency(fixedCommitments.monthlyTotal, '₱')}/mo
+              </Text>
+            </View>
+
+            <View className="flex-row gap-2 pt-2 border-t border-stone-100">
+              <View className="flex-1 bg-stone-50 p-2.5 rounded-xl border border-stone-100">
+                <Text className="text-[10px] text-stone-500">Subscriptions</Text>
+                <Text className="text-xs font-bold text-stone-900 mt-0.5">
+                  {formatCurrency(fixedCommitments.monthlySubscriptions, '₱')}/mo
+                </Text>
+                <Text className="text-[9px] text-stone-400">
+                  {subscriptionsAnalytics.activeCount} active service{subscriptionsAnalytics.activeCount === 1 ? '' : 's'}
+                </Text>
+              </View>
+
+              <View className="flex-1 bg-stone-50 p-2.5 rounded-xl border border-stone-100">
+                <Text className="text-[10px] text-stone-500">Loan Repayments</Text>
+                <Text className="text-xs font-bold text-rose-700 mt-0.5">
+                  {formatCurrency(fixedCommitments.monthlyLoanPayments, '₱')}/mo
+                </Text>
+                <Text className="text-[9px] text-stone-400">
+                  {loansAnalytics.activeCount} active loan{loansAnalytics.activeCount === 1 ? '' : 's'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* 3. Recurring Subscriptions Analytics Card */}
+        <View className="mx-5 mb-4 p-5 bg-white rounded-3xl border border-stone-200/90 shadow-xs">
+          <View className="flex-row items-center justify-between mb-3">
+            <View className="flex-row items-center">
+              <View className="w-8 h-8 rounded-xl bg-emerald-100/80 items-center justify-center mr-2.5">
+                <Repeat size={16} color="#065F46" />
+              </View>
+              <View>
+                <Text className="text-base font-bold text-stone-900">Subscription Spend</Text>
+                <Text className="text-xs text-stone-400">Recurring services & auto-pay</Text>
+              </View>
+            </View>
+            <Pressable
+              onPress={() => router.push({ pathname: '/(tabs)/accounts', params: { tab: 'subscriptions' } })}
+              hitSlop={8}
+              className="flex-row items-center px-2 py-1 bg-stone-100 rounded-lg active:bg-stone-200"
+            >
+              <Text className="text-[10px] font-bold text-stone-700 mr-0.5">Manage</Text>
+              <ArrowRight size={10} color="#57534E" />
+            </Pressable>
+          </View>
+
+          {/* Metric Badges: Monthly & Annual Projection */}
+          <View className="flex-row gap-2 mb-4">
+            <View className="flex-1 bg-emerald-50/70 p-3 rounded-2xl border border-emerald-200/60">
+              <Text className="text-[10px] font-semibold text-emerald-800 uppercase tracking-wider">
+                Monthly Total
+              </Text>
+              <Text className="text-lg font-extrabold text-[#18342B] mt-0.5">
+                {formatCurrency(subscriptionsAnalytics.monthlyTotal, '₱')}
+              </Text>
+              <Text className="text-[10px] text-emerald-700 font-medium mt-0.5">
+                {subscriptionsAnalytics.activeCount} active subscriptions
+              </Text>
+            </View>
+
+            <View className="flex-1 bg-stone-50 p-3 rounded-2xl border border-stone-200/60">
+              <Text className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider">
+                Annual Cost
+              </Text>
+              <Text className="text-lg font-extrabold text-stone-800 mt-0.5">
+                {formatCurrency(subscriptionsAnalytics.yearlyProjected, '₱')}
+              </Text>
+              <Text className="text-[10px] text-stone-400 font-medium mt-0.5">
+                Projected 12-month spend
+              </Text>
+            </View>
+          </View>
+
+          {/* Subscriptions List Breakdown */}
+          {subscriptionsAnalytics.subscriptions.length === 0 ? (
+            <View className="py-5 items-center justify-center bg-stone-50 rounded-2xl border border-stone-100">
+              <Text className="text-xs text-stone-400">No active recurring subscriptions.</Text>
+            </View>
+          ) : (
+            <View className="space-y-2">
+              <Text className="text-xs font-bold text-stone-600 mb-1">
+                Active Services Breakdown
+              </Text>
+              {subscriptionsAnalytics.subscriptions.map((sub) => (
+                <View
+                  key={sub.id}
+                  className="flex-row items-center justify-between p-3 rounded-2xl bg-stone-50 border border-stone-100 mb-1.5"
+                >
+                  <View className="flex-row items-center flex-1 mr-2">
+                    <SubscriptionLogo
+                      code={sub.serviceCode}
+                      serviceName={sub.serviceName}
+                      size={28}
+                    />
+                    <View className="ml-2.5 flex-1">
+                      <Text className="text-xs font-bold text-stone-900" numberOfLines={1}>
+                        {sub.serviceName}
+                      </Text>
+                      <Text className="text-[10px] text-stone-400" numberOfLines={1}>
+                        {sub.category} • Billed {sub.frequency}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View className="items-end">
+                    <Text className="text-xs font-bold text-stone-900">
+                      {formatCurrency(sub.amount, '₱')}
+                    </Text>
+                    {sub.frequency !== 'monthly' && (
+                      <Text className="text-[9px] font-medium text-stone-500">
+                        ({formatCurrency(sub.normalizedMonthly, '₱')}/mo)
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* 4. Loans & Debt Obligations Analytics Card */}
+        <View className="mx-5 mb-4 p-5 bg-white rounded-3xl border border-stone-200/90 shadow-xs">
+          <View className="flex-row items-center justify-between mb-3">
+            <View className="flex-row items-center">
+              <View className="w-8 h-8 rounded-xl bg-rose-100 items-center justify-center mr-2.5">
+                <CreditCard size={16} color="#E11D48" />
+              </View>
+              <View>
+                <Text className="text-base font-bold text-stone-900">Loans & Debt Obligations</Text>
+                <Text className="text-xs text-stone-400">Total liability & payoff progress</Text>
+              </View>
+            </View>
+            <Pressable
+              onPress={() => router.push({ pathname: '/(tabs)/accounts', params: { tab: 'loans' } })}
+              hitSlop={8}
+              className="flex-row items-center px-2 py-1 bg-stone-100 rounded-lg active:bg-stone-200"
+            >
+              <Text className="text-[10px] font-bold text-stone-700 mr-0.5">Manage</Text>
+              <ArrowRight size={10} color="#57534E" />
+            </Pressable>
+          </View>
+
+          {loansAnalytics.activeCount === 0 ? (
+            <View className="py-6 items-center justify-center bg-stone-50 rounded-2xl border border-stone-100">
+              <View className="w-10 h-10 rounded-full bg-emerald-100 items-center justify-center mb-2">
+                <ShieldCheck size={20} color="#059669" />
+              </View>
+              <Text className="text-xs font-bold text-emerald-900">Debt-Free!</Text>
+              <Text className="text-[11px] text-stone-400 mt-0.5">
+                You have no active loans or debts.
+              </Text>
+            </View>
+          ) : (
+            <>
+              {/* Overall Debt Progress */}
+              <View className="bg-rose-50/60 p-4 rounded-2xl border border-rose-200/70 mb-3.5">
+                <View className="flex-row items-center justify-between mb-2">
+                  <View>
+                    <Text className="text-[10px] font-bold text-rose-800 uppercase tracking-wider">
+                      Outstanding Debt
+                    </Text>
+                    <Text className="text-xl font-extrabold text-rose-950 mt-0.5">
+                      {formatCurrency(loansAnalytics.totalOutstandingDebt, '₱')}
+                    </Text>
+                  </View>
+                  <View className="items-end">
+                    <Text className="text-[10px] font-medium text-stone-500">Monthly Due</Text>
+                    <Text className="text-sm font-bold text-stone-900 mt-0.5">
+                      {formatCurrency(loansAnalytics.monthlyPaymentTotal, '₱')}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Overall Repayment Progress Bar */}
+                <View className="mt-2">
+                  <View className="flex-row justify-between mb-1">
+                    <Text className="text-[10px] font-semibold text-stone-600">
+                      Repaid {formatCurrency(loansAnalytics.totalRepaidSoFar, '₱')} of{' '}
+                      {formatCurrency(loansAnalytics.totalOriginalAmount, '₱')}
+                    </Text>
+                    <Text className="text-[10px] font-bold text-rose-700">
+                      {loansAnalytics.repaymentPercentage}% Paid
+                    </Text>
+                  </View>
+                  <View className="h-2 w-full bg-rose-200/60 rounded-full overflow-hidden">
+                    <View
+                      className="h-full bg-emerald-600 rounded-full"
+                      style={{ width: `${loansAnalytics.repaymentPercentage}%` }}
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {/* Next Due Loan Alert */}
+              {loansAnalytics.nextDueLoan && (
+                <View className="p-3 bg-amber-50 rounded-xl border border-amber-200/80 mb-3 flex-row items-center">
+                  <Calendar size={14} color="#D97706" />
+                  <Text className="text-[11px] text-amber-900 font-medium ml-2 flex-1">
+                    Next installment: <Text className="font-bold">{loansAnalytics.nextDueLoan.title}</Text> ({formatCurrency(loansAnalytics.nextDueLoan.monthlyPayment, '₱')}) due on{' '}
+                    <Text className="font-bold">{formatDisplayDate(loansAnalytics.nextDueLoan.dueDate)}</Text>
+                  </Text>
+                </View>
+              )}
+
+              {/* Individual Loans Breakdown */}
+              <View className="space-y-2">
+                <Text className="text-xs font-bold text-stone-600 mb-1">
+                  Active Loans Breakdown
+                </Text>
+                {loansAnalytics.loans.map((loan) => (
+                  <View
+                    key={loan.id}
+                    className="p-3.5 rounded-2xl bg-stone-50 border border-stone-100 mb-1.5"
+                  >
+                    <View className="flex-row items-center justify-between mb-1.5">
+                      <View className="flex-row items-center flex-1 mr-2">
+                        <View className="w-6 h-6 rounded-lg bg-stone-200 items-center justify-center mr-2">
+                          <CreditCard size={12} color="#18342B" />
+                        </View>
+                        <View className="flex-1">
+                          <Text className="text-xs font-bold text-stone-900" numberOfLines={1}>
+                            {loan.title}
+                          </Text>
+                          <Text className="text-[10px] text-stone-400" numberOfLines={1}>
+                            {loan.institutionName} • Monthly: {formatCurrency(loan.monthlyPayment, '₱')}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View className="items-end">
+                        <Text className="text-xs font-extrabold text-stone-900">
+                          {formatCurrency(loan.remainingBalance, '₱')} left
+                        </Text>
+                        <Text className="text-[9px] text-stone-400">
+                          of {formatCurrency(loan.totalAmount, '₱')}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Progress Bar per loan */}
+                    <View className="h-1.5 w-full bg-stone-200/80 rounded-full overflow-hidden mt-1">
+                      <View
+                        className="h-full bg-[#18342B] rounded-full"
+                        style={{ width: `${loan.progressPercentage}%` }}
+                      />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
+        </View>
+
+        {/* 5. Category Spending Breakdown */}
         <View className="mx-5 mb-4 p-5 bg-white rounded-3xl border border-stone-200/80 shadow-xs">
           <View className="flex-row items-center justify-between mb-4">
             <View>
@@ -193,7 +506,7 @@ export default function AnalyticsScreen() {
           )}
         </View>
 
-        {/* 3. Asset Distribution */}
+        {/* 6. Asset Distribution */}
         <View className="mx-5 mb-4 p-5 bg-white rounded-3xl border border-stone-200/80 shadow-xs">
           <Text className="text-base font-bold text-stone-900 mb-1">Asset Allocation</Text>
           <Text className="text-xs text-stone-400 mb-4">Distribution of your liquid funds</Text>
@@ -248,21 +561,6 @@ export default function AnalyticsScreen() {
             </View>
           </View>
         </View>
-
-        {/* 4. Active Loan Obligations Indicator */}
-        {totalLoansDebt > 0 && (
-          <View className="mx-5 p-4 rounded-2xl bg-rose-50 border border-rose-200/80 flex-row items-center space-x-3">
-            <View className="w-8 h-8 rounded-xl bg-rose-100 items-center justify-center mr-2.5">
-              <ShieldAlert size={16} color="#E11D48" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-xs font-bold text-rose-950">Active Debt Burden</Text>
-              <Text className="text-[11px] text-rose-800/80 mt-0.5">
-                You have {formatCurrency(totalLoansDebt, '₱')} in total outstanding loan obligations.
-              </Text>
-            </View>
-          </View>
-        )}
       </ScrollView>
     </View>
   );
