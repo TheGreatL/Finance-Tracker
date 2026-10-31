@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { View, Text, ScrollView, RefreshControl, TextInput, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { Search, Plus, WalletCards, HandCoins, Repeat } from 'lucide-react-native';
+import { Search, Plus, WalletCards, HandCoins, Repeat, Briefcase } from 'lucide-react-native';
 import { getDatabase } from '../../src/database/db';
 import {
     getInstitutionsWithBalances,
@@ -25,6 +25,19 @@ import {
     deleteSubscription,
     type SubscriptionsSummary
 } from '../../src/services/subscriptionService';
+import {
+    getAllJobs,
+    getIncomeSummary,
+    createJob,
+    updateJob,
+    archiveJob,
+    unarchiveJob,
+    deleteJob,
+    recordPaydayManual,
+    processDuePaydays,
+    getNextPayDate,
+    type IncomeSummary
+} from '../../src/services/salaryService';
 import type {
     Institution,
     AccountPocket,
@@ -34,7 +47,12 @@ import type {
     RecordLoanPaymentInput,
     SubscriptionRecord,
     CreateSubscriptionInput,
-    UpdateSubscriptionInput
+    UpdateSubscriptionInput,
+    JobRecord,
+    PaySlipRecord,
+    CreateJobInput,
+    UpdateJobInput,
+    CreateDeductionInput
 } from '../../src/types/database';
 import { formatCurrency, formatDisplayDate } from '../../src/utils/formatters';
 import { InstitutionGrid } from '../../src/components/accounts/InstitutionGrid';
@@ -50,8 +68,14 @@ import { LoanPaymentModal } from '../../src/components/loans/LoanPaymentModal';
 import { SubscriptionCard } from '../../src/components/subscriptions/SubscriptionCard';
 import { AddSubscriptionModal } from '../../src/components/subscriptions/AddSubscriptionModal';
 import { SubscriptionDetailSheet } from '../../src/components/subscriptions/SubscriptionDetailSheet';
+import { JobCard } from '../../src/components/salary/JobCard';
+import { JobDetailSheet } from '../../src/components/salary/JobDetailSheet';
+import { AddJobModal } from '../../src/components/salary/AddJobModal';
+import { EditJobModal } from '../../src/components/salary/EditJobModal';
+import { PaySlipDetailModal } from '../../src/components/salary/PaySlipDetailModal';
+import { IncomeVisualBreakdownChart } from '../../src/components/salary/IncomeVisualBreakdownChart';
 
-type FilterCategory = 'all' | 'bank' | 'ewallet' | 'loans' | 'subscriptions' | 'cash';
+type FilterCategory = 'all' | 'bank' | 'ewallet' | 'income' | 'subscriptions' | 'loans' | 'cash';
 
 type ModalStackItem =
     { type: 'institution'; institutionId: string } | { type: 'loanDetail'; loanId: string } | { type: 'subscriptionDetail'; subscriptionId: string };
@@ -96,6 +120,24 @@ export default function AccountsScreen() {
     const [editingSubscription, setEditingSubscription] = useState<SubscriptionRecord | null>(null);
     const [selectedSubscription, setSelectedSubscription] = useState<SubscriptionRecord | null>(null);
     const [subDetailVisible, setSubDetailVisible] = useState(false);
+
+    // Income & Job State
+    const [jobs, setJobs] = useState<JobRecord[]>([]);
+    const [incomeSummary, setIncomeSummary] = useState<IncomeSummary>({
+        activeJobsCount: 0,
+        archivedJobsCount: 0,
+        monthlyGross: 0,
+        monthlyDeductions: 0,
+        monthlyNetTakeHome: 0,
+        deductionBreakdown: { tax: 0, statutory: 0, workplace: 0, other: 0, total: 0 }
+    });
+    const [incomeTabStatus, setIncomeTabStatus] = useState<'active' | 'archived'>('active');
+    const [addJobVisible, setAddJobVisible] = useState(false);
+    const [editJobVisible, setEditJobVisible] = useState(false);
+    const [jobDetailVisible, setJobDetailVisible] = useState(false);
+    const [selectedJob, setSelectedJob] = useState<JobRecord | null>(null);
+    const [selectedPaySlip, setSelectedPaySlip] = useState<PaySlipRecord | null>(null);
+    const [paySlipModalVisible, setPaySlipModalVisible] = useState(false);
 
     // Mirrors of the open items' ids for use inside async loaders
     const selectedInstitutionIdRef = useRef<string | null>(null);
@@ -164,6 +206,8 @@ export default function AccountsScreen() {
             setSelectedFilter('loans');
         } else if (params.tab === 'subscriptions') {
             setSelectedFilter('subscriptions');
+        } else if (params.tab === 'income') {
+            setSelectedFilter('income');
         }
     }, [params.tab]);
 
@@ -174,12 +218,17 @@ export default function AccountsScreen() {
             // Catch up any due or missed subscription charges automatically
             await processDueSubscriptions(db);
 
-            const [instItems, loanItems, pocketItems, subItems, subSum] = await Promise.all([
+            // Catch up any due or scheduled payday deposits automatically
+            await processDuePaydays(db);
+
+            const [instItems, loanItems, pocketItems, subItems, subSum, jobItems, incSum] = await Promise.all([
                 getInstitutionsWithBalances(db),
                 getAllLoans(db),
                 getAllActivePockets(db),
                 getAllSubscriptions(db),
-                getSubscriptionsSummary(db)
+                getSubscriptionsSummary(db),
+                getAllJobs(db),
+                getIncomeSummary(db)
             ]);
 
             setInstitutions(instItems);
@@ -187,6 +236,8 @@ export default function AccountsScreen() {
             setAllPockets(pocketItems);
             setSubscriptions(subItems);
             setSubsSummary(subSum);
+            setJobs(jobItems);
+            setIncomeSummary(incSum);
 
             // Refresh opened institution sheet. Read open ids from refs (not state) so
             // loadData stays stable and a sheet closed mid-fetch is never re-opened.
@@ -355,6 +406,59 @@ export default function AccountsScreen() {
         await loadData();
     };
 
+    // Job Handlers
+    const handleCreateJob = async (input: CreateJobInput, deductions: CreateDeductionInput[]) => {
+        const db = await getDatabase();
+        await createJob(db, input, deductions);
+        await loadData();
+    };
+
+    const handleUpdateJob = async (id: string, updates: UpdateJobInput, deductions?: CreateDeductionInput[]) => {
+        const db = await getDatabase();
+        await updateJob(db, id, updates, deductions);
+        await loadData();
+    };
+
+    const handleArchiveJob = async (id: string) => {
+        const db = await getDatabase();
+        await archiveJob(db, id);
+        await loadData();
+    };
+
+    const handleUnarchiveJob = async (id: string) => {
+        const db = await getDatabase();
+        await unarchiveJob(db, id);
+        await loadData();
+    };
+
+    const handleDeleteJob = async (id: string) => {
+        const db = await getDatabase();
+        await deleteJob(db, id);
+        await loadData();
+    };
+
+    const handleRecordPayday = async (job: JobRecord) => {
+        const db = await getDatabase();
+        const now = new Date();
+        const payDate = getNextPayDate(job.pay_schedule, job.pay_day_1, job.pay_day_2, now);
+        await recordPaydayManual(db, job.id, payDate, `Manual payday payout for ${job.title}`);
+        await loadData();
+    };
+
+    // Filtering jobs
+    const filteredJobs = useMemo(() => {
+        return jobs
+            .filter((j) => j.status === incomeTabStatus)
+            .filter((j) => {
+                if (!searchQuery.trim()) return true;
+                const q = searchQuery.toLowerCase();
+                const matchesTitle = j.title.toLowerCase().includes(q);
+                const matchesCompany = j.company_name.toLowerCase().includes(q);
+                const matchesNotes = j.notes?.toLowerCase().includes(q) ?? false;
+                return matchesTitle || matchesCompany || matchesNotes;
+            });
+    }, [jobs, incomeTabStatus, searchQuery]);
+
     // Filtering accounts
     const filteredInstitutions = useMemo(() => {
         return institutions.filter((inst) => {
@@ -406,19 +510,24 @@ export default function AccountsScreen() {
 
     const isLoansTab = selectedFilter === 'loans';
     const isSubsTab = selectedFilter === 'subscriptions';
+    const isIncomeTab = selectedFilter === 'income';
 
-    const headerTitle = isLoansTab ? 'Loans & Debt' : isSubsTab ? 'Subscriptions' : 'Accounts';
+    const headerTitle = isIncomeTab ? 'Salary & Income' : isLoansTab ? 'Loans & Debt' : isSubsTab ? 'Subscriptions' : 'Accounts';
 
-    const headerSubtitle = isLoansTab
-        ? 'Lending Apps, Installments & Personal Loans'
-        : isSubsTab
-          ? 'Recurring Bills, Auto-Pay & Due Reminders'
-          : 'Philippine Banks, E-Wallets & Cash';
+    const headerSubtitle = isIncomeTab
+        ? 'Multi-Job Streams, Deductions & Paydays'
+        : isLoansTab
+          ? 'Lending Apps, Installments & Personal Loans'
+          : isSubsTab
+            ? 'Recurring Bills, Auto-Pay & Due Reminders'
+            : 'Philippine Banks, E-Wallets & Cash';
 
-    const headerButtonLabel = isLoansTab ? 'Add Loan' : isSubsTab ? 'Add Sub' : 'Add Account';
+    const headerButtonLabel = isIncomeTab ? 'Add Job' : isLoansTab ? 'Add Loan' : isSubsTab ? 'Add Sub' : 'Add Account';
 
     const handleHeaderAddPress = () => {
-        if (isLoansTab) {
+        if (isIncomeTab) {
+            setAddJobVisible(true);
+        } else if (isLoansTab) {
             setAddLoanVisible(true);
         } else if (isSubsTab) {
             setEditingSubscription(null);
@@ -450,9 +559,35 @@ export default function AccountsScreen() {
                 </Pressable>
             </View>
 
-            {/* Stat Banner: Total Money, Total Loans, or Monthly Subscriptions */}
+            {/* Stat Banner: Total Money, Total Loans, Monthly Subscriptions, or Monthly Income */}
             <View className="px-5 mb-3">
-                {isLoansTab ? (
+                {isIncomeTab ? (
+                    <View className="bg-emerald-50/90 p-4 rounded-2xl border border-emerald-200 shadow-sm">
+                        <View className="flex-row items-center justify-between mb-2">
+                            <View>
+                                <Text className="text-[11px] font-bold uppercase tracking-wider text-[#18342B]">Expected Monthly Take-Home</Text>
+                                <Text className="text-2xl font-black text-emerald-700 tracking-tight mt-0.5">
+                                    {formatCurrency(incomeSummary.monthlyNetTakeHome)}
+                                    <Text className="text-xs font-semibold text-stone-500"> /mo</Text>
+                                </Text>
+                            </View>
+                            <View className="items-end">
+                                <View className="bg-emerald-100 px-2.5 py-1 rounded-full mb-1">
+                                    <Text className="text-xs font-bold text-[#18342B]">{incomeSummary.activeJobsCount} Active Jobs</Text>
+                                </View>
+                                <Text className="text-[10px] text-stone-500 font-medium">{incomeSummary.archivedJobsCount} Archived</Text>
+                            </View>
+                        </View>
+                        <View className="flex-row justify-between pt-2 border-t border-emerald-200/60">
+                            <Text className="text-xs text-stone-600 font-medium">
+                                Gross: <Text className="font-bold text-stone-800">{formatCurrency(incomeSummary.monthlyGross)}/mo</Text>
+                            </Text>
+                            <Text className="text-xs text-rose-600 font-medium">
+                                Deductions: <Text className="font-bold text-rose-700">-{formatCurrency(incomeSummary.monthlyDeductions)}/mo</Text>
+                            </Text>
+                        </View>
+                    </View>
+                ) : isLoansTab ? (
                     <View className="bg-amber-50/90 p-4 rounded-2xl border border-amber-200 shadow-sm flex-row items-center justify-between">
                         <View>
                             <Text className="text-[11px] font-bold uppercase tracking-wider text-amber-800">Total Active Debt</Text>
@@ -517,11 +652,13 @@ export default function AccountsScreen() {
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                         placeholder={
-                            isLoansTab
-                                ? 'Search loans, lenders, notes...'
-                                : isSubsTab
-                                  ? 'Search subscriptions, categories, pockets...'
-                                  : 'Search accounts, notes, banks...'
+                            isIncomeTab
+                                ? 'Search jobs, employers, titles...'
+                                : isLoansTab
+                                  ? 'Search loans, lenders, notes...'
+                                  : isSubsTab
+                                    ? 'Search subscriptions, categories, pockets...'
+                                    : 'Search accounts, notes, banks...'
                         }
                         placeholderTextColor="#A8A29E"
                         className="flex-1 ml-2 text-xs text-stone-900"
@@ -536,6 +673,7 @@ export default function AccountsScreen() {
                         { id: 'all', label: 'All' },
                         { id: 'bank', label: 'Banks' },
                         { id: 'ewallet', label: 'E-Wallets' },
+                        { id: 'income', label: '💼 Income & Jobs' },
                         { id: 'subscriptions', label: '🔄 Subscriptions' },
                         { id: 'loans', label: '💳 Loans & Debt' },
                         { id: 'cash', label: 'Cash' }
@@ -565,7 +703,76 @@ export default function AccountsScreen() {
                 contentContainerStyle={{ paddingBottom: 40 }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#BBD583" colors={['#18342B', '#BBD583']} />}
             >
-                {isLoansTab ? (
+                {isIncomeTab ? (
+                    // Income & Jobs View
+                    <View className="px-5">
+                        {/* Visual Breakdown of Monthly Gross */}
+                        <IncomeVisualBreakdownChart
+                            monthlyGross={incomeSummary.monthlyGross}
+                            monthlyNetTakeHome={incomeSummary.monthlyNetTakeHome}
+                            deductionBreakdown={incomeSummary.deductionBreakdown}
+                        />
+
+                        {/* Active vs Archived Segmented Control */}
+                        <View className="flex-row items-center bg-stone-200/70 p-1 rounded-xl mb-4">
+                            <Pressable
+                                onPress={() => setIncomeTabStatus('active')}
+                                className={`flex-1 py-1.5 rounded-lg items-center ${incomeTabStatus === 'active' ? 'bg-white shadow-xs' : ''}`}
+                            >
+                                <Text className={`text-xs font-bold ${incomeTabStatus === 'active' ? 'text-stone-900' : 'text-stone-500'}`}>
+                                    Active Jobs ({incomeSummary.activeJobsCount})
+                                </Text>
+                            </Pressable>
+                            <Pressable
+                                onPress={() => setIncomeTabStatus('archived')}
+                                className={`flex-1 py-1.5 rounded-lg items-center ${incomeTabStatus === 'archived' ? 'bg-white shadow-xs' : ''}`}
+                            >
+                                <Text className={`text-xs font-bold ${incomeTabStatus === 'archived' ? 'text-stone-900' : 'text-stone-500'}`}>
+                                    Archived ({incomeSummary.archivedJobsCount})
+                                </Text>
+                            </Pressable>
+                        </View>
+
+                        {/* Jobs List */}
+                        {filteredJobs.length === 0 ? (
+                            <View className="p-8 bg-white rounded-2xl border border-dashed border-stone-300 items-center justify-center">
+                                <View className="w-12 h-12 rounded-full bg-emerald-50 items-center justify-center mb-3">
+                                    <Briefcase size={22} color="#18342B" />
+                                </View>
+                                <Text className="text-sm font-semibold text-stone-800">
+                                    {incomeTabStatus === 'active' ? 'No active jobs found' : 'No archived career records'}
+                                </Text>
+                                <Text className="text-xs text-stone-400 text-center mt-1">
+                                    {searchQuery
+                                        ? `No jobs matching "${searchQuery}"`
+                                        : incomeTabStatus === 'active'
+                                          ? 'Track your day job, freelance gigs, or client contracts with itemized deductions'
+                                          : 'Past jobs you archive will appear here with lifetime pay slip records'}
+                                </Text>
+                                {!searchQuery && incomeTabStatus === 'active' && (
+                                    <Pressable
+                                        onPress={() => setAddJobVisible(true)}
+                                        className="mt-4 bg-[#18342B] px-4 py-2 rounded-xl flex-row items-center active:opacity-80"
+                                    >
+                                        <Plus size={14} color="#FFFFFF" />
+                                        <Text className="text-xs font-bold text-white ml-1.5">Add First Job</Text>
+                                    </Pressable>
+                                )}
+                            </View>
+                        ) : (
+                            filteredJobs.map((job) => (
+                                <JobCard
+                                    key={job.id}
+                                    job={job}
+                                    onPress={() => {
+                                        setSelectedJob(job);
+                                        setJobDetailVisible(true);
+                                    }}
+                                />
+                            ))
+                        )}
+                    </View>
+                ) : isLoansTab ? (
                     // Loans View
                     filteredLoans.length === 0 ? (
                         <View className="mx-5 p-8 bg-white rounded-2xl border border-dashed border-stone-300 items-center justify-center">
@@ -884,6 +1091,55 @@ export default function AccountsScreen() {
                     setSubDetailVisible(false);
                     setSelectedSubscription(null);
                     popAndRestoreModal();
+                }}
+            />
+
+            {/* Modals for Salary & Jobs */}
+            <AddJobModal visible={addJobVisible} pockets={allPockets} onClose={() => setAddJobVisible(false)} onSubmit={handleCreateJob} />
+
+            <EditJobModal
+                visible={editJobVisible}
+                job={selectedJob}
+                pockets={allPockets}
+                onClose={() => {
+                    setEditJobVisible(false);
+                    setSelectedJob(null);
+                }}
+                onSubmit={handleUpdateJob}
+                onArchive={handleArchiveJob}
+                onUnarchive={handleUnarchiveJob}
+                onDelete={handleDeleteJob}
+            />
+
+            <JobDetailSheet
+                visible={jobDetailVisible}
+                job={selectedJob}
+                onClose={() => {
+                    setJobDetailVisible(false);
+                    setSelectedJob(null);
+                }}
+                onEdit={(j) => {
+                    setSelectedJob(j);
+                    setJobDetailVisible(false);
+                    setEditJobVisible(true);
+                }}
+                onRecordPayday={async (j) => {
+                    await handleRecordPayday(j);
+                    setJobDetailVisible(false);
+                    setSelectedJob(null);
+                }}
+                onViewPaySlip={(slip) => {
+                    setSelectedPaySlip(slip);
+                    setPaySlipModalVisible(true);
+                }}
+            />
+
+            <PaySlipDetailModal
+                visible={paySlipModalVisible}
+                paySlip={selectedPaySlip}
+                onClose={() => {
+                    setPaySlipModalVisible(false);
+                    setSelectedPaySlip(null);
                 }}
             />
         </View>

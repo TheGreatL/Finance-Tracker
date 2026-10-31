@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ScrollView, RefreshControl, View, Alert } from 'react-native';
+import { ScrollView, RefreshControl, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
@@ -19,6 +19,7 @@ import { TransactionDetailSheet } from '@/src/components/transactions/Transactio
 import { EditTransactionModal } from '@/src/components/transactions/EditTransactionModal';
 import { ActiveLoansBanner } from '@/src/components/loans/ActiveLoansBanner';
 import { SubscriptionsBanner } from '@/src/components/subscriptions/SubscriptionsBanner';
+import { UpcomingPaydayBanner } from '@/src/components/salary/UpcomingPaydayBanner';
 import { AddLoanModal } from '@/src/components/loans/AddLoanModal';
 import { LoanDetailSheet } from '@/src/components/loans/LoanDetailSheet';
 import { EditLoanModal } from '@/src/components/loans/EditLoanModal';
@@ -46,6 +47,7 @@ import {
 } from '@/src/services/transactionService';
 import { getLoansSummary, getLoansByInstitution, createLoan, recordLoanPayment, deleteLoan, updateLoanMetadata } from '@/src/services/loanService';
 import { processDueSubscriptions, getSubscriptionsSummary, type SubscriptionsSummary } from '@/src/services/subscriptionService';
+import { processDuePaydays, getIncomeSummary, type IncomeSummary } from '@/src/services/salaryService';
 import {
     getAppNotifications,
     getUnreadNotificationCount,
@@ -98,6 +100,14 @@ export default function DashboardScreen() {
         pausedCount: 0,
         cancelledCount: 0,
         nextUpcoming: null
+    });
+    const [incomeSummary, setIncomeSummary] = useState<IncomeSummary>({
+        activeJobsCount: 0,
+        archivedJobsCount: 0,
+        monthlyGross: 0,
+        monthlyDeductions: 0,
+        monthlyNetTakeHome: 0,
+        deductionBreakdown: { tax: 0, statutory: 0, workplace: 0, other: 0, total: 0 }
     });
 
     // Notifications state
@@ -193,17 +203,21 @@ export default function DashboardScreen() {
             // Catch up any due or missed subscription charges automatically
             await processDueSubscriptions(db);
 
+            // Catch up any due or scheduled payday deposits automatically
+            await processDuePaydays(db);
+
             // Sync upcoming scheduled bills & loans into app notification records
             await syncAppNotificationsFromSchedule(db);
 
-            const [insts, pocks, txs, loansSum, subsSum, notifs, unread] = await Promise.all([
+            const [insts, pocks, txs, loansSum, subsSum, notifs, unread, incSum] = await Promise.all([
                 getInstitutionsWithBalances(db),
                 getAllActivePockets(db),
                 getRecentTransactions(db, 20),
                 getLoansSummary(db),
                 getSubscriptionsSummary(db),
                 getAppNotifications(db, 50),
-                getUnreadNotificationCount(db)
+                getUnreadNotificationCount(db),
+                getIncomeSummary(db)
             ]);
             setInstitutions(insts);
             setAllPockets(pocks);
@@ -212,6 +226,7 @@ export default function DashboardScreen() {
             setSubsSummary(subsSum);
             setNotifications(notifs);
             setUnreadNotificationsCount(unread);
+            setIncomeSummary(incSum);
 
             // If an institution sheet is open, refresh its institution data, pockets & loans.
             const openId = selectedInstitutionIdRef.current;
@@ -489,6 +504,12 @@ export default function DashboardScreen() {
                     activeCount={subsSummary.activeCount}
                     nextUpcoming={subsSummary.nextUpcoming}
                     onPress={() => router.push({ pathname: '/(tabs)/accounts', params: { tab: 'subscriptions' } })}
+                />
+
+                {/* Upcoming Salary & Payday Banner */}
+                <UpcomingPaydayBanner
+                    nextPayday={incomeSummary.nextPayday}
+                    onPress={() => router.push({ pathname: '/(tabs)/accounts', params: { tab: 'income' } })}
                 />
 
                 {/* Philippine Institution Accounts 2-Column Grid */}

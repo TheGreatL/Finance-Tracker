@@ -15,13 +15,14 @@ import {
     Layers,
     ArrowRight,
     ShieldCheck,
-    AlertCircle
+    Briefcase
 } from 'lucide-react-native';
 import { getDatabase } from '../../src/database/db';
 import { getAnalyticsSummary, type AnalyticsSummary } from '../../src/services/analyticsService';
+import { getIncomeSummary, type IncomeSummary } from '../../src/services/salaryService';
 import { formatCurrency, formatDisplayDate } from '../../src/utils/formatters';
 import { SubscriptionLogo } from '../../src/components/subscriptions/SubscriptionLogo';
-import { InstitutionLogo } from '../../src/components/accounts/InstitutionLogo';
+import { IncomeVisualBreakdownChart } from '../../src/components/salary/IncomeVisualBreakdownChart';
 
 const CATEGORY_COLORS: Record<string, string> = {
     Food: '#EF4444',
@@ -79,12 +80,21 @@ export default function AnalyticsScreen() {
         },
         totalLoansDebt: 0
     });
+    const [incomeSummary, setIncomeSummary] = useState<IncomeSummary>({
+        activeJobsCount: 0,
+        archivedJobsCount: 0,
+        monthlyGross: 0,
+        monthlyDeductions: 0,
+        monthlyNetTakeHome: 0,
+        deductionBreakdown: { tax: 0, statutory: 0, workplace: 0, other: 0, total: 0 }
+    });
 
     const loadData = useCallback(async () => {
         try {
             const db = await getDatabase();
-            const summary = await getAnalyticsSummary(db);
+            const [summary, incSum] = await Promise.all([getAnalyticsSummary(db), getIncomeSummary(db)]);
             setData(summary);
+            setIncomeSummary(incSum);
         } catch (err) {
             console.error('Failed to load analytics:', err);
         }
@@ -166,6 +176,77 @@ export default function AnalyticsScreen() {
                         </View>
                     </View>
                 </View>
+
+                {/* 1.5. Career Salary & Itemized Payroll Deductions (True Outflow Accuracy) */}
+                {incomeSummary.activeJobsCount > 0 && (
+                    <View className="mx-4 sm:mx-5 mb-4 p-4 sm:p-5 bg-white rounded-3xl border border-stone-200/90 shadow-xs">
+                        <View className="flex-row items-center justify-between mb-3 gap-2">
+                            <View className="flex-row items-center flex-1 min-w-0 mr-1.5">
+                                <View className="w-8 h-8 rounded-xl bg-emerald-100/80 items-center justify-center mr-2.5 flex-shrink-0">
+                                    <Briefcase size={16} color="#065F46" />
+                                </View>
+                                <View className="flex-1 min-w-0">
+                                    <Text className="text-base font-bold text-stone-900" numberOfLines={1} ellipsizeMode="tail">
+                                        Gross Income & Deductions
+                                    </Text>
+                                    <Text className="text-xs text-stone-400" numberOfLines={1} ellipsizeMode="tail">
+                                        True cost-of-living & tax withholding
+                                    </Text>
+                                </View>
+                            </View>
+                            <Pressable
+                                onPress={() => router.push({ pathname: '/(tabs)/accounts', params: { tab: 'income' } })}
+                                hitSlop={8}
+                                className="flex-row items-center px-2 py-1 bg-stone-100 rounded-lg active:bg-stone-200 flex-shrink-0"
+                            >
+                                <Text className="text-[10px] font-bold text-stone-700 mr-0.5">Manage</Text>
+                                <ArrowRight size={10} color="#57534E" />
+                            </Pressable>
+                        </View>
+
+                        {/* Distribution Progress Bar */}
+                        <IncomeVisualBreakdownChart
+                            monthlyGross={incomeSummary.monthlyGross}
+                            monthlyNetTakeHome={incomeSummary.monthlyNetTakeHome}
+                            deductionBreakdown={incomeSummary.deductionBreakdown}
+                        />
+
+                        {/* Deductions Outflow Summary Box */}
+                        <View className="mt-1 rounded-2xl bg-stone-50 p-3.5 border border-stone-100">
+                            <View className="flex-row justify-between items-center mb-2">
+                                <Text className="text-xs font-bold text-stone-700">Combined Gross Earnings</Text>
+                                <Text className="text-xs font-black text-stone-900">{formatCurrency(incomeSummary.monthlyGross, '₱')}/mo</Text>
+                            </View>
+                            <View className="flex-row justify-between items-center mb-1">
+                                <Text className="text-xs text-rose-600 font-medium">Income Taxes (BIR)</Text>
+                                <Text className="text-xs font-bold text-rose-600">
+                                    -{formatCurrency(incomeSummary.deductionBreakdown.tax, '₱')}/mo
+                                </Text>
+                            </View>
+                            <View className="flex-row justify-between items-center mb-1">
+                                <Text className="text-xs text-amber-700 font-medium">Statutory (SSS/PhilHealth/HDMF)</Text>
+                                <Text className="text-xs font-bold text-amber-700">
+                                    -{formatCurrency(incomeSummary.deductionBreakdown.statutory, '₱')}/mo
+                                </Text>
+                            </View>
+                            {(incomeSummary.deductionBreakdown.workplace > 0 || incomeSummary.deductionBreakdown.other > 0) && (
+                                <View className="flex-row justify-between items-center mb-1">
+                                    <Text className="text-xs text-indigo-700 font-medium">Workplace & Other</Text>
+                                    <Text className="text-xs font-bold text-indigo-700">
+                                        -{formatCurrency(incomeSummary.deductionBreakdown.workplace + incomeSummary.deductionBreakdown.other, '₱')}/mo
+                                    </Text>
+                                </View>
+                            )}
+                            <View className="h-px bg-stone-200 my-1.5" />
+                            <View className="flex-row justify-between items-center pt-0.5">
+                                <Text className="text-xs font-bold text-emerald-800">Actual Monthly Take-Home Deposited</Text>
+                                <Text className="text-sm font-black text-emerald-700">
+                                    {formatCurrency(incomeSummary.monthlyNetTakeHome, '₱')}/mo
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                )}
 
                 {/* 2. Fixed Monthly Commitments Banner (Subscriptions + Loans) */}
                 {(fixedCommitments.monthlyTotal > 0 || loansAnalytics.activeCount > 0 || subscriptionsAnalytics.activeCount > 0) && (
