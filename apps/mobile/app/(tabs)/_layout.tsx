@@ -2,7 +2,7 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { View, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LayoutDashboard, WalletCards, ReceiptText, Bot, PieChart } from 'lucide-react-native';
+import { LayoutDashboard, WalletCards, ReceiptText, Bot, CalendarClock, PieChart } from 'lucide-react-native';
 import { useColorScheme } from '@/components/useColorScheme';
 import { SidebarProvider } from '@/src/context/SidebarContext';
 import { SidebarDrawer } from '@/src/components/navigation/SidebarDrawer';
@@ -114,15 +114,22 @@ export default function TabLayout() {
                         }}
                     />
                     <Tabs.Screen
-                        name="analytics"
+                        name="obligations"
                         options={{
-                            title: 'Analytics',
+                            title: 'Obligations',
                             tabBarIcon: ({ color, focused }) => (
                                 <View className="items-center">
                                     {focused && <View className="w-5 h-0.5 rounded-full bg-primary mb-1 -mt-1" />}
-                                    <PieChart size={21} color={color} strokeWidth={focused ? 2.5 : 2} />
+                                    <CalendarClock size={21} color={color} strokeWidth={focused ? 2.5 : 2} />
                                 </View>
                             )
+                        }}
+                    />
+                    <Tabs.Screen
+                        name="analytics"
+                        options={{
+                            href: null,
+                            title: 'Analytics'
                         }}
                     />
                 </Tabs>

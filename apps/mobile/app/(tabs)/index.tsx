@@ -25,6 +25,7 @@ import { LoanPaymentModal } from '@/src/components/loans/LoanPaymentModal';
 import { NotificationCenterModal } from '@/src/components/notifications/NotificationCenterModal';
 import { DatabaseManagementCard } from '@/src/components/dashboard/DatabaseManagementCard';
 import { useSidebar } from '@/src/context/SidebarContext';
+import { useToast } from '@/src/context/ToastContext';
 
 import { getDatabase, closeDatabase } from '@/src/database/db';
 import { seedDevData, resetDatabase } from '@/src/database/seed';
@@ -73,6 +74,7 @@ type ModalStackItem =
 export default function DashboardScreen() {
     const insets = useSafeAreaInsets();
     const { openSidebar } = useSidebar();
+    const { showToast } = useToast();
     const [refreshing, setRefreshing] = useState(false);
 
     // Data state
@@ -376,6 +378,7 @@ export default function DashboardScreen() {
         const db = await getDatabase();
         await createInstitutionWithPocket(db, data);
         await loadData();
+        showToast(`Account created for ${data.customName || data.pocketName || data.code}`);
     };
 
     // Add Pocket handler
@@ -394,6 +397,7 @@ export default function DashboardScreen() {
             setSelectedInstPockets(updated);
         }
         await loadData();
+        showToast(`Pocket "${data.name}" added`);
     };
 
     // Create Transaction handler
@@ -401,13 +405,42 @@ export default function DashboardScreen() {
         const db = await getDatabase();
         await createTransaction(db, input);
         await loadData();
+        showToast(`${input.title} recorded`);
     };
 
     // Delete Transaction handler
     const handleDeleteTransaction = async (id: string) => {
+        const deletedTx = recentTransactions.find((t) => t.id === id) || (detailTx && detailTx.id === id ? detailTx : null);
         const db = await getDatabase();
         await deleteTransaction(db, id);
         await loadData();
+
+        if (deletedTx) {
+            showToast({
+                message: 'Transaction deleted',
+                type: 'info',
+                action: {
+                    label: 'Undo',
+                    onPress: async () => {
+                        const dbRestore = await getDatabase();
+                        await createTransaction(dbRestore, {
+                            title: deletedTx.title,
+                            amount: deletedTx.amount,
+                            type: deletedTx.type,
+                            category: deletedTx.category,
+                            pocket_id: deletedTx.pocket_id,
+                            to_pocket_id: deletedTx.to_pocket_id,
+                            date: deletedTx.date,
+                            notes: deletedTx.notes
+                        });
+                        await loadData();
+                        showToast('Transaction restored');
+                    }
+                }
+            });
+        } else {
+            showToast('Transaction deleted');
+        }
     };
 
     const handleUpdateTransaction = async (id: string, updates: { title: string; category: string; date: string; notes?: string }) => {
@@ -417,6 +450,7 @@ export default function DashboardScreen() {
         if (detailTx && detailTx.id === id) {
             setDetailTx((prev) => (prev ? { ...prev, ...updates } : null));
         }
+        showToast('Transaction updated');
     };
 
     const handleUpdatePocket = async (
@@ -469,7 +503,7 @@ export default function DashboardScreen() {
         amount: t.amount,
         type: t.type,
         date: t.date,
-        accountName: t.institution_name ? `${t.institution_name} • ${t.pocket_name || 'Wallet'}` : t.pocket_name || 'Wallet'
+        accountName: t.institution_name ? `${t.institution_name} â€¢ ${t.pocket_name || 'Wallet'}` : t.pocket_name || 'Wallet'
     }));
 
     return (
@@ -490,16 +524,16 @@ export default function DashboardScreen() {
                 />
 
                 {/* Hero Card with Pistachio & Deep Pine */}
-                <BalanceHeroCard totalBalance={totalBalance} totalIncome={totalIncome} totalExpense={totalExpense} currency="₱" />
+                <BalanceHeroCard totalBalance={totalBalance} totalIncome={totalIncome} totalExpense={totalExpense} currency="â‚±" />
 
                 {/* Unified Financial Pulse Strip (Payday, Debt Due, Recurring Bills) */}
                 <FinancialPulseStrip
                     incomeSummary={incomeSummary}
                     loansSummary={loansSummary}
                     subsSummary={subsSummary}
-                    onPaydayPress={() => router.push({ pathname: '/(tabs)/accounts', params: { tab: 'income' } })}
-                    onLoansPress={() => router.push({ pathname: '/(tabs)/accounts', params: { tab: 'loans' } })}
-                    onSubsPress={() => router.push({ pathname: '/(tabs)/accounts', params: { tab: 'subscriptions' } })}
+                    onPaydayPress={() => router.push({ pathname: '/(tabs)/obligations', params: { tab: 'income' } })}
+                    onLoansPress={() => router.push({ pathname: '/(tabs)/obligations', params: { tab: 'loans' } })}
+                    onSubsPress={() => router.push({ pathname: '/(tabs)/obligations', params: { tab: 'subscriptions' } })}
                 />
 
                 {/* Philippine Institution Accounts 2-Column Grid */}
@@ -520,7 +554,7 @@ export default function DashboardScreen() {
                 />
 
                 {/* Recent Transactions List */}
-                <RecentTransactionsList transactions={formattedRecentTransactions} currency="₱" onSeeAllPress={() => router.push('/(tabs)/two')} />
+                <RecentTransactionsList transactions={formattedRecentTransactions} currency="â‚±" onSeeAllPress={() => router.push('/(tabs)/two')} />
 
                 {/* Dedicated Section: Reset, Export, and Import Database */}
                 <DatabaseManagementCard onDataChanged={loadData} />

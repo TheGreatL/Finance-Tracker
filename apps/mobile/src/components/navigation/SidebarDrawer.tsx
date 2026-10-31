@@ -6,6 +6,7 @@ import {
     LayoutDashboard,
     WalletCards,
     Briefcase,
+    CalendarClock,
     Bot,
     ReceiptText,
     PieChart,
@@ -248,12 +249,11 @@ export function SidebarDrawer({ onNotificationPress, onDataChanged }: SidebarDra
                             onPress={() => navigateTo('/accounts')}
                         />
                         <SidebarItem
-                            icon={Briefcase}
-                            label="Income & Salaries"
-                            subtitle="Multi-job earnings & deductions"
-                            badge="Gold"
-                            badgeColor="bg-amber-100 text-amber-800"
-                            onPress={() => navigateTo('/accounts', { tab: 'income' })}
+                            icon={CalendarClock}
+                            label="Obligations & Income"
+                            subtitle="Loans, subscriptions & paydays"
+                            isActive={pathname === '/obligations'}
+                            onPress={() => navigateTo('/obligations')}
                         />
                         <SidebarItem
                             icon={Bot}

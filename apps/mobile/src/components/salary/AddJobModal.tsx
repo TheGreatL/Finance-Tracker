@@ -162,6 +162,14 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
 
     const handleSave = async () => {
         setError('');
+        const errors: {
+            title?: string;
+            companyName?: string;
+            grossSalary?: string;
+            payDay1?: string;
+            payDay2?: string;
+            targetPocketId?: string;
+        } = {};
         const cleanTitle = title.trim();
         const cleanCompany = companyName.trim();
         const grossSalary = parseMoneyInput(grossSalaryStr);
@@ -169,32 +177,31 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
         const d2 = paySchedule === 'semi_monthly' ? parseInt(payDay2Str, 10) : null;
 
         if (!cleanTitle) {
-            setError('Please enter a job title');
-            return;
+            errors.title = 'Please enter a job title.';
         }
         if (!cleanCompany) {
-            setError('Please enter employer or company name');
-            return;
+            errors.companyName = 'Please enter employer or company name.';
         }
         if (grossSalary <= 0) {
-            setError('Please enter agreed gross salary per paycheck');
-            return;
+            errors.grossSalary = 'Please enter agreed gross salary.';
         }
         if (isNaN(d1) || d1 < 1 || d1 > 31) {
-            setError('Pay date must be between 1 and 31');
-            return;
+            errors.payDay1 = 'Pay date must be between 1 and 31.';
         }
         if (paySchedule === 'semi_monthly' && (d2 === null || isNaN(d2) || d2 < 1 || d2 > 31)) {
-            setError('Second pay date must be between 1 and 31');
-            return;
+            errors.payDay2 = 'Second pay date must be between 1 and 31.';
         }
         if (!targetPocketId) {
-            setError('Please select a target pocket for salary deposits');
-            return;
+            errors.targetPocketId = 'Please select a target pocket for salary deposits.';
         }
 
         if (calculation.totalDeductions > grossSalary) {
             setError('Total deductions cannot exceed gross earnings');
+            return;
+        }
+
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(errors);
             return;
         }
 

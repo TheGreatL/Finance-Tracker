@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Search, Plus, Filter, Menu, X } from 'lucide-react-native';
 
 import { useSidebar } from '@/src/context/SidebarContext';
+import { useToast } from '@/src/context/ToastContext';
 import { getDatabase, closeDatabase } from '@/src/database/db';
 import { seedDevData, resetDatabase } from '@/src/database/seed';
 import {
@@ -23,6 +24,7 @@ import { EditTransactionModal } from '@/src/components/transactions/EditTransact
 export default function LedgerScreen() {
     const insets = useSafeAreaInsets();
     const { openSidebar } = useSidebar();
+    const { showToast } = useToast();
     const [refreshing, setRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedType, setSelectedType] = useState<'all' | TransactionType>('all');
@@ -78,12 +80,41 @@ export default function LedgerScreen() {
         const db = await getDatabase();
         await createTransaction(db, input);
         await loadLedger();
+        showToast(`${input.title} recorded`);
     };
 
     const handleDeleteTransaction = async (id: string) => {
+        const deletedTx = transactions.find((t) => t.id === id) || (selectedTx && selectedTx.id === id ? selectedTx : null);
         const db = await getDatabase();
         await deleteTransaction(db, id);
         await loadLedger();
+
+        if (deletedTx) {
+            showToast({
+                message: 'Transaction deleted',
+                type: 'info',
+                action: {
+                    label: 'Undo',
+                    onPress: async () => {
+                        const dbRestore = await getDatabase();
+                        await createTransaction(dbRestore, {
+                            title: deletedTx.title,
+                            amount: deletedTx.amount,
+                            type: deletedTx.type,
+                            category: deletedTx.category,
+                            pocket_id: deletedTx.pocket_id,
+                            to_pocket_id: deletedTx.to_pocket_id,
+                            date: deletedTx.date,
+                            notes: deletedTx.notes
+                        });
+                        await loadLedger();
+                        showToast('Transaction restored');
+                    }
+                }
+            });
+        } else {
+            showToast('Transaction deleted');
+        }
     };
 
     const handleUpdateTransaction = async (id: string, updates: { title: string; category: string; date: string; notes?: string }) => {
@@ -93,6 +124,7 @@ export default function LedgerScreen() {
         if (selectedTx && selectedTx.id === id) {
             setSelectedTx((prev) => (prev ? { ...prev, ...updates } : null));
         }
+        showToast('Transaction updated');
     };
 
     // Filter transactions
