@@ -81,6 +81,15 @@ export function AddLoanModal({
 
   const handlePickImage = async () => {
     try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (perm.status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please allow photo library access in Settings to attach receipt or contract images.'
+        );
+        return;
+      }
+
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: false,

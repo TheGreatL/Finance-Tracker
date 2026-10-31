@@ -38,3 +38,10 @@ vi.mock('expo-notifications', () => ({
   AndroidNotificationPriority: { HIGH: 'high' },
   SchedulableTriggerInputTypes: { DATE: 'date' },
 }));
+
+vi.mock('expo-image-picker', () => ({
+  getMediaLibraryPermissionsAsync: vi.fn(async () => ({ status: 'undetermined' })),
+  requestMediaLibraryPermissionsAsync: vi.fn(async () => ({ status: 'granted' })),
+  getCameraPermissionsAsync: vi.fn(async () => ({ status: 'undetermined' })),
+  requestCameraPermissionsAsync: vi.fn(async () => ({ status: 'granted' })),
+}));

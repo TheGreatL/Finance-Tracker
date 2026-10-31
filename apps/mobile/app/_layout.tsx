@@ -7,6 +7,7 @@ import 'react-native-reanimated';
 import { PanelUIProvider } from 'panelui-native';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import { requestInitialAppPermissions } from '../src/services/permissionService';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -59,6 +60,12 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    requestInitialAppPermissions().catch((err) => {
+      console.warn('Initial permission request failed:', err);
+    });
+  }, []);
 
   return (
     <PanelUIProvider>
