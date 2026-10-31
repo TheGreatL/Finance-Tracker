@@ -72,9 +72,7 @@ export function DashboardHeader({
                     <Bell size={18} color={iconColor} />
                     {unreadNotificationsCount > 0 && (
                         <View className="absolute -top-1 -right-1 bg-red-600 rounded-full min-w-[18px] h-[18px] px-1 items-center justify-center border-2 border-white shadow-xs">
-                            <Text className="text-[10px] font-extrabold text-white">
-                                {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
-                            </Text>
+                            <Text className="text-[10px] font-bold text-white">{unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}</Text>
                         </View>
                     )}
                 </Pressable>

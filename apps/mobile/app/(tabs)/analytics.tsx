@@ -136,10 +136,15 @@ export default function AnalyticsScreen() {
                         <Menu size={20} color="#18342B" strokeWidth={2.2} />
                     </Pressable>
                     <View className="flex-1">
-                        <Text className="text-2xl font-bold text-stone-900" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                        <Text
+                            className="text-2xl font-bold text-stone-900 tracking-tight"
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.85}
+                        >
                             Analytics & Insights
                         </Text>
-                        <Text className="text-xs text-stone-400 mt-0.5" numberOfLines={2}>
+                        <Text className="text-xs text-stone-500 font-medium mt-0.5" numberOfLines={2}>
                             Cash flow, subscriptions, loans, and spending breakdown
                         </Text>
                     </View>
@@ -229,7 +234,7 @@ export default function AnalyticsScreen() {
                         <View className="mt-1 rounded-2xl bg-stone-50 p-3.5 border border-stone-100">
                             <View className="flex-row justify-between items-center mb-2">
                                 <Text className="text-xs font-bold text-stone-700">Combined Gross Earnings</Text>
-                                <Text className="text-xs font-black text-stone-900">{formatCurrency(incomeSummary.monthlyGross, '₱')}/mo</Text>
+                                <Text className="text-xs font-bold text-stone-900">{formatCurrency(incomeSummary.monthlyGross, '₱')}/mo</Text>
                             </View>
                             <View className="flex-row justify-between items-center mb-1">
                                 <Text className="text-xs text-rose-600 font-medium">Income Taxes (BIR)</Text>
@@ -254,9 +259,7 @@ export default function AnalyticsScreen() {
                             <View className="h-px bg-stone-200 my-1.5" />
                             <View className="flex-row justify-between items-center pt-0.5">
                                 <Text className="text-xs font-bold text-emerald-800">Actual Monthly Take-Home Deposited</Text>
-                                <Text className="text-sm font-black text-emerald-700">
-                                    {formatCurrency(incomeSummary.monthlyNetTakeHome, '₱')}/mo
-                                </Text>
+                                <Text className="text-sm font-bold text-emerald-700">{formatCurrency(incomeSummary.monthlyNetTakeHome, '₱')}/mo</Text>
                             </View>
                         </View>
                     </View>
@@ -281,7 +284,7 @@ export default function AnalyticsScreen() {
                             </View>
                             <View className="flex-shrink-0 items-end">
                                 <Text
-                                    className="text-sm sm:text-base font-extrabold text-[#18342B]"
+                                    className="text-sm sm:text-base font-bold text-[#18342B]"
                                     numberOfLines={1}
                                     adjustsFontSizeToFit
                                     minimumFontScale={0.8}
@@ -363,7 +366,7 @@ export default function AnalyticsScreen() {
                                 Monthly Total
                             </Text>
                             <Text
-                                className="text-base sm:text-lg font-extrabold text-[#18342B] mt-0.5"
+                                className="text-base sm:text-lg font-bold text-[#18342B] mt-0.5"
                                 numberOfLines={1}
                                 adjustsFontSizeToFit
                                 minimumFontScale={0.75}
@@ -380,7 +383,7 @@ export default function AnalyticsScreen() {
                                 Annual Cost
                             </Text>
                             <Text
-                                className="text-base sm:text-lg font-extrabold text-stone-800 mt-0.5"
+                                className="text-base sm:text-lg font-bold text-stone-800 mt-0.5"
                                 numberOfLines={1}
                                 adjustsFontSizeToFit
                                 minimumFontScale={0.75}
@@ -478,7 +481,7 @@ export default function AnalyticsScreen() {
                                             Outstanding Debt
                                         </Text>
                                         <Text
-                                            className="text-lg sm:text-xl font-extrabold text-rose-950 mt-0.5"
+                                            className="text-lg sm:text-xl font-bold text-rose-950 mt-0.5"
                                             numberOfLines={1}
                                             adjustsFontSizeToFit
                                             minimumFontScale={0.8}
@@ -554,7 +557,7 @@ export default function AnalyticsScreen() {
                                             </View>
 
                                             <View className="items-end flex-shrink-0 ml-1">
-                                                <Text className="text-xs font-extrabold text-stone-900" numberOfLines={1}>
+                                                <Text className="text-xs font-bold text-stone-900" numberOfLines={1}>
                                                     {formatCurrency(loan.remainingBalance, '₱')} left
                                                 </Text>
                                                 <Text className="text-[9px] text-stone-400" numberOfLines={1}>

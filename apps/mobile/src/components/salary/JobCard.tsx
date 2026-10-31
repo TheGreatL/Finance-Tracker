@@ -103,7 +103,7 @@ export function JobCard({ job, onPress }: JobCardProps) {
                 <View className="flex-row justify-between items-end mb-1.5">
                     <View>
                         <Text className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Net Take-Home Pay</Text>
-                        <Text className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                        <Text className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                             {formatCurrency(job.net_take_home ?? job.gross_salary)}
                             <Text className="text-xs font-medium text-slate-500 dark:text-slate-400"> / {scheduleLabel.toLowerCase()}</Text>
                         </Text>
@@ -131,9 +131,9 @@ export function JobCard({ job, onPress }: JobCardProps) {
                         <Calendar size={13} className="text-amber-500" />
                         <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                             {nextPayInfo.daysRemaining === 0
-                                ? 'Payday Today! 🎉'
+                                ? 'Payday Today'
                                 : nextPayInfo.daysRemaining === 1
-                                  ? 'Payday Tomorrow!'
+                                  ? 'Payday Tomorrow'
                                   : `Payday in ${nextPayInfo.daysRemaining} days`}
                             <Text className="text-[11px] font-normal text-slate-400"> • {formatDisplayDate(nextPayInfo.date)}</Text>
                         </Text>

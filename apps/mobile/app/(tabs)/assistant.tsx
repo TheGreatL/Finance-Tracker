@@ -36,7 +36,7 @@ import { formatTime12 } from '../../src/utils/formatters';
 const DEFAULT_WELCOME_MESSAGE: ChatMessage = {
     id: 'welcome',
     sender: 'bot',
-    text: `👋 **Welcome! I'm your personal financial assistant.**\n\nUse the toggle at the top to switch between **✨ Gemini AI** (smart online reasoning) and **⚡ Offline Mode** (instant local SQLite engine).\n\nAsk me scenario questions like:\n• **"Can I afford ₱15,000?"**\n• **"How much will I have if I buy a phone for 25k?"**\n• **"How much do I owe right now?"**\n• **"How much in Maya?"**`,
+    text: `**Welcome. I am your personal financial assistant.**\n\nUse the toggle at the top to switch between **Gemini AI** (smart online reasoning) and **Offline Mode** (instant local SQLite engine).\n\nAsk me scenario questions like:\n• **"Can I afford ₱15,000?"**\n• **"How much will I have if I buy a phone for 25k?"**\n• **"How much do I owe right now?"**\n• **"How much in Maya?"**`,
     status: 'info',
     source: 'gemini',
     timestamp: formatTime12(new Date()),
@@ -197,7 +197,7 @@ export default function AssistantScreen() {
                     botMessage = {
                         id: `bot-${Date.now()}`,
                         sender: 'bot',
-                        text: `${offlineRes.text}\n\n*(⚡ Offline fallback: Gemini AI was unreachable${reasonText})*`,
+                        text: `${offlineRes.text}\n\n*(Offline fallback: Gemini AI was unreachable${reasonText})*`,
                         status: offlineRes.status,
                         source: 'offline',
                         timestamp: botTimestamp,
@@ -226,7 +226,7 @@ export default function AssistantScreen() {
             const errorMessage: ChatMessage = {
                 id: `error-${Date.now()}`,
                 sender: 'bot',
-                text: `⚠️ An error occurred while computing your query: ${err?.message || 'Database unavailable'}. Please try again.`,
+                text: `An error occurred while computing your query: ${err?.message || 'Database unavailable'}. Please try again.`,
                 status: 'tight',
                 source: 'offline',
                 timestamp: formatTime12(new Date()),
@@ -252,7 +252,7 @@ export default function AssistantScreen() {
                             {
                                 id: `welcome-${Date.now()}`,
                                 sender: 'bot',
-                                text: `✨ Conversation history cleared. Ask me a question or tap a prompt chip below!`,
+                                text: `Conversation history cleared. Ask me a question or tap a prompt chip below!`,
                                 status: 'info',
                                 source: chatMode,
                                 timestamp: formatTime12(new Date()),

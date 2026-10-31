@@ -211,7 +211,7 @@ export function TransactionFormModal({
                         <View className="mb-5 items-center">
                             <Text className="text-xs text-stone-400 mb-1">Amount</Text>
                             <View className="flex-row items-center justify-center">
-                                <Text className="text-3xl font-extrabold text-stone-400 mr-1.5">₱</Text>
+                                <Text className="text-3xl font-bold text-stone-400 mr-1.5">₱</Text>
                                 <TextInput
                                     value={amountStr}
                                     onChangeText={(val) => setAmountStr(formatMoneyInput(val))}
@@ -220,7 +220,7 @@ export function TransactionFormModal({
                                     keyboardType="decimal-pad"
                                     autoFocus
                                     placeholderTextColor="#D6D3D1"
-                                    className={`text-4xl font-extrabold text-stone-900 min-w-[120px] text-center ${submitting ? 'opacity-60' : ''}`}
+                                    className={`text-4xl font-bold text-stone-900 min-w-[120px] text-center ${submitting ? 'opacity-60' : ''}`}
                                 />
                             </View>
                         </View>

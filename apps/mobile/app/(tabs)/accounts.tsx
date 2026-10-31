@@ -554,7 +554,7 @@ export default function AccountsScreen() {
                         <Menu size={20} color="#18342B" strokeWidth={2.2} />
                     </Pressable>
                     <View className="flex-1">
-                        <Text className="text-2xl font-black text-stone-900 tracking-tight">{headerTitle}</Text>
+                        <Text className="text-2xl font-bold text-stone-900 tracking-tight">{headerTitle}</Text>
                         <Text className="text-xs text-stone-500 font-medium" numberOfLines={1}>
                             {headerSubtitle}
                         </Text>
@@ -581,7 +581,7 @@ export default function AccountsScreen() {
                         <View className="flex-row items-center justify-between mb-2">
                             <View>
                                 <Text className="text-[11px] font-bold uppercase tracking-wider text-[#18342B]">Expected Monthly Take-Home</Text>
-                                <Text className="text-2xl font-black text-emerald-700 tracking-tight mt-0.5">
+                                <Text className="text-2xl font-bold text-emerald-700 tracking-tight mt-0.5">
                                     {formatCurrency(incomeSummary.monthlyNetTakeHome)}
                                     <Text className="text-xs font-semibold text-stone-500"> /mo</Text>
                                 </Text>
@@ -606,7 +606,7 @@ export default function AccountsScreen() {
                     <View className="bg-amber-50/90 p-4 rounded-2xl border border-amber-200 shadow-sm flex-row items-center justify-between">
                         <View>
                             <Text className="text-[11px] font-bold uppercase tracking-wider text-amber-800">Total Active Debt</Text>
-                            <Text className="text-2xl font-black text-stone-900 tracking-tight mt-0.5">{formatCurrency(totalLoans)}</Text>
+                            <Text className="text-2xl font-bold text-stone-900 tracking-tight mt-0.5">{formatCurrency(totalLoans)}</Text>
                         </View>
                         <View className="items-end">
                             <View className="bg-amber-100 px-2.5 py-1 rounded-full mb-1">
@@ -619,7 +619,7 @@ export default function AccountsScreen() {
                     <View className="bg-emerald-50/90 p-4 rounded-2xl border border-emerald-200 shadow-sm flex-row items-center justify-between">
                         <View className="flex-1 mr-3">
                             <Text className="text-[11px] font-bold uppercase tracking-wider text-[#18342B]">Monthly Subscription Spend</Text>
-                            <Text className="text-2xl font-black text-stone-900 tracking-tight mt-0.5">
+                            <Text className="text-2xl font-bold text-stone-900 tracking-tight mt-0.5">
                                 {formatCurrency(subsSummary.monthlyTotal)}
                                 <Text className="text-xs font-semibold text-stone-500"> /mo</Text>
                             </Text>
@@ -643,7 +643,7 @@ export default function AccountsScreen() {
                     <View className="bg-white p-4 rounded-2xl border border-stone-200/80 shadow-sm flex-row items-center justify-between">
                         <View>
                             <Text className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">Total Money (Assets)</Text>
-                            <Text className="text-2xl font-extrabold text-[#18342B] tracking-tight mt-0.5">{formatCurrency(totalMoney)}</Text>
+                            <Text className="text-2xl font-bold text-[#18342B] tracking-tight mt-0.5">{formatCurrency(totalMoney)}</Text>
                         </View>
                         <View className="items-end">
                             <View className="bg-stone-100 px-2.5 py-1 rounded-full mb-1">
@@ -688,9 +688,9 @@ export default function AccountsScreen() {
                         { id: 'all', label: 'All' },
                         { id: 'bank', label: 'Banks' },
                         { id: 'ewallet', label: 'E-Wallets' },
-                        { id: 'income', label: '💼 Income & Jobs' },
-                        { id: 'subscriptions', label: '🔄 Subscriptions' },
-                        { id: 'loans', label: '💳 Loans & Debt' },
+                        { id: 'income', label: 'Income & Jobs' },
+                        { id: 'subscriptions', label: 'Subscriptions' },
+                        { id: 'loans', label: 'Loans & Debt' },
                         { id: 'cash', label: 'Cash' }
                     ].map((cat) => {
                         const isSelected = selectedFilter === cat.id;

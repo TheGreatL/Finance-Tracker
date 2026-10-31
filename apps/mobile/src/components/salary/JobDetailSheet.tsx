@@ -104,9 +104,9 @@ export function JobDetailSheet({ visible, job, onClose, onEdit, onRecordPayday, 
                                         <View>
                                             <Text className="text-xs font-bold text-amber-900 dark:text-amber-300">
                                                 {daysRemaining === 0
-                                                    ? 'Payday Today! 🎉'
+                                                    ? 'Payday Today'
                                                     : daysRemaining === 1
-                                                      ? 'Payday Tomorrow!'
+                                                      ? 'Payday Tomorrow'
                                                       : `Next Payday in ${daysRemaining} days`}
                                             </Text>
                                             <Text className="text-[11px] text-amber-700 dark:text-amber-400">
@@ -128,7 +128,7 @@ export function JobDetailSheet({ visible, job, onClose, onEdit, onRecordPayday, 
                                 <Text className="text-[10px] uppercase font-bold text-emerald-800 dark:text-emerald-300 tracking-wider mb-1">
                                     Net Take-Home Pay (Per Paycheck)
                                 </Text>
-                                <Text className="text-3xl font-black text-emerald-600 dark:text-emerald-400 mb-3">
+                                <Text className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mb-3">
                                     {formatCurrency(job.net_take_home ?? job.gross_salary)}
                                 </Text>
 
@@ -239,7 +239,7 @@ export function JobDetailSheet({ visible, job, onClose, onEdit, onRecordPayday, 
                                                     </Text>
                                                 </View>
                                                 <View className="flex-row items-center gap-1.5">
-                                                    <Text className="text-xs font-black text-emerald-600 dark:text-emerald-400">
+                                                    <Text className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
                                                         {formatCurrency(slip.net_amount)}
                                                     </Text>
                                                     <ChevronRight size={14} className="text-slate-400" />

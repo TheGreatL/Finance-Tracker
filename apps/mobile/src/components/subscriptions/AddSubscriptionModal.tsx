@@ -229,7 +229,7 @@ export function AddSubscriptionModal({ visible, pockets, editingSubscription, on
                                         placeholder="₱549"
                                         placeholderTextColor="#A8A29E"
                                         keyboardType="decimal-pad"
-                                        className={`border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-900 font-extrabold ${
+                                        className={`border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-900 font-bold ${
                                             submitting ? 'bg-stone-100 opacity-60' : 'bg-stone-50'
                                         }`}
                                     />

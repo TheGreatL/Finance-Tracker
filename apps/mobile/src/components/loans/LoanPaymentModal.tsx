@@ -135,7 +135,7 @@ export function LoanPaymentModal({ visible, loan, pockets, onClose, onSubmit }: 
                                         placeholder="₱2,500"
                                         placeholderTextColor="#A8A29E"
                                         keyboardType="decimal-pad"
-                                        className={`border border-stone-200 rounded-xl px-4 py-3 text-base text-stone-900 font-extrabold ${
+                                        className={`border border-stone-200 rounded-xl px-4 py-3 text-base text-stone-900 font-bold ${
                                             submitting ? 'bg-stone-100 opacity-60' : 'bg-stone-50'
                                         }`}
                                     />

@@ -85,7 +85,7 @@ export function LoanDetailSheet({ visible, loan, onClose, onRecordPayment, onDel
                             <View>
                                 <Text className="text-xs font-semibold uppercase tracking-wider text-amber-800">Remaining Debt</Text>
                                 <Text
-                                    className={`text-2xl font-extrabold tracking-tight mt-0.5 ${
+                                    className={`text-2xl font-bold tracking-tight mt-0.5 ${
                                         isPaid ? 'text-emerald-700 line-through' : 'text-stone-900'
                                     }`}
                                 >

@@ -682,7 +682,7 @@ async function executePaydayDeposit(db: SQLiteDatabase, job: JobRecord, payDate:
             [
                 notifId,
                 'salary_deposit',
-                `💰 Payday Deposited: ${job.company_name}`,
+                `Payday Deposited: ${job.company_name}`,
                 `Net salary of ₱${formattedNet} for ${job.title} has been deposited to ${pocketName}.`,
                 JSON.stringify({ jobId: job.id, payDate, amount: breakdown.netTakeHome, pocketId: job.target_pocket_id }),
                 0,

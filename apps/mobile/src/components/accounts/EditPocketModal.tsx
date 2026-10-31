@@ -104,7 +104,7 @@ export function EditPocketModal({ visible, pocket, institutionName, onClose, onS
                                     <Lock size={14} color="#B45309" />
                                     <Text className="text-xs font-bold text-amber-900 ml-1.5 uppercase tracking-wider">Balance Protected</Text>
                                 </View>
-                                <Text className="text-sm font-extrabold text-stone-900">{formatCurrency(pocket.current_balance)}</Text>
+                                <Text className="text-sm font-bold text-stone-900">{formatCurrency(pocket.current_balance)}</Text>
                             </View>
                             <Text className="text-[11px] text-amber-800/80 leading-relaxed mt-1">
                                 Current balance is changed strictly through recorded income, expense, and transfer transactions.

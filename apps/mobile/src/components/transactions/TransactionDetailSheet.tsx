@@ -80,7 +80,7 @@ export function TransactionDetailSheet({ visible, transaction, onClose, onDelete
                     <View className="items-center py-6 border-b border-stone-100">
                         <Text className="text-xs text-stone-400 mb-1">Transaction Total</Text>
                         <Text
-                            className={`text-3xl font-extrabold tracking-tight ${
+                            className={`text-3xl font-bold tracking-tight ${
                                 isIncome ? 'text-emerald-600' : isExpense ? 'text-[#D97757]' : 'text-stone-900'
                             }`}
                         >

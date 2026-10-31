@@ -168,7 +168,7 @@ export function EditLoanModal({ visible, loan, onClose, onSave }: EditLoanModalP
                                     <Lock size={14} color="#B45309" />
                                     <Text className="text-xs font-bold text-amber-900 ml-1.5 uppercase tracking-wider">Balance Protected</Text>
                                 </View>
-                                <Text className="text-sm font-extrabold text-stone-900">{formatCurrency(loan.remaining_balance)} left</Text>
+                                <Text className="text-sm font-bold text-stone-900">{formatCurrency(loan.remaining_balance)} left</Text>
                             </View>
                             <Text className="text-[11px] text-amber-800/80 leading-relaxed mt-1">
                                 Remaining balance is reduced strictly by recording repayments to ensure your debt payoff calculations stay accurate.

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, Alert } from 'react-native';
-import { X, Plus, Paperclip, Camera, FileText, Check, Calendar, ChevronDown } from 'lucide-react-native';
+import { X, Plus, Paperclip, Camera, FileText, Check, Calendar, ChevronDown, Bell } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import type { CreateLoanInput } from '../../types/database';
@@ -406,9 +406,10 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
                             </View>
 
                             {/* Reminder Info Banner */}
-                            <View className="bg-amber-50 p-3 rounded-xl mb-5 border border-amber-200/70">
-                                <Text className="text-[11px] text-amber-800 font-medium leading-relaxed">
-                                    🔔 A local push notification will automatically be scheduled 3 days before your due date at 9:00 AM.
+                            <View className="bg-amber-50 p-3 rounded-xl mb-5 border border-amber-200/70 flex-row items-center">
+                                <Bell size={14} color="#92400E" />
+                                <Text className="text-[11px] text-amber-800 font-medium leading-relaxed flex-1 ml-2">
+                                    A local push notification will automatically be scheduled 3 days before your due date at 9:00 AM.
                                 </Text>
                             </View>
 

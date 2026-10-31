@@ -121,7 +121,7 @@ export default function LedgerScreen() {
                         <Menu size={20} color="#18342B" strokeWidth={2.2} />
                     </Pressable>
                     <View>
-                        <Text className="text-2xl font-black text-stone-900 tracking-tight">Ledger</Text>
+                        <Text className="text-2xl font-bold text-stone-900 tracking-tight">Ledger</Text>
                         <Text className="text-xs text-stone-500 font-medium">All financial movements</Text>
                     </View>
                 </View>

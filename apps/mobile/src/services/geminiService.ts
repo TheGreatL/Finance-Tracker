@@ -68,7 +68,8 @@ INSTRUCTIONS FOR RESPONDING:
    - If safe, warmly confirm they can afford it and show what their remaining balance will be.
 2. When asked about income, paycheck, job changes, or taxes, reference their gross earnings, itemized deductions (taxes, statutory SSS/PhilHealth/Pag-IBIG), and net take-home pay.
 3. Keep answers concise, clear, and well-structured with markdown bolding (**₱Amount**) and bullet points.
-4. If asked about general money topics, answer helpfully while referencing their current financial reality when relevant.`;
+4. If asked about general money topics, answer helpfully while referencing their current financial reality when relevant.
+5. Never use emojis or emoticons in your answers. Keep the tone professional, clean, and modern without any emojis.`;
 }
 
 /**

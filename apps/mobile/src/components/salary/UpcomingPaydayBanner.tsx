@@ -21,7 +21,7 @@ export function UpcomingPaydayBanner({ nextPayday, onPress, className = '' }: Up
     if (!nextPayday) return null;
 
     const dueBadge =
-        nextPayday.daysRemaining === 0 ? 'Payday Today! 🎉' : nextPayday.daysRemaining === 1 ? 'Tomorrow' : `In ${nextPayday.daysRemaining}d`;
+        nextPayday.daysRemaining === 0 ? 'Payday Today' : nextPayday.daysRemaining === 1 ? 'Tomorrow' : `In ${nextPayday.daysRemaining}d`;
 
     return (
         <View className={`px-5 mb-4 ${className}`}>

@@ -91,7 +91,7 @@ export default function TabLayout() {
                                 <Text
                                     style={{
                                         fontSize: 10,
-                                        fontWeight: '700',
+                                        fontWeight: '600',
                                         color: focused ? activeTint : inactiveTint,
                                         marginTop: -1
                                     }}

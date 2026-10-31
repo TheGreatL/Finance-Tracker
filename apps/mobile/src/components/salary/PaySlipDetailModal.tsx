@@ -28,7 +28,7 @@ export function PaySlipDetailModal({ visible, paySlip, onClose }: PaySlipDetailM
                 .map((d) => `  - ${d.name}: ₱${d.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`)
                 .join('\n');
 
-            const message = `📄 PAY SLIP RECEIPT
+            const message = `PAY SLIP RECEIPT
 Company: ${paySlip.company_name || 'Employer'}
 Position: ${paySlip.job_title || 'Position'}
 Pay Date: ${formatDisplayDate(paySlip.pay_date)}
@@ -100,7 +100,7 @@ Status: Paid (${formatTime12(paySlip.created_at)})`;
                             <Text className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 mb-1">
                                 Net Take-Home Deposited
                             </Text>
-                            <Text className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mb-3">
+                            <Text className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mb-3">
                                 {formatCurrency(paySlip.net_amount)}
                             </Text>
 

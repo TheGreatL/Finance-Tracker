@@ -259,7 +259,7 @@ export function SidebarDrawer({ onNotificationPress, onDataChanged }: SidebarDra
                             icon={Bot}
                             label="PocketBot Advisor"
                             subtitle="AI financial assistant"
-                            badge="✨ AI"
+                            badge="AI"
                             badgeColor="bg-[#BBD583]/40 text-[#18342B]"
                             isActive={pathname === '/assistant'}
                             onPress={() => navigateTo('/assistant')}

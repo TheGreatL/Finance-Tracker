@@ -109,9 +109,7 @@ export function EditTransactionModal({ visible, transaction, onClose, onSave }: 
                                     <Lock size={14} color="#B45309" />
                                     <Text className="text-xs font-bold text-amber-900 ml-1.5 uppercase tracking-wider">Ledger Protected</Text>
                                 </View>
-                                <Text className="text-sm font-extrabold text-stone-900">
-                                    {formatSignedCurrency(transaction.amount, transaction.type)}
-                                </Text>
+                                <Text className="text-sm font-bold text-stone-900">{formatSignedCurrency(transaction.amount, transaction.type)}</Text>
                             </View>
                             <View className="flex-row items-center mt-1">
                                 {transaction.institution_code ? (
