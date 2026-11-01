@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
-import { X, Check, Wallet, Calendar, ChevronDown } from 'lucide-react-native';
-import type { LoanRecord, AccountPocket } from '../../types/database';
+import { X, Check, Wallet, Calendar, ChevronDown, Sparkles } from 'lucide-react-native';
+import type { LoanRecord, AccountPocket, RecordLoanPaymentInput } from '../../types/database';
 import { formatCurrency, formatDisplayDate, formatMoneyInput, parseMoneyInput } from '../../utils/formatters';
 import { DatePickerModal } from '../common/DatePickerModal';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
@@ -12,12 +12,13 @@ interface LoanPaymentModalProps {
     loan: LoanRecord | null;
     pockets: (AccountPocket & { institution_name?: string })[];
     onClose: () => void;
-    onSubmit: (input: { loanId: string; pocketId: string; amount: number; date: string; notes?: string }) => Promise<void>;
+    onSubmit: (input: RecordLoanPaymentInput) => Promise<void>;
 }
 
 export function LoanPaymentModal({ visible, loan, pockets, onClose, onSubmit }: LoanPaymentModalProps) {
     const [selectedPocketId, setSelectedPocketId] = useState<string>('');
     const [amountStr, setAmountStr] = useState('');
+    const [interestCashbackStr, setInterestCashbackStr] = useState('');
     const [dateStr, setDateStr] = useState(() => new Date().toISOString().split('T')[0]);
     const [notes, setNotes] = useState('');
     const [datePickerVisible, setDatePickerVisible] = useState(false);
@@ -28,6 +29,7 @@ export function LoanPaymentModal({ visible, loan, pockets, onClose, onSubmit }: 
     useEffect(() => {
         if (loan) {
             setAmountStr(formatMoneyInput(String(Math.min(loan.monthly_payment, loan.remaining_balance))));
+            setInterestCashbackStr('');
             setDateStr(new Date().toISOString().split('T')[0]);
             setNotes(`Payment for ${loan.title}`);
         }
@@ -41,6 +43,7 @@ export function LoanPaymentModal({ visible, loan, pockets, onClose, onSubmit }: 
     const handleConfirm = async () => {
         setError('');
         const amount = parseMoneyInput(amountStr);
+        const interestCashback = interestCashbackStr ? parseMoneyInput(interestCashbackStr) : 0;
 
         if (!selectedPocketId) {
             setError('Please select an account to pay from.');
@@ -58,7 +61,9 @@ export function LoanPaymentModal({ visible, loan, pockets, onClose, onSubmit }: 
                 pocketId: selectedPocketId,
                 amount,
                 date: dateStr,
-                notes: notes.trim() || undefined
+                notes: notes.trim() || undefined,
+                interestCashback: interestCashback > 0 ? interestCashback : undefined,
+                cashbackPocketId: interestCashback > 0 ? selectedPocketId : undefined
             });
             onClose();
         } catch (err: any) {
@@ -68,11 +73,15 @@ export function LoanPaymentModal({ visible, loan, pockets, onClose, onSubmit }: 
         }
     };
 
+    const handlePayFullBalance = () => {
+        setAmountStr(formatMoneyInput(String(loan.remaining_balance)));
+    };
+
     return (
         <>
             <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={submitting ? () => {} : onClose}>
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 justify-end bg-black/50">
-                    <View className="bg-white rounded-t-3xl p-6 max-h-[90%] border-t border-stone-100">
+                    <View className="bg-white rounded-t-3xl p-6 max-h-[92%] border-t border-stone-100">
                         {/* Header */}
                         <View className="flex-row items-center justify-between pb-3 border-b border-stone-100">
                             <View>
@@ -124,10 +133,23 @@ export function LoanPaymentModal({ visible, loan, pockets, onClose, onSubmit }: 
                                 onSelect={(opt) => setSelectedPocketId(opt.id)}
                             />
 
+                            {/* Quick Pay Full Balance Pill */}
+                            <View className="flex-row items-center justify-between mb-2 mt-1">
+                                <Text className="text-xs font-semibold text-stone-700">Payment Amount</Text>
+                                <Pressable
+                                    onPress={handlePayFullBalance}
+                                    disabled={submitting}
+                                    className="bg-stone-100 active:bg-stone-200 px-2.5 py-1 rounded-lg border border-stone-200"
+                                >
+                                    <Text className="text-[11px] font-bold text-[#18342B]">
+                                        Pay Full Balance ({formatCurrency(loan.remaining_balance)})
+                                    </Text>
+                                </Pressable>
+                            </View>
+
                             {/* 2. Payment Amount & Date */}
                             <View className="flex-row gap-3 mb-3">
                                 <View className="flex-1">
-                                    <Text className="text-xs font-medium text-stone-600 mb-1">Amount to Pay (₱) *</Text>
                                     <TextInput
                                         value={amountStr}
                                         onChangeText={(val) => setAmountStr(formatMoneyInput(val))}
@@ -142,7 +164,6 @@ export function LoanPaymentModal({ visible, loan, pockets, onClose, onSubmit }: 
                                 </View>
 
                                 <View className="flex-1">
-                                    <Text className="text-xs font-medium text-stone-600 mb-1">Payment Date *</Text>
                                     <Pressable
                                         onPress={() => setDatePickerVisible(true)}
                                         disabled={submitting}
@@ -160,6 +181,31 @@ export function LoanPaymentModal({ visible, loan, pockets, onClose, onSubmit }: 
                                     </Pressable>
                                 </View>
                             </View>
+
+                            {/* Interest Cashback Section (if loan has interest cashback enabled) */}
+                            {loan.has_interest_cashback ? (
+                                <View className="bg-teal-50/70 p-3.5 rounded-2xl border border-teal-200 mb-3">
+                                    <View className="flex-row items-center mb-1">
+                                        <Sparkles size={14} color="#0D9488" />
+                                        <Text className="text-xs font-bold text-teal-900 ml-1.5">Interest Cashback Rebate (Optional)</Text>
+                                    </View>
+                                    <Text className="text-[11px] text-teal-700 mb-2 leading-snug">
+                                        If settling early, enter the refund credited back by lender (e.g. GLoan). This amount will be added to your
+                                        selected account.
+                                    </Text>
+                                    <TextInput
+                                        value={interestCashbackStr}
+                                        onChangeText={(val) => setInterestCashbackStr(formatMoneyInput(val))}
+                                        editable={!submitting}
+                                        placeholder="e.g. ₱450.00"
+                                        placeholderTextColor="#99F6E4"
+                                        keyboardType="decimal-pad"
+                                        className={`border border-teal-200 rounded-xl px-3.5 py-2.5 text-sm text-teal-950 font-bold bg-white ${
+                                            submitting ? 'opacity-60' : ''
+                                        }`}
+                                    />
+                                </View>
+                            ) : null}
 
                             {/* 3. Notes */}
                             <View className="mb-5">

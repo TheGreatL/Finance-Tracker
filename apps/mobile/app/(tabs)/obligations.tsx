@@ -39,6 +39,7 @@ import type {
     PaySlipRecord,
     AccountPocket,
     CreateLoanInput,
+    UpdateLoanMetadataInput,
     RecordLoanPaymentInput,
     CreateSubscriptionInput,
     UpdateSubscriptionInput,
@@ -209,18 +210,7 @@ export default function ObligationsScreen() {
         showToast('Loan removed');
     };
 
-    const handleUpdateLoan = async (
-        loanId: string,
-        updates: {
-            title: string;
-            institutionId: string;
-            dueDate: string;
-            monthlyPayment: number;
-            notes?: string;
-            attachmentPath?: string;
-            attachmentName?: string;
-        }
-    ) => {
+    const handleUpdateLoan = async (loanId: string, updates: UpdateLoanMetadataInput) => {
         const db = await getDatabase();
         await updateLoanMetadata(db, loanId, updates);
         await loadData();
@@ -230,9 +220,9 @@ export default function ObligationsScreen() {
         showToast('Loan updated');
     };
 
-    const handleRecordPayment = async (input: { loanId: string; pocketId: string; amount: number; date: string; notes?: string }) => {
+    const handleRecordPayment = async (input: RecordLoanPaymentInput) => {
         const db = await getDatabase();
-        await recordLoanPayment(db, input as RecordLoanPaymentInput);
+        await recordLoanPayment(db, input);
         await loadData();
         showToast('Payment recorded');
     };

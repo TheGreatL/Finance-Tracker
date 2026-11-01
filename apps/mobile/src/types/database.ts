@@ -54,16 +54,25 @@ export interface TransactionRecord {
 }
 
 export type LoanStatus = 'active' | 'paid' | 'defaulted';
+export type LenderType = 'institution' | 'person';
 
 export interface LoanRecord {
     id: string;
-    institution_id: string;
+    lender_type: LenderType;
+    lender_name?: string;
+    institution_id?: string | null;
     title: string;
+    principal_amount?: number | null;
+    processing_fee: number;
     total_amount: number;
     remaining_balance: number;
     monthly_payment: number;
+    start_date?: string | null;
     due_date: string;
+    term_months?: number | null;
     interest_rate?: number | null;
+    has_interest_cashback: number;
+    interest_cashback_received: number;
     attachment_path?: string;
     attachment_name?: string;
     status: LoanStatus;
@@ -77,16 +86,42 @@ export interface LoanRecord {
 }
 
 export interface CreateLoanInput {
-    institutionId: string;
+    lenderType?: LenderType;
+    lenderName?: string;
+    institutionId?: string | null;
     title: string;
+    principalAmount?: number | null;
+    processingFee?: number;
     totalAmount: number;
     remainingBalance?: number;
     monthlyPayment: number;
+    startDate?: string | null;
     dueDate: string;
+    termMonths?: number | null;
     interestRate?: number | null;
+    hasInterestCashback?: boolean;
     attachmentPath?: string;
     attachmentName?: string;
     notes?: string;
+}
+
+export interface UpdateLoanMetadataInput {
+    title?: string;
+    lenderType?: LenderType;
+    lenderName?: string;
+    institutionId?: string;
+    principalAmount?: number;
+    processingFee?: number;
+    totalAmount?: number;
+    startDate?: string;
+    dueDate?: string;
+    termMonths?: number;
+    interestRate?: number | null;
+    hasInterestCashback?: boolean;
+    monthlyPayment?: number;
+    notes?: string;
+    attachmentPath?: string;
+    attachmentName?: string;
 }
 
 export interface RecordLoanPaymentInput {
@@ -94,6 +129,8 @@ export interface RecordLoanPaymentInput {
     pocketId: string;
     amount: number;
     date: string;
+    interestCashback?: number;
+    cashbackPocketId?: string;
     notes?: string;
 }
 

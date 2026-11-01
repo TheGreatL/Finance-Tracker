@@ -1,9 +1,23 @@
 import React, { useState } from 'react';
 import { Modal, View, Text, ScrollView, Pressable, Alert, Image, Linking } from 'react-native';
-import { X, Calendar, DollarSign, Paperclip, Trash2, CheckCircle2, AlertCircle, Pencil } from 'lucide-react-native';
+import {
+    X,
+    Calendar,
+    DollarSign,
+    Paperclip,
+    Trash2,
+    CheckCircle2,
+    AlertCircle,
+    Pencil,
+    User,
+    Sparkles,
+    Clock,
+    ShieldCheck
+} from 'lucide-react-native';
 import type { LoanRecord } from '../../types/database';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency, formatDisplayDate } from '../../utils/formatters';
 import { InstitutionLogo } from '../accounts/InstitutionLogo';
+import { getLoanTimelineMetrics } from '../../services/loanService';
 
 interface LoanDetailSheetProps {
     visible: boolean;
@@ -21,6 +35,8 @@ export function LoanDetailSheet({ visible, loan, onClose, onRecordPayment, onDel
 
     const isPaid = loan.status === 'paid';
     const progressPercent = Math.min(100, Math.max(0, Math.round(((loan.total_amount - loan.remaining_balance) / loan.total_amount) * 100)));
+    const metrics = getLoanTimelineMetrics(loan);
+    const isPerson = loan.lender_type === 'person';
 
     const handleDelete = () => {
         Alert.alert('Delete Loan', `Are you sure you want to delete "${loan.title}"? This cannot be undone.`, [
@@ -54,17 +70,37 @@ export function LoanDetailSheet({ visible, loan, onClose, onRecordPayment, onDel
     return (
         <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
             <View className="flex-1 justify-end bg-black/50">
-                <View className="bg-stone-50 rounded-t-3xl max-h-[88%] border-t border-stone-100">
+                <View className="bg-stone-50 rounded-t-3xl max-h-[90%] border-t border-stone-100">
                     {/* Header */}
                     <View className="bg-white px-6 pt-5 pb-4 rounded-t-3xl border-b border-stone-200/80">
                         <View className="flex-row items-center justify-between mb-3">
                             <View className="flex-row items-center flex-1 mr-3">
-                                {loan.institution_code ? <InstitutionLogo code={loan.institution_code} size={40} className="mr-3" /> : null}
+                                {isPerson ? (
+                                    <View className="w-10 h-10 rounded-2xl bg-amber-100 items-center justify-center mr-3 border border-amber-200">
+                                        <User size={20} color="#B45309" />
+                                    </View>
+                                ) : loan.institution_code ? (
+                                    <InstitutionLogo code={loan.institution_code} size={40} className="mr-3" />
+                                ) : null}
                                 <View className="flex-1">
-                                    <Text className="text-lg font-bold text-stone-900" numberOfLines={1}>
-                                        {loan.title}
+                                    <View className="flex-row items-center flex-wrap">
+                                        <Text className="text-lg font-bold text-stone-900 mr-2" numberOfLines={1}>
+                                            {loan.title}
+                                        </Text>
+                                        {loan.has_interest_cashback ? (
+                                            <View className="flex-row items-center bg-teal-50 border border-teal-200/80 px-2 py-0.5 rounded-full">
+                                                <Sparkles size={10} color="#0D9488" />
+                                                <Text className="text-[10px] font-bold text-teal-800 ml-1">Cashback</Text>
+                                            </View>
+                                        ) : null}
+                                    </View>
+                                    <Text className="text-xs text-stone-500 font-medium mt-0.5">
+                                        {isPerson
+                                            ? loan.lender_name
+                                                ? `Personal Loan • ${loan.lender_name}`
+                                                : 'Personal Loan'
+                                            : loan.institution_name || 'Lending Provider'}
                                     </Text>
-                                    <Text className="text-xs text-stone-500 font-medium">{loan.institution_name || 'Lending Provider'}</Text>
                                 </View>
                             </View>
 
@@ -94,7 +130,7 @@ export function LoanDetailSheet({ visible, loan, onClose, onRecordPayment, onDel
                             </View>
 
                             <View className="items-end">
-                                <Text className="text-[10px] text-stone-400 font-medium">Total Borrowed</Text>
+                                <Text className="text-[10px] text-stone-400 font-medium">Total Contract Obligation</Text>
                                 <Text className="text-sm font-bold text-stone-700">{formatCurrency(loan.total_amount)}</Text>
                             </View>
                         </View>
@@ -114,32 +150,114 @@ export function LoanDetailSheet({ visible, loan, onClose, onRecordPayment, onDel
                                     style={{ width: `${progressPercent}%` }}
                                 />
                             </View>
-                            <Text className="text-[11px] text-stone-400">
+                            <Text className="text-[11px] text-stone-500 font-medium">
                                 {formatCurrency(loan.total_amount - loan.remaining_balance)} paid of {formatCurrency(loan.total_amount)}
                             </Text>
+                        </View>
+
+                        {/* Financial Breakdown Card */}
+                        <View className="bg-white p-4 rounded-2xl border border-stone-200/80 mb-3">
+                            <Text className="text-xs font-bold uppercase tracking-wider text-stone-400 mb-3">Financial Breakdown</Text>
+                            <View className="flex-row items-center justify-between mb-2">
+                                <Text className="text-xs text-stone-600">Principal Borrowed</Text>
+                                <Text className="text-xs font-bold text-stone-900">{formatCurrency(loan.principal_amount || loan.total_amount)}</Text>
+                            </View>
+                            {loan.processing_fee && loan.processing_fee > 0 ? (
+                                <View className="flex-row items-center justify-between mb-2">
+                                    <Text className="text-xs text-stone-600">Upfront Processing Fee</Text>
+                                    <Text className="text-xs font-bold text-amber-900">- {formatCurrency(loan.processing_fee)}</Text>
+                                </View>
+                            ) : null}
+                            {loan.processing_fee && loan.processing_fee > 0 ? (
+                                <View className="flex-row items-center justify-between mb-2 bg-emerald-50 px-2.5 py-1.5 rounded-xl border border-emerald-100">
+                                    <Text className="text-xs font-medium text-emerald-800">Net Cash Disbursed</Text>
+                                    <Text className="text-xs font-bold text-emerald-900">{formatCurrency(metrics.netProceeds)}</Text>
+                                </View>
+                            ) : null}
+                            <View className="flex-row items-center justify-between mb-2 pt-2 border-t border-stone-100">
+                                <Text className="text-xs text-stone-600">Total Contract Obligation</Text>
+                                <Text className="text-xs font-bold text-stone-900">{formatCurrency(loan.total_amount)}</Text>
+                            </View>
+                            {metrics.totalInterest > 0 ? (
+                                <View className="flex-row items-center justify-between">
+                                    <Text className="text-xs text-stone-600">Total Contract Interest</Text>
+                                    <Text className="text-xs font-bold text-amber-800">{formatCurrency(metrics.totalInterest)}</Text>
+                                </View>
+                            ) : null}
+                        </View>
+
+                        {/* Timeline & Duration Card */}
+                        <View className="bg-white p-4 rounded-2xl border border-stone-200/80 mb-3">
+                            <View className="flex-row items-center justify-between mb-3">
+                                <Text className="text-xs font-bold uppercase tracking-wider text-stone-400">Timeline & Tenor</Text>
+                                {loan.term_months ? (
+                                    <View className="flex-row items-center bg-stone-100 px-2 py-0.5 rounded-md">
+                                        <Clock size={11} color="#57534E" />
+                                        <Text className="text-[10px] font-bold text-stone-700 ml-1">{loan.term_months} Months Tenor</Text>
+                                    </View>
+                                ) : null}
+                            </View>
+
+                            {loan.start_date ? (
+                                <View className="flex-row items-center justify-between mb-2">
+                                    <Text className="text-xs text-stone-600">Origination / Start Date</Text>
+                                    <Text className="text-xs font-bold text-stone-900">{formatDisplayDate(loan.start_date)}</Text>
+                                </View>
+                            ) : null}
+
+                            <View className="flex-row items-center justify-between mb-2">
+                                <Text className="text-xs text-stone-600">Next Due Date</Text>
+                                <View className="flex-row items-center">
+                                    <Calendar size={13} color="#57534E" />
+                                    <Text className="text-xs font-bold text-stone-900 ml-1.5">{formatDisplayDate(loan.due_date)}</Text>
+                                </View>
+                            </View>
+
+                            {metrics.projectedMaturityDate ? (
+                                <View className="flex-row items-center justify-between mb-2">
+                                    <Text className="text-xs text-stone-600">Projected Maturity Date</Text>
+                                    <Text className="text-xs font-bold text-stone-900">{formatDisplayDate(metrics.projectedMaturityDate)}</Text>
+                                </View>
+                            ) : null}
+
+                            {metrics.hasTimeline && !isPaid && loan.term_months ? (
+                                <View className="bg-stone-50 p-2.5 rounded-xl border border-stone-200/70 mt-1 flex-row items-center justify-between">
+                                    <Text className="text-xs text-stone-600">Current Tenor Status</Text>
+                                    <Text className="text-xs font-bold text-stone-900">
+                                        Month {metrics.elapsedMonths} of {loan.term_months} ({metrics.remainingMonths} mos left)
+                                    </Text>
+                                </View>
+                            ) : null}
                         </View>
 
                         {/* Payment Schedule Card */}
                         <View className="bg-white p-4 rounded-2xl border border-stone-200/80 mb-3">
                             <Text className="text-xs font-bold uppercase tracking-wider text-stone-400 mb-3">Payment Schedule</Text>
                             <View className="flex-row items-center justify-between mb-2.5">
-                                <Text className="text-xs text-stone-500">Monthly Amortization</Text>
+                                <Text className="text-xs text-stone-600">Monthly Amortization</Text>
                                 <Text className="text-sm font-bold text-stone-900">{formatCurrency(loan.monthly_payment)}</Text>
-                            </View>
-                            <View className="flex-row items-center justify-between mb-2.5">
-                                <Text className="text-xs text-stone-500">Next Payment Due Date</Text>
-                                <View className="flex-row items-center">
-                                    <Calendar size={13} color="#57534E" />
-                                    <Text className="text-xs font-bold text-stone-900 ml-1.5">{loan.due_date}</Text>
-                                </View>
                             </View>
                             {loan.interest_rate ? (
                                 <View className="flex-row items-center justify-between pt-2 border-t border-stone-100">
-                                    <Text className="text-xs text-stone-500">Interest Rate</Text>
+                                    <Text className="text-xs text-stone-600">Interest Rate</Text>
                                     <Text className="text-xs font-bold text-stone-900">{loan.interest_rate}% p.a.</Text>
                                 </View>
                             ) : null}
                         </View>
+
+                        {/* Early Payoff Cashback Card */}
+                        {loan.has_interest_cashback ? (
+                            <View className="bg-teal-50/80 p-4 rounded-2xl border border-teal-200 mb-3">
+                                <View className="flex-row items-center mb-1">
+                                    <Sparkles size={15} color="#0D9488" />
+                                    <Text className="text-xs font-bold text-teal-900 ml-1.5">Early Payoff Interest Cashback</Text>
+                                </View>
+                                <Text className="text-[11px] text-teal-800 leading-relaxed mt-1">
+                                    This loan qualifies for interest cashback upon full early settlement (e.g. GCash GLoan). Settle your remaining
+                                    debt ahead of maturity to receive a refund on unearned interest.
+                                </Text>
+                            </View>
+                        ) : null}
 
                         {/* Attachment preview if present */}
                         {loan.attachment_path ? (

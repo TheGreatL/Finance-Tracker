@@ -1,9 +1,10 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { Paperclip, Calendar, ChevronRight } from 'lucide-react-native';
+import { Paperclip, Calendar, ChevronRight, User, Sparkles } from 'lucide-react-native';
 import type { LoanRecord } from '../../types/database';
 import { formatCurrency } from '../../utils/formatters';
 import { InstitutionLogo } from '../accounts/InstitutionLogo';
+import { getLoanTimelineMetrics } from '../../services/loanService';
 
 interface LoanCardProps {
     loan: LoanRecord;
@@ -14,6 +15,8 @@ interface LoanCardProps {
 export function LoanCard({ loan, onPress, className = '' }: LoanCardProps) {
     const isPaid = loan.status === 'paid';
     const progressPercent = Math.min(100, Math.max(0, Math.round(((loan.total_amount - loan.remaining_balance) / loan.total_amount) * 100)));
+    const timeline = getLoanTimelineMetrics(loan);
+    const isPerson = loan.lender_type === 'person';
 
     // Due date countdown
     let dueText = '';
@@ -50,26 +53,41 @@ export function LoanCard({ loan, onPress, className = '' }: LoanCardProps) {
             className={`w-full bg-white rounded-2xl p-4 border border-stone-200/80 shadow-sm active:bg-stone-50 ${className}`}
         >
             {/* Top Accent Strip */}
-            <View className="h-1.5 w-10 rounded-full mb-3" style={{ backgroundColor: loan.institution_color || '#B45309' }} />
+            <View className="h-1.5 w-10 rounded-full mb-3" style={{ backgroundColor: isPerson ? '#D97706' : loan.institution_color || '#18342B' }} />
 
             {/* Header */}
             <View className="flex-row items-center justify-between mb-2">
                 <View className="flex-row items-center flex-1 mr-2">
-                    {loan.institution_code ? <InstitutionLogo code={loan.institution_code} size={32} className="mr-2.5" /> : null}
+                    {isPerson ? (
+                        <View className="w-8 h-8 rounded-xl bg-amber-100 items-center justify-center mr-2.5 border border-amber-200">
+                            <User size={16} color="#B45309" />
+                        </View>
+                    ) : loan.institution_code ? (
+                        <InstitutionLogo code={loan.institution_code} size={32} className="mr-2.5" />
+                    ) : null}
                     <View className="flex-1">
                         <Text className="text-sm font-bold text-stone-900" numberOfLines={1}>
                             {loan.title}
                         </Text>
                         <Text className="text-[11px] text-stone-500 font-medium" numberOfLines={1}>
-                            {loan.institution_name || 'Lending Provider'}
+                            {isPerson ? loan.lender_name || 'Personal Lender' : loan.institution_name || 'Lending Provider'}
                         </Text>
                     </View>
                 </View>
 
-                <View className={`px-2 py-0.5 rounded-full ${isPaid ? 'bg-emerald-100' : isDueSoon ? 'bg-red-100' : 'bg-amber-100'}`}>
-                    <Text className={`text-[10px] font-bold ${isPaid ? 'text-emerald-800' : isDueSoon ? 'text-red-700' : 'text-amber-800'}`}>
-                        {isPaid ? 'Paid Off' : dueText || 'Active'}
-                    </Text>
+                <View className="flex-row items-center">
+                    {loan.has_interest_cashback ? (
+                        <View className="flex-row items-center bg-teal-50 border border-teal-200/80 px-2 py-0.5 rounded-full mr-1.5">
+                            <Sparkles size={10} color="#0D9488" />
+                            <Text className="text-[10px] font-bold text-teal-800 ml-1">Cashback</Text>
+                        </View>
+                    ) : null}
+
+                    <View className={`px-2 py-0.5 rounded-full ${isPaid ? 'bg-emerald-100' : isDueSoon ? 'bg-red-100' : 'bg-amber-100'}`}>
+                        <Text className={`text-[10px] font-bold ${isPaid ? 'text-emerald-800' : isDueSoon ? 'text-red-700' : 'text-amber-800'}`}>
+                            {isPaid ? 'Paid Off' : dueText || 'Active'}
+                        </Text>
+                    </View>
                 </View>
             </View>
 
@@ -95,16 +113,23 @@ export function LoanCard({ loan, onPress, className = '' }: LoanCardProps) {
                 </View>
             </View>
 
-            {/* Progress Bar */}
+            {/* Dual Progress / Timeline Strip */}
             <View className="w-full bg-stone-100 h-2 rounded-full overflow-hidden mb-2">
                 <View className={`h-full rounded-full ${isPaid ? 'bg-emerald-500' : 'bg-[#18342B]'}`} style={{ width: `${progressPercent}%` }} />
             </View>
 
             {/* Footer Info */}
             <View className="flex-row items-center justify-between pt-1">
-                <Text className="text-[10px] text-stone-400 font-medium">
-                    {progressPercent}% paid of {formatCurrency(loan.total_amount)}
-                </Text>
+                <View className="flex-row items-center flex-1 mr-2">
+                    <Text className="text-[10px] text-stone-500 font-medium">
+                        {progressPercent}% repaid of {formatCurrency(loan.total_amount)}
+                    </Text>
+                    {timeline.hasTimeline && !isPaid && loan.term_months ? (
+                        <Text className="text-[10px] text-stone-400 font-medium ml-1.5">
+                            • Mo {timeline.elapsedMonths}/{loan.term_months}
+                        </Text>
+                    ) : null}
+                </View>
 
                 <View className="flex-row items-center">
                     {loan.attachment_path ? (

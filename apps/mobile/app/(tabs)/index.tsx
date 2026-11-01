@@ -65,6 +65,7 @@ import type {
     PocketType,
     LoanRecord,
     CreateLoanInput,
+    UpdateLoanMetadataInput,
     RecordLoanPaymentInput
 } from '@/src/types/database';
 
@@ -129,6 +130,7 @@ export default function DashboardScreen() {
     const [addLoanVisible, setAddLoanVisible] = useState(false);
     const [addLoanInitialProvider, setAddLoanInitialProvider] = useState<string | undefined>();
     const [addPocketVisible, setAddPocketVisible] = useState(false);
+    const [addPocketInstitution, setAddPocketInstitution] = useState<Institution | null>(null);
     const [txModalVisible, setTxModalVisible] = useState(false);
     const [txModalType, setTxModalType] = useState<TransactionType>('expense');
     const [preselectedPocketId, setPreselectedPocketId] = useState<string | undefined>();
@@ -344,23 +346,30 @@ export default function DashboardScreen() {
         await loadData();
     };
 
-    const handleUpdateLoan = async (
-        loanId: string,
-        updates: {
-            title: string;
-            institutionId: string;
-            dueDate: string;
-            monthlyPayment: number;
-            notes?: string;
-            attachmentPath?: string;
-            attachmentName?: string;
-        }
-    ) => {
+    const handleUpdateLoan = async (loanId: string, updates: UpdateLoanMetadataInput) => {
         const db = await getDatabase();
         await updateLoanMetadata(db, loanId, updates);
         await loadData();
         if (selectedLoan && selectedLoan.id === loanId) {
-            setSelectedLoan((prev) => (prev ? { ...prev, ...updates, due_date: updates.dueDate, monthly_payment: updates.monthlyPayment } : null));
+            setSelectedLoan((prev) =>
+                prev
+                    ? {
+                          ...prev,
+                          ...updates,
+                          due_date: updates.dueDate ?? prev.due_date,
+                          monthly_payment: updates.monthlyPayment ?? prev.monthly_payment,
+                          lender_type: updates.lenderType ?? prev.lender_type,
+                          lender_name: updates.lenderName ?? prev.lender_name,
+                          principal_amount: updates.principalAmount ?? prev.principal_amount,
+                          processing_fee: updates.processingFee ?? prev.processing_fee,
+                          start_date: updates.startDate ?? prev.start_date,
+                          term_months: updates.termMonths ?? prev.term_months,
+                          interest_rate: updates.interestRate !== undefined ? updates.interestRate : prev.interest_rate,
+                          has_interest_cashback:
+                              updates.hasInterestCashback !== undefined ? (updates.hasInterestCashback ? 1 : 0) : prev.has_interest_cashback
+                      }
+                    : null
+            );
         }
     };
 
@@ -392,8 +401,9 @@ export default function DashboardScreen() {
     }) => {
         const db = await getDatabase();
         await addPocket(db, data);
-        if (selectedInstitution) {
-            const updated = await getPocketsByInstitution(db, selectedInstitution.id);
+        const targetId = data.institutionId || selectedInstitution?.id || addPocketInstitution?.id;
+        if (targetId) {
+            const updated = await getPocketsByInstitution(db, targetId);
             setSelectedInstPockets(updated);
         }
         await loadData();
@@ -577,6 +587,7 @@ export default function DashboardScreen() {
                 onAddPocket={() => {
                     if (selectedInstitution) {
                         pushModalBackStack({ type: 'institution', institutionId: selectedInstitution.id });
+                        setAddPocketInstitution(selectedInstitution);
                     }
                     setSelectedInstitution(null);
                     setAddPocketVisible(true);
@@ -701,15 +712,17 @@ export default function DashboardScreen() {
 
             <AddPocketModal
                 visible={addPocketVisible}
-                institutionId={selectedInstitution?.id || ''}
-                institutionName={selectedInstitution?.name || 'Account'}
+                institutionId={addPocketInstitution?.id || selectedInstitution?.id || ''}
+                institutionName={addPocketInstitution?.name || selectedInstitution?.name || 'Account'}
                 onClose={() => {
                     setAddPocketVisible(false);
+                    setAddPocketInstitution(null);
                     popAndRestoreModal();
                 }}
                 onSubmit={async (input) => {
                     await handleAddPocket(input);
                     setAddPocketVisible(false);
+                    setAddPocketInstitution(null);
                     popAndRestoreModal();
                 }}
             />

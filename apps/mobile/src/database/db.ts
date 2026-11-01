@@ -100,13 +100,21 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
             await db.execAsync(`
         CREATE TABLE IF NOT EXISTS loans (
           id TEXT PRIMARY KEY,
-          institution_id TEXT NOT NULL,
+          lender_type TEXT NOT NULL DEFAULT 'institution' CHECK(lender_type IN ('institution', 'person')),
+          lender_name TEXT DEFAULT '',
+          institution_id TEXT DEFAULT NULL,
           title TEXT NOT NULL,
+          principal_amount REAL DEFAULT NULL,
+          processing_fee REAL NOT NULL DEFAULT 0.0,
           total_amount REAL NOT NULL,
           remaining_balance REAL NOT NULL,
           monthly_payment REAL NOT NULL,
+          start_date TEXT DEFAULT NULL,
           due_date TEXT NOT NULL,
+          term_months INTEGER DEFAULT NULL,
           interest_rate REAL DEFAULT NULL,
+          has_interest_cashback INTEGER NOT NULL DEFAULT 0,
+          interest_cashback_received REAL NOT NULL DEFAULT 0.0,
           attachment_path TEXT DEFAULT '',
           attachment_name TEXT DEFAULT '',
           status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'paid', 'defaulted')),
@@ -119,6 +127,40 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_loans_status ON loans(status);
       `);
         }
+    }
+
+    // 5.1 Ensure all comprehensive loan columns exist for existing tables
+    try {
+        const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(loans);');
+        const colNames = new Set(columns.map((c) => c.name));
+
+        if (!colNames.has('lender_type')) {
+            await db.execAsync("ALTER TABLE loans ADD COLUMN lender_type TEXT NOT NULL DEFAULT 'institution';");
+        }
+        if (!colNames.has('lender_name')) {
+            await db.execAsync("ALTER TABLE loans ADD COLUMN lender_name TEXT DEFAULT '';");
+        }
+        if (!colNames.has('principal_amount')) {
+            await db.execAsync('ALTER TABLE loans ADD COLUMN principal_amount REAL DEFAULT NULL;');
+            await db.execAsync('UPDATE loans SET principal_amount = total_amount WHERE principal_amount IS NULL;');
+        }
+        if (!colNames.has('processing_fee')) {
+            await db.execAsync('ALTER TABLE loans ADD COLUMN processing_fee REAL NOT NULL DEFAULT 0.0;');
+        }
+        if (!colNames.has('start_date')) {
+            await db.execAsync('ALTER TABLE loans ADD COLUMN start_date TEXT DEFAULT NULL;');
+        }
+        if (!colNames.has('term_months')) {
+            await db.execAsync('ALTER TABLE loans ADD COLUMN term_months INTEGER DEFAULT NULL;');
+        }
+        if (!colNames.has('has_interest_cashback')) {
+            await db.execAsync('ALTER TABLE loans ADD COLUMN has_interest_cashback INTEGER NOT NULL DEFAULT 0;');
+        }
+        if (!colNames.has('interest_cashback_received')) {
+            await db.execAsync('ALTER TABLE loans ADD COLUMN interest_cashback_received REAL NOT NULL DEFAULT 0.0;');
+        }
+    } catch (err) {
+        console.warn('[SQLite] Error checking/migrating loan columns:', err);
     }
 
     // 6. Ensure subscriptions table exists

@@ -265,17 +265,28 @@ export async function importDatabaseBackup(db: SQLiteDatabase, backup: DatabaseB
     for (const l of loans) {
         await db.runAsync(
             `INSERT INTO loans (
-        id, institution_id, title, total_amount, remaining_balance, monthly_payment,
-        due_date, interest_rate, attachment_path, attachment_name, status, notes, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        id, lender_type, lender_name, institution_id, title, principal_amount,
+        processing_fee, total_amount, remaining_balance, monthly_payment,
+        start_date, due_date, term_months, interest_rate, has_interest_cashback,
+        interest_cashback_received, attachment_path, attachment_name, status, notes,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
             l.id,
-            l.institution_id,
+            l.lender_type || 'institution',
+            l.lender_name || '',
+            l.institution_id || null,
             l.title,
+            l.principal_amount !== undefined ? l.principal_amount : l.total_amount,
+            l.processing_fee || 0.0,
             l.total_amount,
             l.remaining_balance,
             l.monthly_payment,
+            l.start_date || null,
             l.due_date,
+            l.term_months ?? null,
             l.interest_rate ?? null,
+            l.has_interest_cashback ? 1 : 0,
+            l.interest_cashback_received || 0.0,
             l.attachment_path || '',
             l.attachment_name || '',
             l.status || 'active',

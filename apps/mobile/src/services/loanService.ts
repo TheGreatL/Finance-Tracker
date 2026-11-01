@@ -1,6 +1,8 @@
 import type * as SQLite from 'expo-sqlite';
-import type { LoanRecord, LoanStatus, CreateLoanInput, RecordLoanPaymentInput } from '../types/database';
+import type { LoanRecord, LoanStatus, LenderType, CreateLoanInput, RecordLoanPaymentInput, UpdateLoanMetadataInput } from '../types/database';
 import { getInstitutionConfig } from '../constants/institutions';
+
+export type { UpdateLoanMetadataInput };
 
 async function resolveOrCreateInstitutionId(db: SQLite.SQLiteDatabase, institutionIdOrCode: string, now: string): Promise<string> {
     // If db does not have getFirstAsync (e.g. minimalist unit test mock), return as is
@@ -35,25 +37,44 @@ export async function createLoan(db: SQLite.SQLiteDatabase, input: CreateLoanInp
     const loanId = `loan_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const now = new Date().toISOString();
     const remaining = input.remainingBalance ?? input.totalAmount;
+    const lenderType: LenderType = input.lenderType || 'institution';
+    const lenderName = input.lenderName?.trim() || '';
 
-    // Resolve institution id to satisfy Foreign Key constraint
-    const resolvedInstitutionId = await resolveOrCreateInstitutionId(db, input.institutionId, now);
+    // Resolve institution id if provided or if institutional loan
+    let resolvedInstitutionId: string | null = null;
+    if (input.institutionId) {
+        resolvedInstitutionId = await resolveOrCreateInstitutionId(db, input.institutionId, now);
+    }
+
+    const principalAmount = input.principalAmount !== undefined && input.principalAmount !== null ? input.principalAmount : input.totalAmount;
+    const processingFee = input.processingFee ?? 0.0;
+    const startDate = input.startDate || null;
+    const termMonths = input.termMonths ?? null;
+    const hasInterestCashback = input.hasInterestCashback ? 1 : 0;
 
     await db.runAsync(
         `INSERT INTO loans (
-      id, institution_id, title, total_amount, remaining_balance, monthly_payment,
-      due_date, interest_rate, attachment_path, attachment_name, status, notes,
-      created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, lender_type, lender_name, institution_id, title, principal_amount, processing_fee,
+      total_amount, remaining_balance, monthly_payment, start_date, due_date, term_months,
+      interest_rate, has_interest_cashback, interest_cashback_received, attachment_path,
+      attachment_name, status, notes, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.0, ?, ?, ?, ?, ?, ?)`,
         [
             loanId,
+            lenderType,
+            lenderName,
             resolvedInstitutionId,
             input.title.trim(),
+            principalAmount,
+            processingFee,
             input.totalAmount,
             remaining,
             input.monthlyPayment,
+            startDate,
             input.dueDate,
+            termMonths,
             input.interestRate ?? null,
+            hasInterestCashback,
             input.attachmentPath || '',
             input.attachmentName || '',
             'active',
@@ -65,13 +86,21 @@ export async function createLoan(db: SQLite.SQLiteDatabase, input: CreateLoanInp
 
     return {
         id: loanId,
+        lender_type: lenderType,
+        lender_name: lenderName,
         institution_id: resolvedInstitutionId,
         title: input.title.trim(),
+        principal_amount: principalAmount,
+        processing_fee: processingFee,
         total_amount: input.totalAmount,
         remaining_balance: remaining,
         monthly_payment: input.monthlyPayment,
+        start_date: startDate,
         due_date: input.dueDate,
+        term_months: termMonths,
         interest_rate: input.interestRate ?? null,
+        has_interest_cashback: hasInterestCashback,
+        interest_cashback_received: 0,
         attachment_path: input.attachmentPath || '',
         attachment_name: input.attachmentName || '',
         status: 'active',
@@ -89,7 +118,7 @@ export async function getActiveLoans(db: SQLite.SQLiteDatabase): Promise<LoanRec
       i.code AS institution_code,
       i.color AS institution_color
     FROM loans l
-    JOIN institutions i ON l.institution_id = i.id
+    LEFT JOIN institutions i ON l.institution_id = i.id
     WHERE l.status = 'active'
     ORDER BY l.due_date ASC`
     );
@@ -103,12 +132,25 @@ export async function getAllLoans(db: SQLite.SQLiteDatabase): Promise<LoanRecord
       i.code AS institution_code,
       i.color AS institution_color
     FROM loans l
-    JOIN institutions i ON l.institution_id = i.id
+    LEFT JOIN institutions i ON l.institution_id = i.id
     ORDER BY l.status ASC, l.due_date ASC`
     );
 }
 
-export async function getLoansByInstitution(db: SQLite.SQLiteDatabase, institutionId: string): Promise<LoanRecord[]> {
+export async function getLoansByInstitution(db: SQLite.SQLiteDatabase, institutionId?: string | null): Promise<LoanRecord[]> {
+    if (!institutionId) {
+        return await db.getAllAsync<LoanRecord>(
+            `SELECT
+          l.*,
+          i.name AS institution_name,
+          i.code AS institution_code,
+          i.color AS institution_color
+        FROM loans l
+        LEFT JOIN institutions i ON l.institution_id = i.id
+        WHERE l.institution_id IS NULL
+        ORDER BY l.status ASC, l.due_date ASC`
+        );
+    }
     return await db.getAllAsync<LoanRecord>(
         `SELECT
       l.*,
@@ -116,7 +158,7 @@ export async function getLoansByInstitution(db: SQLite.SQLiteDatabase, instituti
       i.code AS institution_code,
       i.color AS institution_color
     FROM loans l
-    JOIN institutions i ON l.institution_id = i.id
+    LEFT JOIN institutions i ON l.institution_id = i.id
     WHERE l.institution_id = ?
     ORDER BY l.status ASC, l.due_date ASC`,
         [institutionId]
@@ -199,6 +241,39 @@ export async function recordLoanPayment(db: SQLite.SQLiteDatabase, input: Record
       ) VALUES (?, ?, ?, NULL, 'expense', ?, ?, ?, ?, ?, ?)`,
             [txId, txTitle, input.pocketId, input.amount, 'Loan Payment', input.date || now.split('T')[0], txNotes, now, now]
         );
+
+        // 6. Handle interest cashback on early full payoff
+        if (input.interestCashback && input.interestCashback > 0) {
+            const balanceWithCashback = newPocketBalance + input.interestCashback;
+            await db.runAsync('UPDATE account_pockets SET current_balance = ?, updated_at = ? WHERE id = ?', [
+                balanceWithCashback,
+                now,
+                input.pocketId
+            ]);
+            await db.runAsync('UPDATE loans SET interest_cashback_received = interest_cashback_received + ?, updated_at = ? WHERE id = ?', [
+                input.interestCashback,
+                now,
+                input.loanId
+            ]);
+
+            const cashbackTxId = `tx_cb_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+            await db.runAsync(
+                `INSERT INTO transactions (
+            id, title, pocket_id, to_pocket_id, type, amount, category, date, notes, created_at, updated_at
+          ) VALUES (?, ?, ?, NULL, 'income', ?, ?, ?, ?, ?, ?)`,
+                [
+                    cashbackTxId,
+                    `Loan Interest Cashback: ${loan.title}`,
+                    input.pocketId,
+                    input.interestCashback,
+                    'Loan Cashback',
+                    input.date || now.split('T')[0],
+                    `Interest cashback for early payoff of ${loan.title}`,
+                    now,
+                    now
+                ]
+            );
+        }
     });
 }
 
@@ -206,19 +281,9 @@ export async function deleteLoan(db: SQLite.SQLiteDatabase, loanId: string): Pro
     await db.runAsync('DELETE FROM loans WHERE id = ?', [loanId]);
 }
 
-export interface UpdateLoanMetadataInput {
-    title?: string;
-    institutionId?: string;
-    dueDate?: string;
-    monthlyPayment?: number;
-    notes?: string;
-    attachmentPath?: string;
-    attachmentName?: string;
-}
-
 /**
- * Updates non-financial descriptive metadata for a loan.
- * Original principal and remaining balance are protected and only modified through recordLoanPayment.
+ * Updates descriptive metadata and terms for a loan.
+ * Original remaining balance is protected and only modified through recordLoanPayment.
  */
 export async function updateLoanMetadata(db: SQLite.SQLiteDatabase, loanId: string, input: UpdateLoanMetadataInput): Promise<void> {
     const existing = await db.getFirstAsync<LoanRecord>('SELECT * FROM loans WHERE id = ?', [loanId]);
@@ -227,22 +292,130 @@ export async function updateLoanMetadata(db: SQLite.SQLiteDatabase, loanId: stri
     }
 
     const now = new Date().toISOString();
-    let institutionId = existing.institution_id;
-    if (input.institutionId && input.institutionId !== existing.institution_id) {
-        institutionId = await resolveOrCreateInstitutionId(db, input.institutionId, now);
+    let institutionId = existing.institution_id ?? null;
+    if (input.institutionId !== undefined) {
+        if (input.institutionId) {
+            institutionId = await resolveOrCreateInstitutionId(db, input.institutionId, now);
+        } else {
+            institutionId = null;
+        }
     }
 
     const title = input.title !== undefined ? input.title.trim() : existing.title;
+    const lenderType: LenderType = input.lenderType !== undefined ? input.lenderType : existing.lender_type || 'institution';
+    const lenderName = (input.lenderName !== undefined ? input.lenderName.trim() : existing.lender_name) ?? null;
+    const principalAmount = (input.principalAmount !== undefined ? input.principalAmount : existing.principal_amount) ?? null;
+    const processingFee = (input.processingFee !== undefined ? input.processingFee : existing.processing_fee) ?? 0;
+    const startDate = (input.startDate !== undefined ? input.startDate : existing.start_date) ?? null;
+    const termMonths = (input.termMonths !== undefined ? input.termMonths : existing.term_months) ?? null;
     const dueDate = input.dueDate !== undefined ? input.dueDate.trim() : existing.due_date;
     const monthlyPayment = input.monthlyPayment !== undefined ? input.monthlyPayment : existing.monthly_payment;
+    const interestRate = (input.interestRate !== undefined ? input.interestRate : existing.interest_rate) ?? null;
+    const hasInterestCashback = input.hasInterestCashback !== undefined ? (input.hasInterestCashback ? 1 : 0) : existing.has_interest_cashback || 0;
     const notes = (input.notes !== undefined ? input.notes.trim() : existing.notes) ?? null;
     const attachmentPath = (input.attachmentPath !== undefined ? input.attachmentPath : existing.attachment_path) ?? null;
     const attachmentName = (input.attachmentName !== undefined ? input.attachmentName : existing.attachment_name) ?? null;
 
     await db.runAsync(
         `UPDATE loans 
-     SET title = ?, institution_id = ?, due_date = ?, monthly_payment = ?, notes = ?, attachment_path = ?, attachment_name = ?, updated_at = ? 
+     SET title = ?, lender_type = ?, lender_name = ?, institution_id = ?, principal_amount = ?, processing_fee = ?,
+         start_date = ?, term_months = ?, due_date = ?, monthly_payment = ?, interest_rate = ?, has_interest_cashback = ?,
+         notes = ?, attachment_path = ?, attachment_name = ?, updated_at = ? 
      WHERE id = ?`,
-        [title, institutionId, dueDate, monthlyPayment, notes, attachmentPath, attachmentName, now, loanId]
+        [
+            title,
+            lenderType,
+            lenderName,
+            institutionId,
+            principalAmount,
+            processingFee,
+            startDate,
+            termMonths,
+            dueDate,
+            monthlyPayment,
+            interestRate,
+            hasInterestCashback,
+            notes,
+            attachmentPath,
+            attachmentName,
+            now,
+            loanId
+        ]
     );
+}
+
+export interface LoanTimelineMetrics {
+    principalAmount: number;
+    processingFee: number;
+    netProceeds: number;
+    totalInterest: number;
+    projectedMaturityDate: string | null;
+    elapsedMonths: number | null;
+    remainingMonths: number | null;
+    termProgressPercent: number | null;
+    financialProgressPercent: number;
+    isEligibleForEarlyCashback: boolean;
+    hasTimeline: boolean;
+}
+
+export function getLoanTimelineMetrics(loan: LoanRecord, referenceDate: Date = new Date()): LoanTimelineMetrics {
+    const principal = loan.principal_amount ?? loan.total_amount;
+    const fee = loan.processing_fee || 0;
+    const netProceeds = Math.max(0, principal - fee);
+    const totalInterest = Math.max(0, loan.total_amount - principal);
+
+    const paidAmount = Math.max(0, loan.total_amount - loan.remaining_balance);
+    const financialProgressPercent = loan.total_amount > 0 ? Math.min(100, Math.max(0, Math.round((paidAmount / loan.total_amount) * 100))) : 0;
+
+    let projectedMaturityDate: string | null = null;
+    let elapsedMonths: number | null = null;
+    let remainingMonths: number | null = null;
+    let termProgressPercent: number | null = null;
+    let isEligibleForEarlyCashback = false;
+
+    if (loan.start_date && loan.term_months && loan.term_months > 0) {
+        const parts = loan.start_date.split('-');
+        if (parts.length === 3) {
+            const sy = parseInt(parts[0], 10);
+            const sm = parseInt(parts[1], 10);
+            const sd = parseInt(parts[2], 10);
+
+            if (!isNaN(sy) && !isNaN(sm) && !isNaN(sd)) {
+                const matDate = new Date(sy, sm - 1 + loan.term_months, sd);
+                const pad = (n: number) => String(n).padStart(2, '0');
+                projectedMaturityDate = `${matDate.getFullYear()}-${pad(matDate.getMonth() + 1)}-${pad(matDate.getDate())}`;
+
+                const refY = referenceDate.getFullYear();
+                const refM = referenceDate.getMonth();
+                const monthsPassed = (refY - sy) * 12 + (refM - (sm - 1));
+                elapsedMonths = Math.min(loan.term_months, Math.max(0, monthsPassed));
+                remainingMonths = Math.max(0, loan.term_months - elapsedMonths);
+                termProgressPercent = Math.min(100, Math.max(0, Math.round((elapsedMonths / loan.term_months) * 100)));
+
+                if (loan.has_interest_cashback && loan.remaining_balance > 0 && remainingMonths >= 1) {
+                    isEligibleForEarlyCashback = true;
+                }
+            }
+        }
+    } else if (loan.term_months && loan.term_months > 0) {
+        if (loan.monthly_payment > 0) {
+            remainingMonths = Math.min(loan.term_months, Math.ceil(loan.remaining_balance / loan.monthly_payment));
+            elapsedMonths = Math.max(0, loan.term_months - remainingMonths);
+            termProgressPercent = Math.min(100, Math.max(0, Math.round((elapsedMonths / loan.term_months) * 100)));
+        }
+    }
+
+    return {
+        principalAmount: principal,
+        processingFee: fee,
+        netProceeds,
+        totalInterest,
+        projectedMaturityDate,
+        elapsedMonths,
+        remainingMonths,
+        termProgressPercent,
+        financialProgressPercent,
+        isEligibleForEarlyCashback,
+        hasTimeline: Boolean(loan.start_date || loan.term_months)
+    };
 }
