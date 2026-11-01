@@ -1,15 +1,43 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { GEMINI_API_KEY } from '../constants/config';
 import { getAllActivePockets } from './accountService';
-import { getActiveLoans, getLoansSummary } from './loanService';
+import { getActiveLoans, getLoansSummary, calculateLoanInstallmentSchedule } from './loanService';
 import { getIncomeSummary, type IncomeSummary } from './salaryService';
-import type { AccountPocket, LoanRecord } from '../types/database';
+import { getAllSubscriptions } from './subscriptionService';
+import { getRecentTransactions } from './transactionService';
+import {
+    calculateSubscriptionsAnalytics,
+    calculateCategoryBreakdown,
+    calculateMonthlyFlow,
+    type SubscriptionsAnalytics,
+    type CategoryBreakdown
+} from './analyticsService';
+import type { AccountPocket, LoanRecord, SubscriptionRecord, TransactionRecord } from '../types/database';
 import type { ChatStatus } from './chatEngine';
 
 export interface GeminiAdvisorResult {
     text: string;
     status: ChatStatus;
     source: 'gemini';
+}
+
+export interface ExtraFinancialContext {
+    subscriptionsSummary?: SubscriptionsAnalytics;
+    spendingSummary?: {
+        monthlyExpense: number;
+        monthlyIncome: number;
+        netSavings: number;
+        topCategories: CategoryBreakdown[];
+        recentTransactions: TransactionRecord[];
+    };
+    amortizationSchedules?: {
+        loanId: string;
+        title: string;
+        activeInstallmentDue?: string;
+        residualDue?: number;
+        settledMonths: number;
+        totalMonths: number;
+    }[];
 }
 
 /**
@@ -19,20 +47,36 @@ export function buildFinancialSystemContext(
     pockets: (AccountPocket & { institution_name?: string })[],
     loans: LoanRecord[],
     loansSummary: { totalLoanBalance: number; nextDueLoan: LoanRecord | null; activeCount: number },
-    incomeSummary?: IncomeSummary
+    incomeSummary?: IncomeSummary,
+    extraContext?: ExtraFinancialContext
 ): string {
-    const totalLiquid = pockets.reduce((sum, p) => sum + p.current_balance, 0);
+    const walletPockets = pockets.filter((p) => p.pocket_type !== 'savings');
+    const savingsPockets = pockets.filter((p) => p.pocket_type === 'savings');
+    const totalSpendable = walletPockets.reduce((sum, p) => sum + p.current_balance, 0);
+    const totalSavings = savingsPockets.reduce((sum, p) => sum + p.current_balance, 0);
+    const totalLiquid = totalSpendable + totalSavings;
 
-    const pocketLines = pockets.map((p) => `• ${p.institution_name || 'Bank'} - ${p.name}: ₱${p.current_balance.toLocaleString()}`).join('\n');
+    const pocketLines = pockets
+        .map(
+            (p) =>
+                `• ${p.institution_name || 'Bank'} - ${p.name} (${p.pocket_type === 'savings' ? 'Savings' : 'Spendable Wallet'}): ₱${p.current_balance.toLocaleString()}`
+        )
+        .join('\n');
 
     const loanLines =
         loans.length === 0
             ? 'No active loans (Debt-free)'
             : loans
-                  .map(
-                      (l) =>
-                          `• ${l.title} (${l.institution_name}): ₱${l.remaining_balance.toLocaleString()} remaining • Monthly: ₱${l.monthly_payment.toLocaleString()} (Due: ${l.due_date})`
-                  )
+                  .map((l) => {
+                      const sched = extraContext?.amortizationSchedules?.find((s) => s.loanId === l.id);
+                      const schedText = sched
+                          ? ` • ${sched.settledMonths}/${sched.totalMonths} mos settled` +
+                            (sched.residualDue !== undefined
+                                ? ` • Active Due: ₱${sched.residualDue.toLocaleString()} on ${sched.activeInstallmentDue || l.due_date}`
+                                : '')
+                          : '';
+                      return `• ${l.title} (${l.institution_name || 'Lender'}): ₱${l.remaining_balance.toLocaleString()} remaining • Monthly: ₱${l.monthly_payment.toLocaleString()} (Due: ${l.due_date})${schedText}`;
+                  })
                   .join('\n');
 
     const nextDueText = loansSummary.nextDueLoan
@@ -47,29 +91,78 @@ export function buildFinancialSystemContext(
 ${incomeSummary.nextPayday ? `- Next Upcoming Payday: ₱${incomeSummary.nextPayday.netAmount.toLocaleString()} from ${incomeSummary.nextPayday.companyName} on ${incomeSummary.nextPayday.payDate}` : ''}`
             : '- Active Jobs & Salary: No active jobs configured';
 
+    const subsSummary = extraContext?.subscriptionsSummary;
+    const subscriptionSection =
+        subsSummary && subsSummary.activeCount > 0
+            ? `- Monthly Recurring Subscriptions: ₱${subsSummary.monthlyTotal.toLocaleString()}/mo across ${subsSummary.activeCount} service(s) (Yearly: ₱${subsSummary.yearlyProjected.toLocaleString()})
+${subsSummary.subscriptions
+    .slice(0, 6)
+    .map((s) => `  • ${s.serviceName}: ₱${s.amount.toLocaleString()} (${s.frequency}) via ${s.pocketLabel} • Next billing: ${s.nextBillingDate}`)
+    .join('\n')}`
+            : '- Active Subscriptions: None configured';
+
+    const spending = extraContext?.spendingSummary;
+    const spendingSection = spending
+        ? `- Current Month Expenses: ₱${spending.monthlyExpense.toLocaleString()}
+- Current Month Inflows: ₱${spending.monthlyIncome.toLocaleString()}
+- Current Month Net Savings: ₱${spending.netSavings.toLocaleString()}
+- Top Expense Categories:
+${
+    spending.topCategories.length > 0
+        ? spending.topCategories
+              .slice(0, 4)
+              .map((c) => `  • ${c.category}: ₱${c.total.toLocaleString()} (${c.percentage}%)`)
+              .join('\n')
+        : '  • No category breakdown available'
+}
+- Recent Outflow Transactions:
+${
+    spending.recentTransactions.length > 0
+        ? spending.recentTransactions
+              .slice(0, 5)
+              .map((t) => `  • [${t.date}] ${t.title} (${t.category}): -₱${t.amount.toLocaleString()}`)
+              .join('\n')
+        : '  • No recent expense transactions'
+}`
+        : '- Spending Analytics: No recent transactions recorded';
+
+    const totalFixedObligations =
+        (loansSummary.nextDueLoan ? loans.reduce((sum, l) => sum + l.monthly_payment, 0) : 0) + (subsSummary?.monthlyTotal || 0);
+
     return `You are PocketBot, a smart, encouraging, and prudent personal financial advisor for a user in the Philippines.
 All currency values are in Philippine Pesos (₱).
 
 CURRENT REAL-TIME FINANCIAL STATE FROM USER'S SQLITE DATABASE:
-- Total Available Liquid Money: ₱${totalLiquid.toLocaleString()}
+- Total Liquid Money: ₱${totalLiquid.toLocaleString()}
+  • Spendable Cash & Wallets: ₱${totalSpendable.toLocaleString()}
+  • Reserved Savings & Emergency Funds: ₱${totalSavings.toLocaleString()}
 - Individual Pockets & Balances:
 ${pocketLines || '• No accounts configured yet'}
 - Employment & Income Streams:
 ${incomeSection}
+- Fixed Monthly Obligations (Loans + Subscriptions): ₱${totalFixedObligations.toLocaleString()}/mo
 - Total Outstanding Active Loans: ₱${loansSummary.totalLoanBalance.toLocaleString()} across ${loans.length} active loans
-- Active Loan Obligations:
+- Active Loan Obligations & Amortization Schedules:
 ${loanLines}
 - Next Loan Payment Due: ${nextDueText}
+- Subscriptions & Recurring Bills:
+${subscriptionSection}
+- Spending Behavior & Recent Transactions:
+${spendingSection}
 
 INSTRUCTIONS FOR RESPONDING:
-1. When asked "Can I afford X?", calculate whether the user has enough liquid money (₱${totalLiquid.toLocaleString()}).
-   - If they have enough, check if spending this amount would leave them with less than their upcoming loan payment (${nextDueText}). If so, warn them that their budget will be tight and caution them!
+1. When asked "Can I afford X?", calculate whether the user has enough spendable cash (₱${totalSpendable.toLocaleString()}) and total liquid money (₱${totalLiquid.toLocaleString()}).
+   - Differentiate spendable wallet cash from emergency savings! If the purchase requires dipping into dedicated savings pockets (₱${totalSavings.toLocaleString()}), explicitly warn them not to compromise their savings cushion.
+   - Check if spending this amount would leave them with less than their upcoming loan payment (${nextDueText}) or upcoming subscription bills. If so, caution them that their fixed obligations are at risk!
    - If the purchase exceeds total money, clearly say no and state how much they are short by.
    - If safe, warmly confirm they can afford it and show what their remaining balance will be.
-2. When asked about income, paycheck, job changes, or taxes, reference their gross earnings, itemized deductions (taxes, statutory SSS/PhilHealth/Pag-IBIG), and net take-home pay.
-3. Keep answers concise, clear, and well-structured with markdown bolding (**₱Amount**) and bullet points.
-4. If asked about general money topics, answer helpfully while referencing their current financial reality when relevant.
-5. Never use emojis or emoticons in your answers. Keep the tone professional, clean, and modern without any emojis.`;
+2. When asked about spending, expenses, or "Where did my money go?", reference their current month's expenses, top expense categories, and recent transactions.
+3. When asked about subscriptions or recurring bills, summarize their active services, monthly/yearly commitments, and upcoming billing dates.
+4. When asked about income, paycheck, job changes, or taxes, reference their gross earnings, itemized deductions (taxes, statutory SSS/PhilHealth/Pag-IBIG), and net take-home pay.
+5. When asked about loans, reference their remaining debt, monthly payments, and amortization status (including any installments settled in advance or partial residuals due).
+6. Keep answers concise, clear, and well-structured with markdown bolding (**₱Amount**) and bullet points.
+7. If asked about general money topics, answer helpfully while referencing their current financial reality when relevant.
+8. Never use emojis or emoticons in your answers. Keep the tone professional, clean, and modern without any emojis.`;
 }
 
 /**
@@ -99,6 +192,8 @@ export interface QueryGeminiOptions {
     fetchLoans?: (db: SQLiteDatabase) => Promise<LoanRecord[]>;
     fetchLoansSummary?: (db: SQLiteDatabase) => Promise<{ totalLoanBalance: number; nextDueLoan: LoanRecord | null; activeCount: number }>;
     fetchIncomeSummary?: (db: SQLiteDatabase) => Promise<IncomeSummary>;
+    fetchSubscriptions?: (db: SQLiteDatabase) => Promise<SubscriptionRecord[]>;
+    fetchTransactions?: (db: SQLiteDatabase) => Promise<TransactionRecord[]>;
 }
 
 /**
@@ -120,15 +215,50 @@ export async function queryGeminiAdvisor(db: SQLiteDatabase, prompt: string, opt
     const getLoans = options?.fetchLoans || getActiveLoans;
     const getLoansSum = options?.fetchLoansSummary || getLoansSummary;
     const getIncSum = options?.fetchIncomeSummary || getIncomeSummary;
+    const getSubs = options?.fetchSubscriptions || getAllSubscriptions;
+    const getTxs = options?.fetchTransactions || ((database: SQLiteDatabase) => getRecentTransactions(database, 200));
 
-    const [pockets, loans, loansSummary, incomeSummary] = await Promise.all([
+    const [pockets, loans, loansSummary, incomeSummary, subscriptions, transactions] = await Promise.all([
         getPockets(db),
         getLoans(db),
         getLoansSum(db),
-        getIncSum(db).catch(() => undefined)
+        getIncSum(db).catch(() => undefined),
+        getSubs(db).catch(() => []),
+        getTxs(db).catch(() => [])
     ]);
 
-    const systemInstruction = buildFinancialSystemContext(pockets, loans, loansSummary, incomeSummary);
+    const subscriptionsSummary = calculateSubscriptionsAnalytics(subscriptions);
+    const monthlyFlow = calculateMonthlyFlow(transactions);
+    const categoryBreakdown = calculateCategoryBreakdown(transactions);
+    const expenseTransactions = transactions.filter((t) => t.type === 'expense');
+
+    const amortizationSchedules = loans
+        .filter((l) => l.term_months && l.term_months > 0)
+        .map((l) => {
+            const sched = calculateLoanInstallmentSchedule(l);
+            return {
+                loanId: l.id,
+                title: l.title,
+                activeInstallmentDue: sched.activeInstallment?.dueDate,
+                residualDue: sched.activeInstallment?.remainingDue,
+                settledMonths: sched.settledCount,
+                totalMonths: sched.totalTermMonths
+            };
+        });
+
+    const extraContext: ExtraFinancialContext = {
+        subscriptionsSummary,
+        spendingSummary: {
+            monthlyExpense: monthlyFlow.totalExpense,
+            monthlyIncome: monthlyFlow.totalIncome,
+            netSavings: monthlyFlow.netSavings,
+            topCategories: categoryBreakdown,
+            recentTransactions: expenseTransactions.slice(0, 5)
+        },
+        amortizationSchedules
+    };
+
+    const systemInstruction = buildFinancialSystemContext(pockets, loans, loansSummary, incomeSummary, extraContext);
 
     const requestBody = {
         systemInstruction: {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { buildFinancialSystemContext, queryGeminiAdvisor, inferStatusFromText, verifyGeminiConnection } from '../src/services/geminiService';
 
 describe('geminiService', () => {
@@ -43,12 +43,106 @@ describe('geminiService', () => {
     it('builds a comprehensive financial context prompt from SQLite data', () => {
         const context = buildFinancialSystemContext(mockPockets as any, mockLoans as any, mockLoansSummary as any);
 
-        expect(context).toContain('Total Available Liquid Money: ₱50,000');
-        expect(context).toContain('BDO - Main Wallet: ₱35,000');
-        expect(context).toContain('GCash - GCash Pocket: ₱15,000');
+        expect(context).toContain('Total Liquid Money: ₱50,000');
+        expect(context).toContain('BDO - Main Wallet (Spendable Wallet): ₱35,000');
+        expect(context).toContain('GCash - GCash Pocket (Spendable Wallet): ₱15,000');
         expect(context).toContain('Laptop Installment (BillEase): ₱15,000 remaining');
         expect(context).toContain('2026-10-30');
         expect(context).toContain('No active jobs configured');
+    });
+
+    it('builds enriched financial context with subscriptions, spending, and amortization schedule', () => {
+        const pocketsWithSavings = [
+            ...mockPockets,
+            {
+                id: 'p3',
+                institution_id: 'i3',
+                name: 'Emergency Fund',
+                pocket_type: 'savings',
+                current_balance: 100000,
+                institution_name: 'SeaBank'
+            }
+        ];
+
+        const extraContext = {
+            subscriptionsSummary: {
+                totalMonthly: 1249,
+                monthlyTotal: 1249,
+                yearlyProjected: 14988,
+                activeCount: 2,
+                subscriptions: [
+                    {
+                        id: 's1',
+                        serviceName: 'Netflix Premium',
+                        amount: 549,
+                        frequency: 'monthly',
+                        category: 'Entertainment',
+                        pocketLabel: 'GCash Pocket',
+                        nextBillingDate: '2026-11-10',
+                        status: 'active'
+                    },
+                    {
+                        id: 's2',
+                        serviceName: 'Spotify Family',
+                        amount: 700,
+                        frequency: 'monthly',
+                        category: 'Music',
+                        pocketLabel: 'Main Wallet',
+                        nextBillingDate: '2026-11-15',
+                        status: 'active'
+                    }
+                ]
+            },
+            spendingSummary: {
+                monthlyExpense: 32000,
+                monthlyIncome: 80000,
+                netSavings: 48000,
+                topCategories: [
+                    { category: 'Food & Dining', total: 12000, count: 18, percentage: 37.5 },
+                    { category: 'Utilities', total: 8000, count: 4, percentage: 25.0 }
+                ],
+                recentTransactions: [
+                    {
+                        id: 't1',
+                        title: 'Grocery Supermarket',
+                        amount: 3500,
+                        type: 'expense',
+                        category: 'Food & Dining',
+                        date: '2026-10-28',
+                        pocket_id: 'p1'
+                    }
+                ]
+            },
+            amortizationSchedules: [
+                {
+                    loanId: 'l1',
+                    title: 'Laptop Installment',
+                    activeInstallmentDue: '2026-11-30',
+                    residualDue: 1500,
+                    settledMonths: 5,
+                    totalMonths: 12
+                }
+            ]
+        };
+
+        const context = buildFinancialSystemContext(
+            pocketsWithSavings as any,
+            mockLoans as any,
+            mockLoansSummary as any,
+            undefined,
+            extraContext as any
+        );
+
+        expect(context).toContain('Spendable Cash & Wallets: ₱50,000');
+        expect(context).toContain('Reserved Savings & Emergency Funds: ₱100,000');
+        expect(context).toContain('SeaBank - Emergency Fund (Savings): ₱100,000');
+        expect(context).toContain('Monthly Recurring Subscriptions: ₱1,249/mo across 2 service(s)');
+        expect(context).toContain('Netflix Premium: ₱549 (monthly) via GCash Pocket • Next billing: 2026-11-10');
+        expect(context).toContain('Current Month Expenses: ₱32,000');
+        expect(context).toContain('Current Month Net Savings: ₱48,000');
+        expect(context).toContain('Food & Dining: ₱12,000 (37.5%)');
+        expect(context).toContain('[2026-10-28] Grocery Supermarket (Food & Dining): -₱3,500');
+        expect(context).toContain('5/12 mos settled • Active Due: ₱1,500 on 2026-11-30');
     });
 
     it('builds financial context including multi-job salary and deductions', () => {
@@ -177,6 +271,67 @@ describe('geminiService', () => {
 
             expect(capturedSystemInstruction).toContain('Monthly Gross Earnings: ₱120,000 across 1 active job(s)');
             expect(result.text).toContain('Based on your salary of ₱120,000');
+        });
+
+        it('injects subscriptions and transactions into Gemini prompt when available', async () => {
+            let capturedSystemInstruction = '';
+            const mockFetch = vi.fn().mockImplementation(async (_url, options) => {
+                const body = JSON.parse(options.body);
+                capturedSystemInstruction = body.systemInstruction.parts[0].text;
+                return {
+                    ok: true,
+                    json: async () => ({
+                        candidates: [
+                            {
+                                content: {
+                                    parts: [
+                                        {
+                                            text: 'You have 1 active subscription for Spotify.'
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    })
+                };
+            });
+
+            const mockSubscriptions = [
+                {
+                    id: 'sub-1',
+                    service_name: 'Spotify Premium',
+                    amount: 149,
+                    frequency: 'monthly',
+                    pocket_id: 'p1',
+                    next_billing_date: '2026-11-20',
+                    status: 'active'
+                }
+            ];
+
+            const mockTransactions = [
+                {
+                    id: 'tx-1',
+                    title: 'Jollibee Meal',
+                    amount: 250,
+                    type: 'expense',
+                    category: 'Dining Out',
+                    date: '2026-10-31',
+                    pocket_id: 'p1'
+                }
+            ];
+
+            const result = await queryGeminiAdvisor(mockDb, 'What are my subscriptions and expenses?', {
+                fetchFn: mockFetch,
+                fetchPockets: vi.fn().mockResolvedValue(mockPockets),
+                fetchLoans: vi.fn().mockResolvedValue(mockLoans),
+                fetchLoansSummary: vi.fn().mockResolvedValue(mockLoansSummary),
+                fetchSubscriptions: vi.fn().mockResolvedValue(mockSubscriptions),
+                fetchTransactions: vi.fn().mockResolvedValue(mockTransactions)
+            });
+
+            expect(capturedSystemInstruction).toContain('Spotify Premium');
+            expect(capturedSystemInstruction).toContain('Jollibee Meal');
+            expect(result.text).toContain('Spotify');
         });
 
         it('retries on transient network error and succeeds on second attempt', async () => {

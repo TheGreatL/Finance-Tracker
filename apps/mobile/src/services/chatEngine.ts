@@ -1,10 +1,13 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getAllActivePockets } from './accountService';
 import { getActiveLoans, getLoansSummary } from './loanService';
-import type { AccountPocket, LoanRecord } from '../types/database';
+import { getAllSubscriptions, normalizeToMonthlyAmount } from './subscriptionService';
+import { getRecentTransactions } from './transactionService';
+import { calculateMonthlyFlow, calculateCategoryBreakdown } from './analyticsService';
+import type { AccountPocket, LoanRecord, SubscriptionRecord, TransactionRecord } from '../types/database';
 import { PHILIPPINE_INSTITUTIONS } from '../constants/institutions';
 
-export type ChatIntent = 'affordability' | 'projection' | 'debt' | 'balance' | 'institution_balance' | 'unknown';
+export type ChatIntent = 'affordability' | 'projection' | 'debt' | 'balance' | 'institution_balance' | 'subscriptions' | 'spending' | 'unknown';
 
 export type ChatStatus = 'safe' | 'tight' | 'unaffordable' | 'info' | 'unknown';
 
@@ -20,6 +23,8 @@ export interface EvaluateChatOptions {
     getAllActivePockets?: (db: SQLiteDatabase) => Promise<(AccountPocket & { institution_name?: string; institution_code?: string })[]>;
     getActiveLoans?: (db: SQLiteDatabase) => Promise<LoanRecord[]>;
     getLoansSummary?: (db: SQLiteDatabase) => Promise<{ totalLoanBalance: number; nextDueLoan: LoanRecord | null; activeCount: number }>;
+    getAllSubscriptions?: (db: SQLiteDatabase) => Promise<SubscriptionRecord[]>;
+    getRecentTransactions?: (db: SQLiteDatabase, limit: number) => Promise<TransactionRecord[]>;
     referenceDate?: Date;
 }
 
@@ -126,6 +131,33 @@ export function detectIntent(input: string): ChatIntent {
         return 'balance';
     }
 
+    // Subscriptions & Recurring Bills
+    if (
+        norm.includes('subscription') ||
+        norm.includes('netflix') ||
+        norm.includes('spotify') ||
+        norm.includes('recurring') ||
+        norm.includes('bills due') ||
+        norm.includes('bayarin') ||
+        norm.includes('monthly bills')
+    ) {
+        return 'subscriptions';
+    }
+
+    // Spending / Outflows
+    if (
+        norm.includes('how much did i spend') ||
+        norm.includes('how much spent') ||
+        norm.includes('my expenses') ||
+        norm.includes('gastos') ||
+        norm.includes('where did my money go') ||
+        norm.includes('saan napunta') ||
+        norm.includes('spending') ||
+        norm.includes('outflow')
+    ) {
+        return 'spending';
+    }
+
     return 'unknown';
 }
 
@@ -150,14 +182,26 @@ export async function evaluateChatPrompt(db: SQLiteDatabase, prompt: string, opt
     const fetchPockets = options?.getAllActivePockets ?? getAllActivePockets;
     const fetchLoans = options?.getActiveLoans ?? getActiveLoans;
     const fetchLoansSummary = options?.getLoansSummary ?? getLoansSummary;
+    const fetchSubscriptions = options?.getAllSubscriptions ?? getAllSubscriptions;
+    const fetchTransactions = options?.getRecentTransactions ?? getRecentTransactions;
     const today = options?.referenceDate ?? new Date();
 
     const intent = detectIntent(prompt);
     const amount = parseAmount(prompt);
 
-    const [pockets, activeLoans, loansSummary] = await Promise.all([fetchPockets(db), fetchLoans(db), fetchLoansSummary(db)]);
+    const [pockets, activeLoans, loansSummary, subscriptions, transactions] = await Promise.all([
+        fetchPockets(db),
+        fetchLoans(db),
+        fetchLoansSummary(db),
+        fetchSubscriptions(db).catch(() => []),
+        fetchTransactions(db, 200).catch(() => [])
+    ]);
 
-    const totalLiquid = pockets.reduce((sum, p) => sum + p.current_balance, 0);
+    const walletPockets = pockets.filter((p) => p.pocket_type !== 'savings');
+    const savingsPockets = pockets.filter((p) => p.pocket_type === 'savings');
+    const totalSpendable = walletPockets.reduce((sum, p) => sum + p.current_balance, 0);
+    const totalSavings = savingsPockets.reduce((sum, p) => sum + p.current_balance, 0);
+    const totalLiquid = totalSpendable + totalSavings;
 
     // Intent 1: Affordability
     if (intent === 'affordability') {
@@ -176,8 +220,17 @@ export async function evaluateChatPrompt(db: SQLiteDatabase, prompt: string, opt
             const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
             return diffDays >= 0 && diffDays <= 14;
         });
-
         const upcomingPaymentsTotal = upcomingLoans.reduce((sum, l) => sum + l.monthly_payment, 0);
+
+        // Check subscriptions due within 14 days
+        const upcomingSubs = subscriptions.filter((sub) => {
+            if (sub.status !== 'active' || !sub.next_billing_date) return false;
+            const dueDate = new Date(sub.next_billing_date);
+            const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            return diffDays >= 0 && diffDays <= 14;
+        });
+        const upcomingSubsTotal = upcomingSubs.reduce((sum, s) => sum + s.amount, 0);
+        const totalUpcomingCommitments = upcomingPaymentsTotal + upcomingSubsTotal;
 
         // Case 1: Exceeds total available money
         if (amount > totalLiquid) {
@@ -191,22 +244,46 @@ export async function evaluateChatPrompt(db: SQLiteDatabase, prompt: string, opt
             };
         }
 
-        // Case 2: Enough total cash, but risks upcoming loan commitments
         const remainingAfterPurchase = totalLiquid - amount;
-        if (upcomingPaymentsTotal > 0 && remainingAfterPurchase < upcomingPaymentsTotal) {
-            const primaryLoan = upcomingLoans[0];
+
+        // Case 2: Dipping into dedicated savings pockets
+        if (totalSavings > 0 && amount > totalSpendable) {
+            const savingsNeeded = amount - totalSpendable;
             return {
-                text: `**Caution: You can technically purchase this, but your funds will be tight.**\n\nYou currently have **₱${totalLiquid.toLocaleString()}**. Spending **₱${amount.toLocaleString()}** leaves you with **₱${remainingAfterPurchase.toLocaleString()}**.\n\nHowever, you have an upcoming **${primaryLoan.institution_name}** loan payment of **₱${primaryLoan.monthly_payment.toLocaleString()}** due on **${primaryLoan.due_date}**. Spending this may compromise your upcoming loan obligation!`,
+                text: `**Caution: This purchase requires dipping into your dedicated savings.**\n\nYou currently have **₱${totalSpendable.toLocaleString()}** in spendable wallets and **₱${totalSavings.toLocaleString()}** in reserved savings pockets. Spending **₱${amount.toLocaleString()}** will eat **₱${savingsNeeded.toLocaleString()}** into your emergency savings cushion!`,
                 status: 'tight',
                 intent: 'affordability',
                 amount,
-                data: { totalLiquid, remainingAfterPurchase, upcomingPaymentsTotal }
+                data: { totalLiquid, totalSpendable, totalSavings, remainingAfterPurchase }
             };
         }
 
-        // Case 3: Safe to afford
+        // Case 3: Enough total cash, but risks upcoming loan/subscription commitments
+        if (totalUpcomingCommitments > 0 && remainingAfterPurchase < totalUpcomingCommitments) {
+            const commitmentItems: string[] = [];
+            if (upcomingLoans.length > 0) {
+                commitmentItems.push(
+                    `**${upcomingLoans[0].institution_name || 'Loan'}** payment of **₱${upcomingLoans[0].monthly_payment.toLocaleString()}** (due ${upcomingLoans[0].due_date})`
+                );
+            }
+            if (upcomingSubs.length > 0) {
+                commitmentItems.push(
+                    `**${upcomingSubs[0].service_name}** subscription of **₱${upcomingSubs[0].amount.toLocaleString()}** (due ${upcomingSubs[0].next_billing_date})`
+                );
+            }
+
+            return {
+                text: `**Caution: You can technically purchase this, but your funds will be tight.**\n\nYou currently have **₱${totalLiquid.toLocaleString()}**. Spending **₱${amount.toLocaleString()}** leaves you with **₱${remainingAfterPurchase.toLocaleString()}**.\n\nHowever, you have upcoming commitments in the next 14 days totaling **₱${totalUpcomingCommitments.toLocaleString()}** (${commitmentItems.join(' and ')}). Spending this may compromise your upcoming payments!`,
+                status: 'tight',
+                intent: 'affordability',
+                amount,
+                data: { totalLiquid, remainingAfterPurchase, totalUpcomingCommitments }
+            };
+        }
+
+        // Case 4: Safe to afford
         return {
-            text: `**Yes, you can afford this!**\n\nYou have **₱${totalLiquid.toLocaleString()}** available across your accounts. After spending **₱${amount.toLocaleString()}**, you will retain **₱${remainingAfterPurchase.toLocaleString()}** in liquid funds.`,
+            text: `**Yes, you can afford this!**\n\nYou have **₱${totalLiquid.toLocaleString()}** available across your accounts (including **₱${totalSpendable.toLocaleString()}** in spendable cash). After spending **₱${amount.toLocaleString()}**, you will retain **₱${remainingAfterPurchase.toLocaleString()}** in liquid funds.`,
             status: 'safe',
             intent: 'affordability',
             amount,
@@ -258,7 +335,7 @@ export async function evaluateChatPrompt(db: SQLiteDatabase, prompt: string, opt
         const loanLines = activeLoans
             .map(
                 (l) =>
-                    `• **${l.title}** (${l.institution_name}): ₱${l.remaining_balance.toLocaleString()} remaining • ₱${l.monthly_payment.toLocaleString()}/mo (Due: ${l.due_date})`
+                    `• **${l.title}** (${l.institution_name || 'Lender'}): ₱${l.remaining_balance.toLocaleString()} remaining • ₱${l.monthly_payment.toLocaleString()}/mo (Due: ${l.due_date})`
             )
             .join('\n');
 
@@ -274,7 +351,53 @@ export async function evaluateChatPrompt(db: SQLiteDatabase, prompt: string, opt
         };
     }
 
-    // Intent 4: Specific Institution Balance
+    // Intent 4: Subscriptions & Recurring Bills
+    if (intent === 'subscriptions') {
+        const activeSubs = subscriptions.filter((s) => s.status === 'active');
+        const monthlyTotal = Math.round(activeSubs.reduce((sum, s) => sum + normalizeToMonthlyAmount(s.amount, s.frequency), 0) * 100) / 100;
+
+        if (activeSubs.length === 0) {
+            return {
+                text: `**No active subscriptions recorded.** You don't have any recurring bills or subscriptions set up yet.`,
+                status: 'info',
+                intent: 'subscriptions',
+                data: { monthlyTotal: 0, activeCount: 0 }
+            };
+        }
+
+        const sortedByDate = [...activeSubs].sort((a, b) => a.next_billing_date.localeCompare(b.next_billing_date));
+        const subList = sortedByDate
+            .slice(0, 5)
+            .map((s) => `• **${s.service_name}**: ₱${s.amount.toLocaleString()} (${s.frequency}) • Next: ${s.next_billing_date}`)
+            .join('\n');
+
+        return {
+            text: `**Your Active Subscriptions:**\n\nYou currently have **${activeSubs.length} active subscription(s)** totaling **₱${monthlyTotal.toLocaleString()}/month**.\n\n${subList}`,
+            status: 'info',
+            intent: 'subscriptions',
+            data: { monthlyTotal, activeCount: activeSubs.length }
+        };
+    }
+
+    // Intent 5: Spending / Outflows
+    if (intent === 'spending') {
+        const monthlyFlow = calculateMonthlyFlow(transactions);
+        const categories = calculateCategoryBreakdown(transactions);
+
+        const topCatList = categories
+            .slice(0, 4)
+            .map((c) => `• **${c.category}**: ₱${c.total.toLocaleString()} (${c.percentage}%)`)
+            .join('\n');
+
+        return {
+            text: `**Your Spending Summary for this Month:**\n\n• Total Recorded Expenses: **₱${monthlyFlow.totalExpense.toLocaleString()}**\n• Total Recorded Income: **₱${monthlyFlow.totalIncome.toLocaleString()}**\n• Net Monthly Savings: **₱${monthlyFlow.netSavings.toLocaleString()}**\n\nTop Spending Categories:\n${topCatList || '• No expenses recorded this month'}`,
+            status: 'info',
+            intent: 'spending',
+            data: { monthlyExpense: monthlyFlow.totalExpense, topCategories: categories }
+        };
+    }
+
+    // Intent 6: Specific Institution Balance
     if (intent === 'institution_balance') {
         const instName = extractInstitutionName(prompt);
         if (!instName) {
@@ -306,7 +429,7 @@ export async function evaluateChatPrompt(db: SQLiteDatabase, prompt: string, opt
         };
     }
 
-    // Intent 5: Total Balance
+    // Intent 7: Total Balance
     if (intent === 'balance') {
         const topPockets = [...pockets]
             .sort((a, b) => b.current_balance - a.current_balance)
@@ -315,16 +438,16 @@ export async function evaluateChatPrompt(db: SQLiteDatabase, prompt: string, opt
             .join('\n');
 
         return {
-            text: `**Total Available Money: ₱${totalLiquid.toLocaleString()}**\n\nAcross ${pockets.length} accounts & pockets:\n${topPockets}`,
+            text: `**Total Available Money: ₱${totalLiquid.toLocaleString()}** (Spendable: ₱${totalSpendable.toLocaleString()} • Savings: ₱${totalSavings.toLocaleString()})\n\nAcross ${pockets.length} accounts & pockets:\n${topPockets}`,
             status: 'info',
             intent: 'balance',
-            data: { totalLiquid, pocketCount: pockets.length }
+            data: { totalLiquid, totalSpendable, totalSavings, pocketCount: pockets.length }
         };
     }
 
     // Fallback: Unknown
     return {
-        text: `I'm your offline finance assistant. I calculate directly from your SQLite database without sending data anywhere. I can help answer questions like:\n\n• **"Can I afford ₱15,000?"**\n• **"How much will I have if I buy a phone for 25k?"**\n• **"How much do I owe right now?"**\n• **"How much money do I have?"**\n• **"How much in Maya?"**`,
+        text: `I'm your offline finance assistant. I calculate directly from your SQLite database without sending data anywhere. I can help answer questions like:\n\n• **"Can I afford ₱15,000?"**\n• **"How much will I have if I buy a phone for 25k?"**\n• **"How much do I owe right now?"**\n• **"What are my subscriptions?"**\n• **"How much did I spend this month?"**\n• **"How much money do I have?"**\n• **"How much in Maya?"**`,
         status: 'unknown',
         intent: 'unknown'
     };

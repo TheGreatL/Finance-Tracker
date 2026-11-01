@@ -70,6 +70,20 @@ describe('chatEngine', () => {
             expect(detectIntent('how much money in bdo')).toBe('institution_balance');
         });
 
+        it('detects subscriptions intent', () => {
+            expect(detectIntent('what are my subscriptions')).toBe('subscriptions');
+            expect(detectIntent('check my netflix')).toBe('subscriptions');
+            expect(detectIntent('active recurring bills')).toBe('subscriptions');
+            expect(detectIntent('ano ang mga bayarin')).toBe('subscriptions');
+        });
+
+        it('detects spending and expenses intent', () => {
+            expect(detectIntent('how much did i spend')).toBe('spending');
+            expect(detectIntent('what are my expenses')).toBe('spending');
+            expect(detectIntent('gastos ko this month')).toBe('spending');
+            expect(detectIntent('where did my money go')).toBe('spending');
+        });
+
         it('falls back to unknown for unhandled prompts', () => {
             expect(detectIntent('what is the weather today?')).toBe('unknown');
         });
@@ -126,6 +140,63 @@ describe('chatEngine', () => {
             expect(res.text).toContain('Caution');
             expect(res.text).toContain('BillEase');
             expect(res.text).toContain('₱15,000');
+        });
+
+        it('warns when affordability requires dipping into emergency savings cushion', async () => {
+            const pocketsWithSavings = [
+                { id: 'p1', name: 'Wallet', current_balance: 10000, pocket_type: 'wallet', institution_name: 'Cash' },
+                { id: 'p2', name: 'Emergency Fund', current_balance: 40000, pocket_type: 'savings', institution_name: 'SeaBank' }
+            ];
+
+            const res: ChatMessageResponse = await evaluateChatPrompt(mockDb, 'can i afford 25000', {
+                getAllActivePockets: vi.fn().mockResolvedValue(pocketsWithSavings),
+                getActiveLoans: vi.fn().mockResolvedValue([]),
+                getLoansSummary: vi.fn().mockResolvedValue({ totalLoanBalance: 0, nextDueLoan: null, activeCount: 0 })
+            });
+
+            expect(res.status).toBe('tight');
+            expect(res.text).toContain('Caution: This purchase requires dipping into your dedicated savings');
+            expect(res.text).toContain('₱10,000'); // spendable
+            expect(res.text).toContain('₱40,000'); // savings
+            expect(res.text).toContain('₱15,000'); // eaten into savings
+        });
+
+        it('warns when affordability threatens both upcoming loan payments and subscription bills', async () => {
+            const mockLoans = [
+                {
+                    id: 'l1',
+                    title: 'BillEase Phone',
+                    institution_name: 'BillEase',
+                    monthly_payment: 10000,
+                    due_date: '2026-10-28',
+                    remaining_balance: 20000,
+                    status: 'active'
+                }
+            ];
+
+            const mockSubs = [
+                {
+                    id: 's1',
+                    service_name: 'Netflix',
+                    amount: 549,
+                    frequency: 'monthly',
+                    next_billing_date: '2026-10-30',
+                    status: 'active'
+                }
+            ];
+
+            const res: ChatMessageResponse = await evaluateChatPrompt(mockDb, 'can i afford 40000', {
+                getAllActivePockets: vi.fn().mockResolvedValue(mockPockets), // 50k total
+                getActiveLoans: vi.fn().mockResolvedValue(mockLoans),
+                getLoansSummary: vi.fn().mockResolvedValue({ totalLoanBalance: 20000, nextDueLoan: mockLoans[0], activeCount: 1 }),
+                getAllSubscriptions: vi.fn().mockResolvedValue(mockSubs),
+                referenceDate: new Date('2026-10-24')
+            });
+
+            expect(res.status).toBe('tight');
+            expect(res.text).toContain('upcoming commitments in the next 14 days totaling **₱10,549**');
+            expect(res.text).toContain('BillEase');
+            expect(res.text).toContain('Netflix');
         });
 
         it('rejects when amount exceeds total money', async () => {
@@ -185,6 +256,63 @@ describe('chatEngine', () => {
             expect(res.status).toBe('info');
             expect(res.text).toContain('GCash');
             expect(res.text).toContain('₱20,000');
+        });
+
+        it('evaluates subscriptions summary', async () => {
+            const mockSubs = [
+                {
+                    id: 's1',
+                    service_name: 'Netflix Premium',
+                    amount: 549,
+                    frequency: 'monthly',
+                    next_billing_date: '2026-11-10',
+                    status: 'active'
+                },
+                {
+                    id: 's2',
+                    service_name: 'Spotify Family',
+                    amount: 700,
+                    frequency: 'monthly',
+                    next_billing_date: '2026-11-15',
+                    status: 'active'
+                }
+            ];
+
+            const res: ChatMessageResponse = await evaluateChatPrompt(mockDb, 'what are my subscriptions', {
+                getAllActivePockets: vi.fn().mockResolvedValue(mockPockets),
+                getActiveLoans: vi.fn().mockResolvedValue([]),
+                getLoansSummary: vi.fn().mockResolvedValue({ totalLoanBalance: 0, nextDueLoan: null, activeCount: 0 }),
+                getAllSubscriptions: vi.fn().mockResolvedValue(mockSubs)
+            });
+
+            expect(res.status).toBe('info');
+            expect(res.intent).toBe('subscriptions');
+            expect(res.text).toContain('2 active subscription(s)');
+            expect(res.text).toContain('₱1,249/month');
+            expect(res.text).toContain('Netflix Premium');
+            expect(res.text).toContain('Spotify Family');
+        });
+
+        it('evaluates spending and expense summary with categories', async () => {
+            const mockTxs = [
+                { id: 't1', title: 'Groceries', amount: 4000, type: 'expense', category: 'Food & Dining', date: '2026-10-15' },
+                { id: 't2', title: 'Internet Bill', amount: 2000, type: 'expense', category: 'Utilities', date: '2026-10-18' },
+                { id: 't3', title: 'Freelance Pay', amount: 15000, type: 'income', category: 'Salary', date: '2026-10-20' }
+            ];
+
+            const res: ChatMessageResponse = await evaluateChatPrompt(mockDb, 'how much did i spend this month', {
+                getAllActivePockets: vi.fn().mockResolvedValue(mockPockets),
+                getActiveLoans: vi.fn().mockResolvedValue([]),
+                getLoansSummary: vi.fn().mockResolvedValue({ totalLoanBalance: 0, nextDueLoan: null, activeCount: 0 }),
+                getRecentTransactions: vi.fn().mockResolvedValue(mockTxs)
+            });
+
+            expect(res.status).toBe('info');
+            expect(res.intent).toBe('spending');
+            expect(res.text).toContain('Total Recorded Expenses: **₱6,000**');
+            expect(res.text).toContain('Total Recorded Income: **₱15,000**');
+            expect(res.text).toContain('Food & Dining');
+            expect(res.text).toContain('Utilities');
         });
 
         it('returns friendly suggestions for unknown prompts', async () => {
