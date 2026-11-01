@@ -5,6 +5,7 @@ import type { SubscriptionRecord } from '../../types/database';
 import { normalizeToMonthlyAmount } from '../../services/subscriptionService';
 import { formatCurrency, formatDisplayDate } from '../../utils/formatters';
 import { SubscriptionLogo } from './SubscriptionLogo';
+import { PocketBadge } from '../accounts/PocketBadge';
 
 interface SubscriptionDetailSheetProps {
     visible: boolean;
@@ -164,8 +165,8 @@ export function SubscriptionDetailSheet({
                             <View className="flex-row items-center justify-between mb-2.5">
                                 <Text className="text-xs text-stone-500">Payment Source</Text>
                                 <View className="flex-row items-center">
-                                    <Wallet size={13} color="#18342B" />
-                                    <Text className="text-xs font-bold text-stone-900 ml-1.5">{pocketLabel}</Text>
+                                    <PocketBadge institutionCode={subscription.institution_code} size={16} className="mr-1.5" />
+                                    <Text className="text-xs font-bold text-stone-900">{pocketLabel}</Text>
                                 </View>
                             </View>
 

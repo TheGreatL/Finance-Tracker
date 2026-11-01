@@ -4,6 +4,7 @@ import { Briefcase, Calendar, ChevronRight, Wallet, CheckCircle2, Archive } from
 import type { JobRecord } from '../../types/database';
 import { formatCurrency, formatDisplayDate } from '../../utils/formatters';
 import { getNextPayDate } from '../../services/salaryService';
+import { PocketBadge } from '../accounts/PocketBadge';
 
 interface JobCardProps {
     job: JobRecord;
@@ -158,7 +159,7 @@ export function JobCard({ job, onPress }: JobCardProps) {
                     </View>
                 ) : (
                     <View className="flex-row items-center gap-1.5">
-                        <Wallet size={13} className="text-slate-400" />
+                        <PocketBadge institutionCode={job.institution_code} size={14} />
                         <Text className="text-xs text-slate-500 dark:text-slate-400">{job.pocket_name || 'Account Pocket'}</Text>
                     </View>
                 )}

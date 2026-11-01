@@ -759,7 +759,8 @@ export async function getPaySlipsByJob(db: SQLiteDatabase, jobId: string): Promi
       j.company_name,
       p.name as pocket_name,
       i.name as institution_name,
-      i.color as institution_color
+      i.color as institution_color,
+      i.code as institution_code
     FROM pay_slips ps
     LEFT JOIN jobs j ON ps.job_id = j.id
     LEFT JOIN account_pockets p ON ps.pocket_id = p.id

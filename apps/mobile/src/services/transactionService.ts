@@ -232,11 +232,14 @@ export async function getRecentTransactions(db: SQLite.SQLiteDatabase, limit: nu
         `SELECT 
       t.id, t.title, t.pocket_id, t.to_pocket_id, t.type, t.amount, t.category, t.date, t.notes, t.created_at, t.updated_at,
       p.name AS pocket_name,
+      p.pocket_type AS pocket_type,
       i.name AS institution_name,
       i.color AS institution_color,
       i.code AS institution_code,
       p_to.name AS to_pocket_name,
-      i_to.name AS to_institution_name
+      p_to.pocket_type AS to_pocket_type,
+      i_to.name AS to_institution_name,
+      i_to.code AS to_institution_code
     FROM transactions t
     LEFT JOIN account_pockets p ON t.pocket_id = p.id
     LEFT JOIN institutions i ON p.institution_id = i.id
@@ -254,11 +257,14 @@ export async function getTransactionById(db: SQLite.SQLiteDatabase, id: string):
         `SELECT 
       t.id, t.title, t.pocket_id, t.to_pocket_id, t.type, t.amount, t.category, t.date, t.notes, t.created_at, t.updated_at,
       p.name AS pocket_name,
+      p.pocket_type AS pocket_type,
       i.name AS institution_name,
       i.color AS institution_color,
       i.code AS institution_code,
       p_to.name AS to_pocket_name,
-      i_to.name AS to_institution_name
+      p_to.pocket_type AS to_pocket_type,
+      i_to.name AS to_institution_name,
+      i_to.code AS to_institution_code
     FROM transactions t
     LEFT JOIN account_pockets p ON t.pocket_id = p.id
     LEFT JOIN institutions i ON p.institution_id = i.id

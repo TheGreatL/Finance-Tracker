@@ -5,6 +5,7 @@ import type { JobRecord, AccountPocket, RecordPaydayInput, DeductionSnapshotItem
 import { formatCurrency, formatDisplayDate, formatMoneyInput, parseMoneyInput } from '../../utils/formatters';
 import { DatePickerModal } from '../common/DatePickerModal';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
+import { PocketBadge } from '../accounts/PocketBadge';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 import { getDatabase } from '../../database/db';
 import { getDeductionsByJobId, getNextPayDate, calculateNetTakeHome, calculateAdjustedEarnings } from '../../services/salaryService';
@@ -13,7 +14,7 @@ import { DEDUCTION_CATEGORY_CONFIG } from '../../constants/salaryPresets';
 interface RecordPaydayModalProps {
     visible: boolean;
     job: JobRecord | null;
-    pockets: (AccountPocket & { institution_name?: string; institution_color?: string })[];
+    pockets: (AccountPocket & { institution_name?: string; institution_code?: string; institution_color?: string })[];
     onClose: () => void;
     onSubmit: (input: RecordPaydayInput) => Promise<void>;
 }
@@ -60,7 +61,8 @@ export function RecordPaydayModal({ visible, job, pockets, onClose, onSubmit }: 
         return pockets.map((p) => ({
             id: p.id,
             label: p.name,
-            subtitle: `${p.institution_name ? p.institution_name + ' • ' : ''}Balance: ${formatCurrency(p.current_balance)}`
+            subtitle: `${p.institution_name ? p.institution_name + ' • ' : ''}Balance: ${formatCurrency(p.current_balance)}`,
+            icon: <PocketBadge institutionCode={p.institution_code} pocketType={p.pocket_type} size={24} />
         }));
     }, [pockets]);
 

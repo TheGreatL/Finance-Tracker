@@ -14,11 +14,13 @@ import { formatCurrency, formatDisplayDate, formatMoneyInput, parseMoneyInput } 
 import { DatePickerModal } from '../common/DatePickerModal';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
 import { SubscriptionLogo } from './SubscriptionLogo';
+import { PocketBadge } from '../accounts/PocketBadge';
+import { CategoryIcon } from '../common/CategoryIcon';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 
 interface AddSubscriptionModalProps {
     visible: boolean;
-    pockets: (AccountPocket & { institution_name?: string })[];
+    pockets: (AccountPocket & { institution_name?: string; institution_code?: string; institution_color?: string })[];
     editingSubscription?: SubscriptionRecord | null;
     onClose: () => void;
     onSubmit: (input: CreateSubscriptionInput) => Promise<void>;
@@ -247,7 +249,8 @@ export function AddSubscriptionModal({ visible, pockets, editingSubscription, on
                                     id: p.id,
                                     label: p.institution_name ? `${p.institution_name} • ${p.name}` : p.name,
                                     subtitle: p.pocket_type === 'savings' ? 'Interest Savings' : 'Everyday Wallet',
-                                    badge: `${formatCurrency(p.current_balance)} available`
+                                    badge: `${formatCurrency(p.current_balance)} available`,
+                                    icon: <PocketBadge institutionCode={p.institution_code} pocketType={p.pocket_type} size={24} />
                                 }))}
                                 selectedId={selectedPocketId}
                                 onSelect={(opt) => setSelectedPocketId(opt.id)}
@@ -325,7 +328,8 @@ export function AddSubscriptionModal({ visible, pockets, editingSubscription, on
                                 disabled={submitting}
                                 options={SUBSCRIPTION_CATEGORIES.map((cat): SelectOption => ({
                                     id: cat,
-                                    label: cat
+                                    label: cat,
+                                    icon: <CategoryIcon category={cat} size={22} />
                                 }))}
                                 selectedId={category}
                                 onSelect={(opt) => setCategory(opt.id)}

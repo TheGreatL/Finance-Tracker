@@ -3,7 +3,8 @@ import { Modal, View, Text, Pressable, Alert } from 'react-native';
 import { X, Trash2, ArrowDownLeft, ArrowUpRight, Repeat, Calendar, Tag, Wallet, Pencil } from 'lucide-react-native';
 import type { TransactionRecord } from '../../types/database';
 import { formatSignedCurrency, formatRelativeDate } from '../../utils/formatters';
-import { InstitutionLogo } from '../accounts/InstitutionLogo';
+import { PocketBadge } from '../accounts/PocketBadge';
+import { CategoryIcon } from '../common/CategoryIcon';
 
 interface TransactionDetailSheetProps {
     visible: boolean;
@@ -94,11 +95,7 @@ export function TransactionDetailSheet({ visible, transaction, onClose, onDelete
                         {/* Account / Pocket */}
                         <View className="flex-row items-center justify-between py-1.5">
                             <View className="flex-row items-center">
-                                {transaction.institution_code ? (
-                                    <InstitutionLogo code={transaction.institution_code} size={16} />
-                                ) : (
-                                    <Wallet size={15} color="#A8A29E" />
-                                )}
+                                <PocketBadge institutionCode={transaction.institution_code} pocketType={transaction.pocket_type} size={18} />
                                 <Text className="text-xs text-stone-500 ml-2">{isTransfer ? 'From Pocket' : 'Account Pocket'}</Text>
                             </View>
                             <Text className="text-xs font-bold text-stone-900">
@@ -111,7 +108,11 @@ export function TransactionDetailSheet({ visible, transaction, onClose, onDelete
                         {isTransfer ? (
                             <View className="flex-row items-center justify-between py-1.5">
                                 <View className="flex-row items-center">
-                                    <Repeat size={15} color="#A8A29E" />
+                                    <PocketBadge
+                                        institutionCode={transaction.to_institution_code}
+                                        pocketType={transaction.to_pocket_type}
+                                        size={18}
+                                    />
                                     <Text className="text-xs text-stone-500 ml-2">To Pocket</Text>
                                 </View>
                                 <Text className="text-xs font-bold text-stone-900">
@@ -124,7 +125,7 @@ export function TransactionDetailSheet({ visible, transaction, onClose, onDelete
                         {/* Category */}
                         <View className="flex-row items-center justify-between py-1.5">
                             <View className="flex-row items-center">
-                                <Tag size={15} color="#A8A29E" />
+                                <CategoryIcon category={transaction.category} type={transaction.type} size={18} />
                                 <Text className="text-xs text-stone-500 ml-2">Category</Text>
                             </View>
                             <Text className="text-xs font-bold text-stone-900">{transaction.category}</Text>

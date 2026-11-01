@@ -6,6 +6,7 @@ import { DatePickerModal } from '../common/DatePickerModal';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
 import { formatSignedCurrency } from '../../utils/formatters';
 import { InstitutionLogo } from '../accounts/InstitutionLogo';
+import { CategoryIcon } from '../common/CategoryIcon';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 
 interface EditTransactionModalProps {
@@ -16,22 +17,27 @@ interface EditTransactionModalProps {
 }
 
 const CATEGORY_OPTIONS: SelectOption[] = [
-    { id: 'Food & Dining', label: 'Food & Dining', subtitle: 'Expense' },
-    { id: 'Groceries', label: 'Groceries', subtitle: 'Expense' },
-    { id: 'Transportation', label: 'Transportation', subtitle: 'Expense' },
-    { id: 'Bills & Utilities', label: 'Bills & Utilities', subtitle: 'Expense' },
-    { id: 'Housing & Rent', label: 'Housing & Rent', subtitle: 'Expense' },
-    { id: 'Healthcare', label: 'Healthcare', subtitle: 'Expense' },
-    { id: 'Entertainment', label: 'Entertainment', subtitle: 'Expense' },
-    { id: 'Shopping', label: 'Shopping', subtitle: 'Expense' },
-    { id: 'Subscriptions', label: 'Subscriptions', subtitle: 'Expense' },
-    { id: 'Salary', label: 'Salary', subtitle: 'Income' },
-    { id: 'Freelance', label: 'Freelance', subtitle: 'Income' },
-    { id: 'Investments', label: 'Investments', subtitle: 'Income' },
-    { id: 'Gifts & Allowance', label: 'Gifts & Allowance', subtitle: 'Income' },
-    { id: 'Transfer', label: 'Transfer', subtitle: 'Transfer' },
-    { id: 'Loan Payment', label: 'Loan Payment', subtitle: 'Debt' },
-    { id: 'Other', label: 'Other', subtitle: 'General' }
+    { id: 'Food & Dining', label: 'Food & Dining', subtitle: 'Expense', icon: <CategoryIcon category="Food & Dining" size={24} /> },
+    { id: 'Groceries', label: 'Groceries', subtitle: 'Expense', icon: <CategoryIcon category="Groceries" size={24} /> },
+    { id: 'Transportation', label: 'Transportation', subtitle: 'Expense', icon: <CategoryIcon category="Transportation" size={24} /> },
+    { id: 'Bills & Utilities', label: 'Bills & Utilities', subtitle: 'Expense', icon: <CategoryIcon category="Bills & Utilities" size={24} /> },
+    { id: 'Housing & Rent', label: 'Housing & Rent', subtitle: 'Expense', icon: <CategoryIcon category="Housing & Rent" size={24} /> },
+    { id: 'Healthcare', label: 'Healthcare', subtitle: 'Expense', icon: <CategoryIcon category="Healthcare" size={24} /> },
+    { id: 'Entertainment', label: 'Entertainment', subtitle: 'Expense', icon: <CategoryIcon category="Entertainment" size={24} /> },
+    { id: 'Shopping', label: 'Shopping', subtitle: 'Expense', icon: <CategoryIcon category="Shopping" size={24} /> },
+    { id: 'Subscriptions', label: 'Subscriptions', subtitle: 'Expense', icon: <CategoryIcon category="Subscriptions" size={24} /> },
+    { id: 'Salary', label: 'Salary', subtitle: 'Income', icon: <CategoryIcon category="Salary" type="income" size={24} /> },
+    { id: 'Freelance', label: 'Freelance', subtitle: 'Income', icon: <CategoryIcon category="Freelance" type="income" size={24} /> },
+    { id: 'Investments', label: 'Investments', subtitle: 'Income', icon: <CategoryIcon category="Investments" type="income" size={24} /> },
+    {
+        id: 'Gifts & Allowance',
+        label: 'Gifts & Allowance',
+        subtitle: 'Income',
+        icon: <CategoryIcon category="Gifts & Allowance" type="income" size={24} />
+    },
+    { id: 'Transfer', label: 'Transfer', subtitle: 'Transfer', icon: <CategoryIcon category="" type="transfer" size={24} /> },
+    { id: 'Loan Payment', label: 'Loan Payment', subtitle: 'Debt', icon: <CategoryIcon category="Loan Payment" size={24} /> },
+    { id: 'Other', label: 'Other', subtitle: 'General', icon: <CategoryIcon category="Other" size={24} /> }
 ];
 
 export function EditTransactionModal({ visible, transaction, onClose, onSave }: EditTransactionModalProps) {

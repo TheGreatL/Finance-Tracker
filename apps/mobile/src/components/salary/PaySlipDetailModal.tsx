@@ -4,6 +4,7 @@ import { X, FileCheck, Share2, Wallet, Building2, CheckCircle2 } from 'lucide-re
 import type { PaySlipRecord, DeductionSnapshotItem, EarningsSnapshotItem } from '../../types/database';
 import { formatCurrency, formatDisplayDate, formatTime12 } from '../../utils/formatters';
 import { DEDUCTION_CATEGORY_CONFIG } from '../../constants/salaryPresets';
+import { PocketBadge } from '../accounts/PocketBadge';
 
 interface PaySlipDetailModalProps {
     visible: boolean;
@@ -124,8 +125,14 @@ Status: Paid (${formatTime12(paySlip.created_at)})`;
                             </View>
                             <Text className="text-base font-bold text-slate-900 dark:text-white mb-2">{paySlip.job_title || 'Employee'}</Text>
                             <View className="flex-row items-center gap-1.5">
-                                <CheckCircle2 size={14} className="text-emerald-600 dark:text-emerald-400" />
-                                <Text className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Direct Deposit Paid</Text>
+                                {paySlip.institution_code ? (
+                                    <PocketBadge institutionCode={paySlip.institution_code} size={15} />
+                                ) : (
+                                    <CheckCircle2 size={14} className="text-emerald-600 dark:text-emerald-400" />
+                                )}
+                                <Text className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                                    Direct Deposit Paid {paySlip.pocket_name ? `• ${paySlip.pocket_name}` : ''}
+                                </Text>
                             </View>
                         </View>
 

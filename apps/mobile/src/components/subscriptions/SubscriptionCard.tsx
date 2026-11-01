@@ -5,6 +5,7 @@ import type { SubscriptionRecord } from '../../types/database';
 import { formatCurrency, formatDisplayDate } from '../../utils/formatters';
 import { getSubscriptionPreset } from '../../constants/subscriptions';
 import { SubscriptionLogo } from './SubscriptionLogo';
+import { PocketBadge } from '../accounts/PocketBadge';
 
 interface SubscriptionCardProps {
     subscription: SubscriptionRecord;
@@ -99,8 +100,8 @@ export function SubscriptionCard({ subscription, onPress, className = '' }: Subs
             {/* Footer: Payment Source & Next Billing Date */}
             <View className="flex-row items-center justify-between pt-2.5 border-t border-stone-100">
                 <View className="flex-row items-center flex-1 mr-2">
-                    <Wallet size={12} color="#78716C" />
-                    <Text className="text-[11px] text-stone-600 font-medium ml-1.5" numberOfLines={1}>
+                    <PocketBadge institutionCode={subscription.institution_code} size={14} className="mr-1" />
+                    <Text className="text-[11px] text-stone-600 font-medium ml-1" numberOfLines={1}>
                         {pocketLabel}
                     </Text>
                 </View>

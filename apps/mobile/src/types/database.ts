@@ -46,11 +46,14 @@ export interface TransactionRecord {
     updated_at: string;
     // Joined fields for display
     pocket_name?: string;
+    pocket_type?: PocketType;
     institution_name?: string;
     institution_color?: string;
     institution_code?: string;
     to_pocket_name?: string;
+    to_pocket_type?: PocketType;
     to_institution_name?: string;
+    to_institution_code?: string;
 }
 
 export type LoanStatus = 'active' | 'paid' | 'defaulted';
@@ -283,6 +286,7 @@ export interface PaySlipRecord {
     pocket_name?: string;
     institution_name?: string;
     institution_color?: string;
+    institution_code?: string;
 }
 
 export interface RecordPaydayInput {

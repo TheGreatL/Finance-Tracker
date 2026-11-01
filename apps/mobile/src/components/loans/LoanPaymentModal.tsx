@@ -5,12 +5,13 @@ import type { LoanRecord, AccountPocket, RecordLoanPaymentInput } from '../../ty
 import { formatCurrency, formatDisplayDate, formatMoneyInput, parseMoneyInput } from '../../utils/formatters';
 import { DatePickerModal } from '../common/DatePickerModal';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
+import { PocketBadge } from '../accounts/PocketBadge';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 
 interface LoanPaymentModalProps {
     visible: boolean;
     loan: LoanRecord | null;
-    pockets: (AccountPocket & { institution_name?: string })[];
+    pockets: (AccountPocket & { institution_name?: string; institution_code?: string; institution_color?: string })[];
     onClose: () => void;
     onSubmit: (input: RecordLoanPaymentInput) => Promise<void>;
 }
@@ -127,7 +128,8 @@ export function LoanPaymentModal({ visible, loan, pockets, onClose, onSubmit }: 
                                     id: p.id,
                                     label: p.institution_name ? `${p.institution_name} • ${p.name}` : p.name,
                                     subtitle: p.pocket_type === 'savings' ? 'Interest Savings' : 'Everyday Wallet',
-                                    badge: `${formatCurrency(p.current_balance)} available`
+                                    badge: `${formatCurrency(p.current_balance)} available`,
+                                    icon: <PocketBadge institutionCode={p.institution_code} pocketType={p.pocket_type} size={24} />
                                 }))}
                                 selectedId={selectedPocketId}
                                 onSelect={(opt) => setSelectedPocketId(opt.id)}

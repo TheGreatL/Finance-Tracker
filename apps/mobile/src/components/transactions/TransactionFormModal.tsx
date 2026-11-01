@@ -4,6 +4,7 @@ import { X, ArrowDownLeft, ArrowUpRight, Repeat } from 'lucide-react-native';
 import type { AccountPocket, TransactionType } from '../../types/database';
 import type { CreateTransactionInput } from '../../services/transactionService';
 import { InstitutionLogo } from '../accounts/InstitutionLogo';
+import { CategoryIcon } from '../common/CategoryIcon';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
 import { formatCurrency, formatMoneyInput, parseMoneyInput } from '../../utils/formatters';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
@@ -329,7 +330,8 @@ export function TransactionFormModal({
                                 disabled={submitting}
                                 options={categories.map((cat): SelectOption => ({
                                     id: cat,
-                                    label: cat
+                                    label: cat,
+                                    icon: <CategoryIcon category={cat} type={type} size={22} />
                                 }))}
                                 selectedId={category}
                                 onSelect={(opt) => setCategory(opt.id)}

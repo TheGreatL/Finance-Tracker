@@ -6,6 +6,7 @@ import { formatCurrency, formatDisplayDate } from '../../utils/formatters';
 import { getDatabase } from '../../database/db';
 import { getDeductionsByJobId, getPaySlipsByJob, getNextPayDate, calculateNetTakeHome } from '../../services/salaryService';
 import { DEDUCTION_CATEGORY_CONFIG } from '../../constants/salaryPresets';
+import { PocketBadge } from '../accounts/PocketBadge';
 
 interface JobDetailSheetProps {
     visible: boolean;
@@ -187,7 +188,7 @@ export function JobDetailSheet({ visible, job, onClose, onEdit, onRecordPayday, 
                             {/* Direct Deposit Pocket */}
                             <View className="mb-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 p-3.5 flex-row items-center gap-3">
                                 <View className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-700 items-center justify-center">
-                                    <Wallet size={20} className="text-slate-600 dark:text-slate-300" />
+                                    <PocketBadge institutionCode={job.institution_code} size={30} />
                                 </View>
                                 <View className="flex-1">
                                     <Text className="text-[10px] uppercase font-bold text-slate-400">Deposit Destination</Text>

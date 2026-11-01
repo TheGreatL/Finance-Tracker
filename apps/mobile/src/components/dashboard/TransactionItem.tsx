@@ -1,7 +1,9 @@
 import React, { memo } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { ShoppingBag, Utensils, Car, Zap, Briefcase, Repeat, Tag, ArrowUpRight } from 'lucide-react-native';
 import { formatSignedCurrency, formatRelativeDate } from '../../utils/formatters';
+import { CategoryIcon } from '../common/CategoryIcon';
+import { PocketBadge } from '../accounts/PocketBadge';
+import type { PocketType } from '../../types/database';
 
 export interface TransactionItemData {
     id: string;
@@ -11,6 +13,8 @@ export interface TransactionItemData {
     type: 'income' | 'expense' | 'transfer';
     date: string;
     accountName?: string;
+    institutionCode?: string;
+    pocketType?: PocketType;
 }
 
 export interface TransactionItemProps {
@@ -19,20 +23,8 @@ export interface TransactionItemProps {
     onPress?: () => void;
 }
 
-function getCategoryIcon(category: string, type: 'income' | 'expense' | 'transfer') {
-    const lower = category.toLowerCase();
-    if (type === 'transfer') return Repeat;
-    if (type === 'income' || lower.includes('salary') || lower.includes('work')) return Briefcase;
-    if (lower.includes('food') || lower.includes('dining') || lower.includes('restaurant')) return Utensils;
-    if (lower.includes('grocer') || lower.includes('shop')) return ShoppingBag;
-    if (lower.includes('transport') || lower.includes('gas') || lower.includes('fuel')) return Car;
-    if (lower.includes('util') || lower.includes('bill') || lower.includes('electric')) return Zap;
-    return Tag;
-}
-
 export const TransactionItem = memo(function TransactionItem({ transaction, currency = '₱', onPress }: TransactionItemProps) {
-    const { title, category, amount, type, date, accountName } = transaction;
-    const IconComponent = getCategoryIcon(category, type);
+    const { title, category, amount, type, date, accountName, institutionCode, pocketType } = transaction;
 
     const isIncome = type === 'income';
     const isExpense = type === 'expense';
@@ -43,10 +35,6 @@ export const TransactionItem = memo(function TransactionItem({ transaction, curr
         : isExpense
           ? 'text-[#C2410C]' // Deep terracotta with 4.8:1+ contrast on white card
           : 'text-foreground';
-
-    const iconBg = isIncome ? 'bg-primary/40' : isExpense ? 'bg-[#C2410C]/15' : 'bg-muted/70';
-
-    const iconColor = isIncome ? '#18342B' : isExpense ? '#C2410C' : '#5C6E63';
 
     return (
         <Pressable
@@ -59,8 +47,8 @@ export const TransactionItem = memo(function TransactionItem({ transaction, curr
         >
             <View className="flex-row items-center flex-1 mr-3">
                 {/* Category Icon */}
-                <View className={`w-11 h-11 rounded-xl items-center justify-center mr-3 ${iconBg}`}>
-                    <IconComponent size={20} color={iconColor} />
+                <View className="mr-3">
+                    <CategoryIcon category={category} type={type} size={42} />
                 </View>
 
                 {/* Title and metadata */}
@@ -68,9 +56,18 @@ export const TransactionItem = memo(function TransactionItem({ transaction, curr
                     <Text className="text-sm font-semibold text-foreground" numberOfLines={1}>
                         {title}
                     </Text>
-                    <Text className="text-xs text-muted-foreground mt-0.5">
-                        {category} • {accountName ?? 'Cash'} • {formatRelativeDate(date)}
-                    </Text>
+                    <View className="flex-row items-center flex-wrap mt-0.5">
+                        <Text className="text-xs text-muted-foreground mr-1.5">{category}</Text>
+                        <Text className="text-xs text-muted-foreground mr-1.5">•</Text>
+                        <View className="flex-row items-center mr-1.5">
+                            <PocketBadge institutionCode={institutionCode} pocketType={pocketType} size={13} className="mr-1" />
+                            <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+                                {accountName ?? 'Cash'}
+                            </Text>
+                        </View>
+                        <Text className="text-xs text-muted-foreground mr-1.5">•</Text>
+                        <Text className="text-xs text-muted-foreground">{formatRelativeDate(date)}</Text>
+                    </View>
                 </View>
             </View>
 

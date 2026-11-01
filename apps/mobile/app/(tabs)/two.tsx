@@ -256,7 +256,9 @@ export default function LedgerScreen() {
                                 amount: t.amount,
                                 type: t.type,
                                 date: t.date,
-                                accountName: t.institution_name ? `${t.institution_name} • ${t.pocket_name || 'Wallet'}` : t.pocket_name || 'Wallet'
+                                accountName: t.institution_name ? `${t.institution_name} • ${t.pocket_name || 'Wallet'}` : t.pocket_name || 'Wallet',
+                                institutionCode: t.institution_code,
+                                pocketType: t.pocket_type
                             }}
                             currency="₱"
                             onPress={() => setSelectedTx(t)}

@@ -20,12 +20,13 @@ import {
 import { formatCurrency, formatMoneyInput, parseMoneyInput, formatDisplayDate } from '../../utils/formatters';
 import { calculateNetTakeHome } from '../../services/salaryService';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
+import { PocketBadge } from '../accounts/PocketBadge';
 import { DatePickerModal } from '../common/DatePickerModal';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 
 interface AddJobModalProps {
     visible: boolean;
-    pockets: (AccountPocket & { institution_name?: string; institution_color?: string })[];
+    pockets: (AccountPocket & { institution_name?: string; institution_code?: string; institution_color?: string })[];
     onClose: () => void;
     onSubmit: (jobInput: CreateJobInput, deductions: CreateDeductionInput[]) => Promise<void>;
 }
@@ -131,7 +132,8 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
             id: p.id,
             label: `${p.name} (${p.institution_name || 'Account'})`,
             subtitle: `Balance: ${formatCurrency(p.current_balance)}`,
-            badge: p.pocket_type === 'savings' ? 'Savings' : 'Wallet'
+            badge: p.pocket_type === 'savings' ? 'Savings' : 'Wallet',
+            icon: <PocketBadge institutionCode={p.institution_code} pocketType={p.pocket_type} size={24} />
         }));
     }, [pockets]);
 
