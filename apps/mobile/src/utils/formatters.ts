@@ -40,7 +40,21 @@ export function formatSignedCurrency(amount: number, type: 'income' | 'expense' 
  * Returns a human-friendly relative date string ("Today", "Yesterday", or formatted month/day).
  */
 export function formatRelativeDate(dateString: string): string {
-    const date = new Date(dateString);
+    let date: Date;
+    if (dateString.includes('-') && !dateString.includes('T')) {
+        const parts = dateString.split('-');
+        if (parts.length === 3) {
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) - 1;
+            const d = parseInt(parts[2], 10);
+            date = new Date(y, m, d);
+        } else {
+            date = new Date(dateString);
+        }
+    } else {
+        date = new Date(dateString);
+    }
+
     if (isNaN(date.getTime())) {
         return 'Invalid date';
     }
@@ -90,6 +104,39 @@ export function formatDisplayDate(dateString?: string): string {
         }
     }
     return dateString;
+}
+
+/**
+ * Formats a transaction's calendar date and creation time into an accurate, unambiguous record timestamp
+ * for ledgers and statements (e.g., "Nov 1, 2026 • 8:58 AM" or "Nov 1, 2026").
+ */
+export function formatRecordDateTime(dateString?: string, createdAtString?: string): string {
+    const rawDate = dateString || createdAtString;
+    if (!rawDate) return '';
+
+    const dateFormatted = formatDisplayDate(rawDate);
+    const timeFormatted = formatTime12(createdAtString || (dateString && dateString.includes('T') ? dateString : null));
+
+    if (dateFormatted && dateFormatted !== 'Select date' && timeFormatted) {
+        return `${dateFormatted} • ${timeFormatted}`;
+    }
+    if (dateFormatted && dateFormatted !== 'Select date') {
+        return dateFormatted;
+    }
+    return timeFormatted || '';
+}
+
+/**
+ * Formats a date group header for ledger lists (e.g., "Today • Nov 1, 2026", "Yesterday • Oct 31, 2026", or "Nov 1, 2026").
+ */
+export function formatDateGroupHeader(dateString: string): string {
+    const displayDate = formatDisplayDate(dateString);
+    const relative = formatRelativeDate(dateString);
+
+    if (relative === 'Today' || relative === 'Yesterday') {
+        return `${relative} • ${displayDate}`;
+    }
+    return displayDate;
 }
 
 /**

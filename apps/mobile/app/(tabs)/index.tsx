@@ -513,6 +513,7 @@ export default function DashboardScreen() {
         amount: t.amount,
         type: t.type,
         date: t.date,
+        createdAt: t.created_at,
         accountName: t.institution_name ? `${t.institution_name} • ${t.pocket_name || 'Wallet'}` : t.pocket_name || 'Wallet',
         institutionCode: t.institution_code,
         pocketType: t.pocket_type

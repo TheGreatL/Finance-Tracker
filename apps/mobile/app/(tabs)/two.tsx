@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { View, Text, ScrollView, RefreshControl, TextInput, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Plus, Filter, Menu, X } from 'lucide-react-native';
+import { Search, Plus, Filter, Menu, X, Calendar } from 'lucide-react-native';
 
 import { useSidebar } from '@/src/context/SidebarContext';
 import { useToast } from '@/src/context/ToastContext';
@@ -9,6 +9,7 @@ import { getDatabase, closeDatabase } from '@/src/database/db';
 import { seedDevData, resetDatabase } from '@/src/database/seed';
 import {
     getRecentTransactions,
+    sortTransactionsDesc,
     createTransaction,
     deleteTransaction,
     updateTransactionMetadata,
@@ -17,6 +18,7 @@ import {
 } from '@/src/services/transactionService';
 import { getAllActivePockets } from '@/src/services/accountService';
 import type { TransactionRecord, AccountPocket, TransactionType } from '@/src/types/database';
+import { formatDateGroupHeader } from '@/src/utils/formatters';
 import { TransactionItem } from '@/src/components/dashboard/TransactionItem';
 import { TransactionFormModal } from '@/src/components/transactions/TransactionFormModal';
 import { TransactionDetailSheet } from '@/src/components/transactions/TransactionDetailSheet';
@@ -75,7 +77,7 @@ export default function LedgerScreen() {
     const loadLedger = useCallback(async () => {
         try {
             const db = await getDatabase();
-            const [allTx, pocks] = await Promise.all([getRecentTransactions(db, 100), getAllActivePockets(db)]);
+            const [allTx, pocks] = await Promise.all([getRecentTransactions(db, 200), getAllActivePockets(db)]);
             setTransactions(allTx);
             setPockets(pocks);
         } catch (err: any) {
@@ -86,7 +88,7 @@ export default function LedgerScreen() {
                     const db = await getDatabase();
                     await resetDatabase(db);
                     await seedDevData(db);
-                    const [allTx, pocks] = await Promise.all([getRecentTransactions(db, 100), getAllActivePockets(db)]);
+                    const [allTx, pocks] = await Promise.all([getRecentTransactions(db, 200), getAllActivePockets(db)]);
                     setTransactions(allTx);
                     setPockets(pocks);
                 } catch (recErr) {
@@ -157,16 +159,43 @@ export default function LedgerScreen() {
         showToast('Transaction updated');
     };
 
-    // Filter transactions
-    const filtered = transactions.filter((t) => {
-        const matchesSearch =
-            t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            t.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (t.institution_name && t.institution_name.toLowerCase().includes(searchQuery.toLowerCase()));
+    // Filter & sort transactions descending by date and time
+    const filtered = useMemo(() => {
+        const sorted = sortTransactionsDesc(transactions);
+        return sorted.filter((t) => {
+            const matchesSearch =
+                t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                t.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (t.institution_name && t.institution_name.toLowerCase().includes(searchQuery.toLowerCase()));
 
-        const matchesType = selectedType === 'all' || t.type === selectedType;
-        return matchesSearch && matchesType;
-    });
+            const matchesType = selectedType === 'all' || t.type === selectedType;
+            return matchesSearch && matchesType;
+        });
+    }, [transactions, searchQuery, selectedType]);
+
+    // Group transactions chronologically by calendar date (YYYY-MM-DD)
+    const groupedTransactions = useMemo(() => {
+        const groups: { dateKey: string; items: TransactionRecord[] }[] = [];
+        let currentKey = '';
+        let currentGroup: TransactionRecord[] = [];
+
+        for (const t of filtered) {
+            const dateKey = (t.date || t.created_at || '').substring(0, 10);
+            if (dateKey !== currentKey) {
+                if (currentGroup.length > 0) {
+                    groups.push({ dateKey: currentKey, items: currentGroup });
+                }
+                currentKey = dateKey;
+                currentGroup = [t];
+            } else {
+                currentGroup.push(t);
+            }
+        }
+        if (currentGroup.length > 0) {
+            groups.push({ dateKey: currentKey, items: currentGroup });
+        }
+        return groups;
+    }, [filtered]);
 
     return (
         <View className="flex-1 bg-stone-50" style={{ paddingTop: Math.max(insets.top, 12) }}>
@@ -245,24 +274,45 @@ export default function LedgerScreen() {
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#BBD583" colors={['#18342B', '#BBD583']} />}
             >
-                {filtered.length > 0 ? (
-                    filtered.map((t) => (
-                        <TransactionItem
-                            key={t.id}
-                            transaction={{
-                                id: t.id,
-                                title: t.title,
-                                category: t.category,
-                                amount: t.amount,
-                                type: t.type,
-                                date: t.date,
-                                accountName: t.institution_name ? `${t.institution_name} • ${t.pocket_name || 'Wallet'}` : t.pocket_name || 'Wallet',
-                                institutionCode: t.institution_code,
-                                pocketType: t.pocket_type
-                            }}
-                            currency="₱"
-                            onPress={() => setSelectedTx(t)}
-                        />
+                {groupedTransactions.length > 0 ? (
+                    groupedTransactions.map((group) => (
+                        <View key={group.dateKey} className="mb-4">
+                            {/* Date Section Header */}
+                            <View className="flex-row items-center justify-between mb-2 px-1">
+                                <View className="flex-row items-center">
+                                    <Calendar size={13} color="#78716C" />
+                                    <Text className="text-xs font-bold text-stone-600 ml-1.5 uppercase tracking-wide">
+                                        {formatDateGroupHeader(group.dateKey)}
+                                    </Text>
+                                </View>
+                                <Text className="text-[11px] font-medium text-stone-400">
+                                    {group.items.length} {group.items.length === 1 ? 'record' : 'records'}
+                                </Text>
+                            </View>
+
+                            {/* Section Items */}
+                            {group.items.map((t) => (
+                                <TransactionItem
+                                    key={t.id}
+                                    transaction={{
+                                        id: t.id,
+                                        title: t.title,
+                                        category: t.category,
+                                        amount: t.amount,
+                                        type: t.type,
+                                        date: t.date,
+                                        createdAt: t.created_at,
+                                        accountName: t.institution_name
+                                            ? `${t.institution_name} • ${t.pocket_name || 'Wallet'}`
+                                            : t.pocket_name || 'Wallet',
+                                        institutionCode: t.institution_code,
+                                        pocketType: t.pocket_type
+                                    }}
+                                    currency="₱"
+                                    onPress={() => setSelectedTx(t)}
+                                />
+                            ))}
+                        </View>
                     ))
                 ) : (
                     <View className="items-center justify-center py-16">

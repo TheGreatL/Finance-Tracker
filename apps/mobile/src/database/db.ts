@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { SCHEMA_SQL } from './schema';
+import { backfillInitialBalanceTransactions } from '../services/accountService';
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -438,6 +439,11 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
     initPromise = (async () => {
         const db = await SQLite.openDatabaseAsync('finance_tracker.db');
         await runSchemaSetup(db);
+        try {
+            await backfillInitialBalanceTransactions(db);
+        } catch (err) {
+            console.warn('[SQLite] Error during backfillInitialBalanceTransactions:', err);
+        }
         dbInstance = db;
         return db;
     })();

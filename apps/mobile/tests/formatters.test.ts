@@ -6,7 +6,9 @@ import {
     formatDisplayDate,
     formatTime12,
     formatMoneyInput,
-    parseMoneyInput
+    parseMoneyInput,
+    formatRecordDateTime,
+    formatDateGroupHeader
 } from '../src/utils/formatters';
 
 describe('formatters', () => {
@@ -155,6 +157,45 @@ describe('formatters', () => {
             expect(parseMoneyInput('1,234.50')).toBe(1234.5);
             expect(parseMoneyInput('1,000,000')).toBe(1000000);
             expect(parseMoneyInput('0.75')).toBe(0.75);
+        });
+    });
+
+    describe('formatRecordDateTime', () => {
+        it('formats date and 12-hour time cleanly for records', () => {
+            const formatted = formatRecordDateTime('2026-11-01', '2026-11-01T08:30:00.000Z');
+            expect(formatted).toContain('Nov 1, 2026');
+            expect(formatted).toContain('•');
+        });
+
+        it('falls back to date if createdAt has no time', () => {
+            expect(formatRecordDateTime('2026-11-01')).toBe('Nov 1, 2026');
+        });
+
+        it('handles ISO timestamp passed as single argument', () => {
+            const res = formatRecordDateTime('2026-11-01T14:15:00.000Z');
+            expect(res).toContain('Nov 1, 2026');
+        });
+
+        it('returns empty string if neither date nor createdAt provided', () => {
+            expect(formatRecordDateTime(undefined, undefined)).toBe('');
+        });
+    });
+
+    describe('formatDateGroupHeader', () => {
+        it('formats standard dates into human-readable headers', () => {
+            expect(formatDateGroupHeader('2026-05-15')).toBe('May 15, 2026');
+        });
+
+        it('includes relative prefix for Today and Yesterday', () => {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const todayStr = `${y}-${m}-${d}`;
+
+            const header = formatDateGroupHeader(todayStr);
+            expect(header).toContain('Today');
+            expect(header).toContain('•');
         });
     });
 });

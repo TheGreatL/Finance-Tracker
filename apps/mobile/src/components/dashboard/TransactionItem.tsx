@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { formatSignedCurrency, formatRelativeDate } from '../../utils/formatters';
+import { formatSignedCurrency, formatRecordDateTime } from '../../utils/formatters';
 import { CategoryIcon } from '../common/CategoryIcon';
 import { PocketBadge } from '../accounts/PocketBadge';
 import type { PocketType } from '../../types/database';
@@ -12,6 +12,7 @@ export interface TransactionItemData {
     amount: number;
     type: 'income' | 'expense' | 'transfer';
     date: string;
+    createdAt?: string;
     accountName?: string;
     institutionCode?: string;
     pocketType?: PocketType;
@@ -24,10 +25,11 @@ export interface TransactionItemProps {
 }
 
 export const TransactionItem = memo(function TransactionItem({ transaction, currency = '₱', onPress }: TransactionItemProps) {
-    const { title, category, amount, type, date, accountName, institutionCode, pocketType } = transaction;
+    const { title, category, amount, type, date, createdAt, accountName, institutionCode, pocketType } = transaction;
 
     const isIncome = type === 'income';
     const isExpense = type === 'expense';
+    const recordTimestamp = formatRecordDateTime(date, createdAt);
 
     // High-contrast semantic colors meeting WCAG AA
     const amountColor = isIncome
@@ -42,7 +44,7 @@ export const TransactionItem = memo(function TransactionItem({ transaction, curr
             accessibilityRole="button"
             hitSlop={6}
             pressRetentionOffset={16}
-            accessibilityLabel={`${title}, ${formatSignedCurrency(amount, type, currency)}`}
+            accessibilityLabel={`${title}, ${formatSignedCurrency(amount, type, currency)}${recordTimestamp ? ', ' + recordTimestamp : ''}`}
             className="flex-row items-center justify-between p-3.5 mb-2 bg-card rounded-2xl border border-border/50 active:opacity-75"
         >
             <View className="flex-row items-center flex-1 mr-3">
@@ -56,24 +58,29 @@ export const TransactionItem = memo(function TransactionItem({ transaction, curr
                     <Text className="text-sm font-semibold text-foreground" numberOfLines={1}>
                         {title}
                     </Text>
-                    <View className="flex-row items-center flex-wrap mt-0.5">
-                        <Text className="text-xs text-muted-foreground mr-1.5">{category}</Text>
+                    <View className="flex-row items-center mt-0.5">
+                        <Text className="text-xs text-muted-foreground mr-1.5" numberOfLines={1}>
+                            {category}
+                        </Text>
                         <Text className="text-xs text-muted-foreground mr-1.5">•</Text>
-                        <View className="flex-row items-center mr-1.5">
+                        <View className="flex-row items-center flex-1">
                             <PocketBadge institutionCode={institutionCode} pocketType={pocketType} size={13} className="mr-1" />
                             <Text className="text-xs text-muted-foreground" numberOfLines={1}>
                                 {accountName ?? 'Cash'}
                             </Text>
                         </View>
-                        <Text className="text-xs text-muted-foreground mr-1.5">•</Text>
-                        <Text className="text-xs text-muted-foreground">{formatRelativeDate(date)}</Text>
                     </View>
                 </View>
             </View>
 
-            {/* Amount with guarded sign formatting */}
-            <View className="items-end">
+            {/* Amount with guarded sign formatting and Date & Time Record */}
+            <View className="items-end shrink-0 pl-2">
                 <Text className={`text-sm font-bold ${amountColor}`}>{formatSignedCurrency(amount, type, currency)}</Text>
+                {recordTimestamp ? (
+                    <Text className="text-[11px] font-medium text-stone-500 mt-0.5" numberOfLines={1}>
+                        {recordTimestamp}
+                    </Text>
+                ) : null}
             </View>
         </Pressable>
     );

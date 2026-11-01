@@ -106,6 +106,7 @@ export interface CreateLoanInput {
     attachmentPath?: string;
     attachmentName?: string;
     notes?: string;
+    disburseToPocketId?: string;
 }
 
 export interface UpdateLoanMetadataInput {

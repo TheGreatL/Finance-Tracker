@@ -592,5 +592,87 @@ describe('loanService operations', () => {
             expect(schedule.activeInstallment).toBeNull();
             expect(schedule.installments.every((i) => i.status === 'paid')).toBe(true);
         });
+
+        it('marks 100% of installments as paid when loan is settled even if total_amount was less than term sum (TrustLoan bugfix)', () => {
+            // User's exact TikTok TrustLoan scenario:
+            // total_amount was entered as principal (7,000), monthly payment was 2,753.34 for 3 months (sum = 8,260.02).
+            // When remaining_balance = 0 and status = 'paid', all 3 installments must be settled with 0 remaining due.
+            const trustLoan: LoanRecord = {
+                id: 'loan_1793501723253_vqhg',
+                institution_id: 'inst_tiktok_1793501598813',
+                title: 'TrustLoan',
+                total_amount: 7000,
+                remaining_balance: 0,
+                monthly_payment: 2753.34,
+                due_date: '2026-11-16',
+                interest_rate: 6,
+                status: 'paid',
+                principal_amount: 7000,
+                processing_fee: 210,
+                start_date: '2026-09-12',
+                term_months: 3,
+                created_at: '2026-11-01',
+                updated_at: '2026-11-01'
+            };
+
+            const schedule = calculateLoanInstallmentSchedule(trustLoan);
+
+            expect(schedule.totalTermMonths).toBe(3);
+            expect(schedule.settledCount).toBe(3);
+            expect(schedule.upcomingCount).toBe(0);
+            expect(schedule.remainingDebt).toBe(0);
+            expect(schedule.activeInstallment).toBeNull();
+
+            // All 3 installments must have status 'paid' and remainingDue 0
+            expect(schedule.installments[0].status).toBe('paid');
+            expect(schedule.installments[0].remainingDue).toBe(0);
+
+            expect(schedule.installments[1].status).toBe('paid');
+            expect(schedule.installments[1].remainingDue).toBe(0);
+
+            expect(schedule.installments[2].status).toBe('paid');
+            expect(schedule.installments[2].remainingDue).toBe(0);
+            expect(schedule.installments[2].advanceCredit).toBeUndefined();
+        });
+
+        it('disburses net proceeds into pocket and logs ledger transaction when disburseToPocketId is provided', async () => {
+            const runCalls: { sql: string; params?: any[] }[] = [];
+            const mockDb: any = {
+                runAsync: vi.fn(async (sql: string, params?: any[]) => {
+                    runCalls.push({ sql, params });
+                    return { changes: 1, lastInsertRowId: 1 };
+                }),
+                getFirstAsync: vi.fn(async (sql: string, params?: any[]) => {
+                    if (sql.includes('FROM account_pockets WHERE id = ?')) {
+                        return { id: params[0], current_balance: 5000 };
+                    }
+                    if (sql.includes('FROM institutions WHERE id = ?')) {
+                        return { id: params[0] };
+                    }
+                    return null;
+                })
+            };
+
+            await createLoan(mockDb, {
+                title: 'Emergency Cash Loan',
+                principalAmount: 10000,
+                processingFee: 300,
+                totalAmount: 12000,
+                monthlyPayment: 2000,
+                dueDate: '2026-12-01',
+                disburseToPocketId: 'pock_gcash_1'
+            });
+
+            // Verify pocket was credited by net proceeds (10,000 - 300 = 9,700) -> new balance 5000 + 9700 = 14,700
+            const pocketUpdate = runCalls.find((c) => c.sql.includes('UPDATE account_pockets SET current_balance'));
+            expect(pocketUpdate).toBeDefined();
+            expect(pocketUpdate?.params).toEqual([14700, expect.any(String), 'pock_gcash_1']);
+
+            // Verify Loan Disbursement income transaction was inserted
+            const disbTx = runCalls.find((c) => c.sql.includes('INSERT INTO transactions') && c.sql.includes('Loan Disbursement'));
+            expect(disbTx).toBeDefined();
+            expect(disbTx?.params).toContain(9700);
+            expect(disbTx?.params).toContain('Loan Proceeds: Emergency Cash Loan');
+        });
     });
 });

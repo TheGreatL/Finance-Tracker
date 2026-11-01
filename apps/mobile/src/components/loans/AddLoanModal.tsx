@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Modal, View, Text, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, Alert, Switch } from 'react-native';
-import { X, Plus, Paperclip, Camera, FileText, Check, Calendar, ChevronDown, Bell, User, Building2, Sparkles } from 'lucide-react-native';
+import { X, Camera, FileText, Calendar, ChevronDown, Bell, User, Building2, Sparkles, Wallet } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import type { CreateLoanInput, LenderType } from '../../types/database';
+import type { CreateLoanInput, LenderType, AccountPocket } from '../../types/database';
 import { INSTITUTION_OPTIONS, getInstitutionConfig } from '../../constants/institutions';
 import { InstitutionLogo } from '../accounts/InstitutionLogo';
 import { saveAttachment } from '../../utils/fileStorage';
@@ -12,6 +12,8 @@ import { DatePickerModal } from '../common/DatePickerModal';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
 import { formatCurrency, formatDisplayDate, formatMoneyInput, parseMoneyInput } from '../../utils/formatters';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
+import { getDatabase } from '../../database/db';
+import { getAllActivePockets } from '../../services/accountService';
 
 interface AddLoanModalProps {
     visible: boolean;
@@ -44,6 +46,8 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
     const [notes, setNotes] = useState('');
     const [attachmentUri, setAttachmentUri] = useState<string | null>(null);
     const [attachmentName, setAttachmentName] = useState<string | null>(null);
+    const [availablePockets, setAvailablePockets] = useState<(AccountPocket & { institution_name?: string })[]>([]);
+    const [disbursePocketId, setDisbursePocketId] = useState<string>('');
 
     const [startDatePickerVisible, setStartDatePickerVisible] = useState(false);
     const [dueDatePickerVisible, setDueDatePickerVisible] = useState(false);
@@ -62,6 +66,13 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
         if (visible) {
             setError('');
             setFieldErrors({});
+            getDatabase()
+                .then((db) => {
+                    getAllActivePockets(db)
+                        .then((pocks) => setAvailablePockets(pocks))
+                        .catch(() => {});
+                })
+                .catch(() => {});
         }
         if (initialProvider) {
             setSelectedProvider(initialProvider);
@@ -70,6 +81,22 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
             }
         }
     }, [initialProvider, visible]);
+
+    const pocketOptions: SelectOption[] = useMemo(() => {
+        return [
+            {
+                id: '',
+                label: 'Do not deposit (Existing debt / Cash already on hand)',
+                subtitle: 'No balance will be credited to accounts'
+            },
+            ...availablePockets.map((p) => ({
+                id: p.id,
+                label: p.name,
+                subtitle: `${p.institution_name ? p.institution_name + ' • ' : ''}Balance: ${formatCurrency(p.current_balance)}`,
+                icon: <Wallet size={18} color="#18342B" />
+            }))
+        ];
+    }, [availablePockets]);
 
     // Providers list focusing on lending apps first + all remaining banks/e-wallets
     const priorityCodes = ['billease', 'tala', 'homecredit', 'cashalo', 'gcash', 'maya', 'bdo', 'bpi', 'cimb', 'unionbank', 'metrobank'];
@@ -176,7 +203,8 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
                 hasInterestCashback,
                 attachmentPath: attachmentUri || undefined,
                 attachmentName: attachmentName || undefined,
-                notes: notes.trim() || undefined
+                notes: notes.trim() || undefined,
+                disburseToPocketId: disbursePocketId || undefined
             });
 
             // Schedule offline 3-day reminder notification safely
@@ -208,6 +236,7 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
             setNotes('');
             setAttachmentUri(null);
             setAttachmentName(null);
+            setDisbursePocketId('');
             setFieldErrors({});
             onClose();
         } catch (err: any) {
@@ -443,6 +472,21 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
                                 ) : null}
                             </View>
 
+                            {/* Destination Pocket Selection */}
+                            {availablePockets.length > 0 ? (
+                                <View className="mb-3">
+                                    <SearchableSelectField
+                                        label="Deposit Loan Proceeds to Pocket (Optional)"
+                                        modalTitle="Select Destination Pocket"
+                                        searchPlaceholder="Search accounts and pockets..."
+                                        disabled={submitting}
+                                        options={pocketOptions}
+                                        selectedId={disbursePocketId}
+                                        onSelect={(opt) => setDisbursePocketId(opt.id)}
+                                    />
+                                </View>
+                            ) : null}
+
                             {/* 4. Total Loan Obligation & Remaining Debt */}
                             <View className="flex-row gap-3 mb-3">
                                 <View className="flex-1">
@@ -549,7 +593,23 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
                                         return (
                                             <Pressable
                                                 key={preset}
-                                                onPress={() => setTermMonthsStr(String(preset))}
+                                                onPress={() => {
+                                                    setTermMonthsStr(String(preset));
+                                                    const parsedMonthly = parseMoneyInput(monthlyPaymentStr);
+                                                    if (parsedMonthly > 0) {
+                                                        const computedContract = Math.round(parsedMonthly * preset * 100) / 100;
+                                                        if (computedContract > 0 && (!totalAmountStr || totalAmountStr === principalAmountStr)) {
+                                                            setTotalAmountStr(formatMoneyInput(String(computedContract)));
+                                                            if (
+                                                                !remainingBalanceStr ||
+                                                                remainingBalanceStr === principalAmountStr ||
+                                                                remainingBalanceStr === totalAmountStr
+                                                            ) {
+                                                                setRemainingBalanceStr(formatMoneyInput(String(computedContract)));
+                                                            }
+                                                        }
+                                                    }
+                                                }}
                                                 disabled={submitting}
                                                 className={`px-2.5 py-1 rounded-lg border ${
                                                     isSelected ? 'bg-[#18342B] border-[#18342B]' : 'bg-white border-stone-200 active:bg-stone-100'
@@ -586,8 +646,24 @@ export function AddLoanModal({ visible, onClose, onSubmit, initialProvider }: Ad
                                     <TextInput
                                         value={monthlyPaymentStr}
                                         onChangeText={(val) => {
-                                            setMonthlyPaymentStr(formatMoneyInput(val));
+                                            const formatted = formatMoneyInput(val);
+                                            setMonthlyPaymentStr(formatted);
                                             if (fieldErrors.monthlyPayment) setFieldErrors((prev) => ({ ...prev, monthlyPayment: undefined }));
+                                            const parsedMonthly = parseMoneyInput(formatted);
+                                            const parsedTerm = termMonthsStr ? parseInt(termMonthsStr, 10) : 0;
+                                            if (parsedMonthly > 0 && parsedTerm > 0) {
+                                                const computedContract = Math.round(parsedMonthly * parsedTerm * 100) / 100;
+                                                if (computedContract > 0 && (!totalAmountStr || totalAmountStr === principalAmountStr)) {
+                                                    setTotalAmountStr(formatMoneyInput(String(computedContract)));
+                                                    if (
+                                                        !remainingBalanceStr ||
+                                                        remainingBalanceStr === principalAmountStr ||
+                                                        remainingBalanceStr === totalAmountStr
+                                                    ) {
+                                                        setRemainingBalanceStr(formatMoneyInput(String(computedContract)));
+                                                    }
+                                                }
+                                            }
                                         }}
                                         editable={!submitting}
                                         placeholder="₱2,500"

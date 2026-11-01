@@ -245,11 +245,30 @@ export async function getRecentTransactions(db: SQLite.SQLiteDatabase, limit: nu
     LEFT JOIN institutions i ON p.institution_id = i.id
     LEFT JOIN account_pockets p_to ON t.to_pocket_id = p_to.id
     LEFT JOIN institutions i_to ON p_to.institution_id = i_to.id
-    ORDER BY t.date DESC
+    ORDER BY SUBSTR(t.date, 1, 10) DESC, t.created_at DESC, t.id DESC
     LIMIT ?`,
         [limit]
     );
     return rows;
+}
+
+/**
+ * Sorts transactions by calendar date and creation time descending (latest transactions at the top).
+ */
+export function sortTransactionsDesc(transactions: TransactionRecord[]): TransactionRecord[] {
+    return [...transactions].sort((a, b) => {
+        const dateA = (a.date || '').substring(0, 10);
+        const dateB = (b.date || '').substring(0, 10);
+        if (dateA !== dateB) {
+            return dateB.localeCompare(dateA);
+        }
+        const timeA = a.created_at || a.date || '';
+        const timeB = b.created_at || b.date || '';
+        if (timeA !== timeB) {
+            return timeB.localeCompare(timeA);
+        }
+        return (b.id || '').localeCompare(a.id || '');
+    });
 }
 
 export async function getTransactionById(db: SQLite.SQLiteDatabase, id: string): Promise<TransactionRecord | null> {

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Modal, View, Text, Pressable, Alert } from 'react-native';
-import { X, Trash2, ArrowDownLeft, ArrowUpRight, Repeat, Calendar, Tag, Wallet, Pencil } from 'lucide-react-native';
+import { X, Trash2, ArrowDownLeft, ArrowUpRight, Repeat, Calendar, Pencil } from 'lucide-react-native';
 import type { TransactionRecord } from '../../types/database';
-import { formatSignedCurrency, formatRelativeDate } from '../../utils/formatters';
+import { formatSignedCurrency, formatRecordDateTime } from '../../utils/formatters';
 import { PocketBadge } from '../accounts/PocketBadge';
 import { CategoryIcon } from '../common/CategoryIcon';
 
@@ -131,13 +131,13 @@ export function TransactionDetailSheet({ visible, transaction, onClose, onDelete
                             <Text className="text-xs font-bold text-stone-900">{transaction.category}</Text>
                         </View>
 
-                        {/* Date */}
+                        {/* Date & Time */}
                         <View className="flex-row items-center justify-between py-1.5">
                             <View className="flex-row items-center">
                                 <Calendar size={15} color="#A8A29E" />
-                                <Text className="text-xs text-stone-500 ml-2">Date</Text>
+                                <Text className="text-xs text-stone-500 ml-2">Date & Time</Text>
                             </View>
-                            <Text className="text-xs font-bold text-stone-900">{formatRelativeDate(transaction.date)}</Text>
+                            <Text className="text-xs font-bold text-stone-900">{formatRecordDateTime(transaction.date, transaction.created_at)}</Text>
                         </View>
 
                         {/* Notes */}

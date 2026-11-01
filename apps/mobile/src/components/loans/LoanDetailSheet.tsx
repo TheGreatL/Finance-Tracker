@@ -337,6 +337,7 @@ export function LoanDetailSheet({ visible, loan, onClose, onRecordPayment, onDel
                                                     <View className={`flex-1 ${isLast ? 'pb-1' : 'pb-4'}`}>
                                                         <Pressable
                                                             onPress={() => {
+                                                                if (isPaid) return;
                                                                 if (item.status === 'partially_paid') {
                                                                     setExpandedInstallmentIndex(isExpanded ? null : item.index);
                                                                 } else if (item.status === 'upcoming') {
@@ -410,7 +411,7 @@ export function LoanDetailSheet({ visible, loan, onClose, onRecordPayment, onDel
                                                         </Pressable>
 
                                                         {/* Expandable breakdown for partially paid */}
-                                                        {item.status === 'partially_paid' && isExpanded ? (
+                                                        {!isPaid && item.status === 'partially_paid' && isExpanded ? (
                                                             <View className="mt-2 bg-amber-50/90 border border-amber-200/80 rounded-xl p-3">
                                                                 <Text className="text-[11px] font-semibold text-amber-900 mb-1">
                                                                     Partial Payment Breakdown

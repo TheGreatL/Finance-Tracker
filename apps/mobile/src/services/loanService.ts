@@ -84,6 +84,43 @@ export async function createLoan(db: SQLite.SQLiteDatabase, input: CreateLoanInp
         ]
     );
 
+    // Disburse loan cash proceeds into designated pocket if selected
+    if (input.disburseToPocketId) {
+        const pocket =
+            typeof db.getFirstAsync === 'function'
+                ? await db.getFirstAsync<{ id: string; current_balance: number }>('SELECT id, current_balance FROM account_pockets WHERE id = ?;', [
+                      input.disburseToPocketId
+                  ])
+                : null;
+        if (pocket) {
+            const netDisbursed = Math.max(0, (principalAmount || input.totalAmount) - processingFee);
+            if (netDisbursed > 0) {
+                const newPocketBalance = Math.round((pocket.current_balance + netDisbursed) * 100) / 100;
+                await db.runAsync('UPDATE account_pockets SET current_balance = ?, updated_at = ? WHERE id = ?', [
+                    newPocketBalance,
+                    now,
+                    input.disburseToPocketId
+                ]);
+                const txDisbId = `tx_disb_${loanId}`;
+                await db.runAsync(
+                    `INSERT INTO transactions (
+            id, title, pocket_id, to_pocket_id, type, amount, category, date, notes, created_at, updated_at
+          ) VALUES (?, ?, ?, NULL, 'income', ?, 'Loan Disbursement', ?, ?, ?, ?)`,
+                    [
+                        txDisbId,
+                        `Loan Proceeds: ${input.title.trim()}`,
+                        input.disburseToPocketId,
+                        netDisbursed,
+                        startDate || input.dueDate || now.split('T')[0],
+                        input.notes?.trim() || `Disbursed loan proceeds for ${input.title.trim()}`,
+                        now,
+                        now
+                    ]
+                );
+            }
+        }
+    }
+
     return {
         id: loanId,
         lender_type: lenderType,
@@ -459,9 +496,17 @@ export interface LoanInstallmentSchedule {
 }
 
 export function calculateLoanInstallmentSchedule(loan: LoanRecord, referenceDate: Date = new Date()): LoanInstallmentSchedule {
-    const totalPaid = Math.max(0, Math.round((loan.total_amount - loan.remaining_balance) * 100) / 100);
+    const isFullyPaid = loan.status === 'paid' || (loan.remaining_balance !== undefined && loan.remaining_balance <= 0.009);
+    const termMonths = loan.term_months ?? 0;
+    const nominalMonthly = loan.monthly_payment ?? 0;
 
-    if (!loan.term_months || loan.term_months <= 0 || !loan.monthly_payment || loan.monthly_payment <= 0) {
+    const contractTotal = Math.max(
+        loan.total_amount,
+        termMonths > 0 && nominalMonthly > 0 ? Math.round(nominalMonthly * termMonths * 100) / 100 : loan.total_amount
+    );
+    const totalPaid = isFullyPaid ? contractTotal : Math.max(0, Math.round((contractTotal - Math.max(0, loan.remaining_balance)) * 100) / 100);
+
+    if (termMonths <= 0 || nominalMonthly <= 0) {
         return {
             totalTermMonths: 0,
             installments: [],
@@ -469,13 +514,12 @@ export function calculateLoanInstallmentSchedule(loan: LoanRecord, referenceDate
             settledCount: 0,
             upcomingCount: 0,
             totalPaid,
-            remainingDebt: loan.remaining_balance
+            remainingDebt: isFullyPaid ? 0 : loan.remaining_balance
         };
     }
 
-    const termMonths = loan.term_months;
     const installments: InstallmentItem[] = [];
-    let unallocatedCash = totalPaid;
+    let unallocatedCash = isFullyPaid ? contractTotal : totalPaid;
     let settledCount = 0;
     let upcomingCount = 0;
 
@@ -540,7 +584,12 @@ export function calculateLoanInstallmentSchedule(loan: LoanRecord, referenceDate
         let status: InstallmentStatus;
         let advanceCredit: number | undefined;
 
-        if (unallocatedCash >= scheduledAmount - 0.009) {
+        if (isFullyPaid) {
+            status = 'paid';
+            amountPaid = scheduledAmount;
+            remainingDue = 0;
+            settledCount++;
+        } else if (unallocatedCash >= scheduledAmount - 0.009) {
             status = 'paid';
             amountPaid = scheduledAmount;
             remainingDue = 0;
@@ -573,15 +622,15 @@ export function calculateLoanInstallmentSchedule(loan: LoanRecord, referenceDate
         });
     }
 
-    const activeInstallment = installments.find((inst) => inst.status !== 'paid') || null;
+    const activeInstallment = isFullyPaid ? null : installments.find((inst) => inst.status !== 'paid') || null;
 
     return {
         totalTermMonths: termMonths,
         installments,
         activeInstallment,
-        settledCount,
-        upcomingCount,
+        settledCount: isFullyPaid ? termMonths : settledCount,
+        upcomingCount: isFullyPaid ? 0 : upcomingCount,
         totalPaid,
-        remainingDebt: loan.remaining_balance
+        remainingDebt: isFullyPaid ? 0 : loan.remaining_balance
     };
 }

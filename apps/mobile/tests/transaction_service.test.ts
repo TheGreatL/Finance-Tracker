@@ -1,5 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createTransaction, deleteTransaction, getTransactions, getTransactionById } from '../src/services/transactionService';
+import {
+    createTransaction,
+    deleteTransaction,
+    getTransactionById,
+    getRecentTransactions,
+    sortTransactionsDesc
+} from '../src/services/transactionService';
+import type { TransactionRecord } from '../src/types/database';
 
 describe('transactionService database operations', () => {
     it('createTransaction updates pocket balance and saves expense record', async () => {
@@ -192,5 +199,82 @@ describe('transactionService database operations', () => {
         expect(res).toBeDefined();
         expect(res?.title).toBe('Lunch');
         expect(res?.pocket_name).toBe('Cash Pocket');
+    });
+
+    it('getRecentTransactions queries SQLite ordered by calendar date descending and created_at descending', async () => {
+        const mockDb: any = {
+            getAllAsync: vi.fn(async (_sql: string, _params: any[]) => {
+                return [];
+            })
+        };
+
+        await getRecentTransactions(mockDb, 50);
+
+        expect(mockDb.getAllAsync).toHaveBeenCalledWith(
+            expect.stringContaining('ORDER BY SUBSTR(t.date, 1, 10) DESC, t.created_at DESC, t.id DESC'),
+            [50]
+        );
+    });
+
+    it('sortTransactionsDesc sorts transactions by calendar date and created_at descending with latest on top', () => {
+        const rawList: TransactionRecord[] = [
+            {
+                id: 'tx_morning',
+                title: 'Morning Coffee',
+                amount: 150,
+                type: 'expense',
+                category: 'Food',
+                pocket_id: 'pock_1',
+                to_pocket_id: null,
+                date: '2026-11-01',
+                created_at: '2026-11-01T08:30:00.000Z',
+                updated_at: '2026-11-01T08:30:00.000Z'
+            },
+            {
+                id: 'tx_yesterday',
+                title: 'Dinner Yesterday',
+                amount: 450,
+                type: 'expense',
+                category: 'Food',
+                pocket_id: 'pock_1',
+                to_pocket_id: null,
+                date: '2026-10-31',
+                created_at: '2026-10-31T20:00:00.000Z',
+                updated_at: '2026-10-31T20:00:00.000Z'
+            },
+            {
+                id: 'tx_night',
+                title: 'Night Grab',
+                amount: 280,
+                type: 'expense',
+                category: 'Transport',
+                pocket_id: 'pock_1',
+                to_pocket_id: null,
+                date: '2026-11-01',
+                created_at: '2026-11-01T21:45:00.000Z',
+                updated_at: '2026-11-01T21:45:00.000Z'
+            },
+            {
+                id: 'tx_afternoon',
+                title: 'Afternoon Snack',
+                amount: 100,
+                type: 'expense',
+                category: 'Food',
+                pocket_id: 'pock_1',
+                to_pocket_id: null,
+                date: '2026-11-01',
+                created_at: '2026-11-01T14:15:00.000Z',
+                updated_at: '2026-11-01T14:15:00.000Z'
+            }
+        ];
+
+        const sorted = sortTransactionsDesc(rawList);
+
+        // Indices should order:
+        // 0: tx_night (Nov 1, 21:45)
+        // 1: tx_afternoon (Nov 1, 14:15)
+        // 2: tx_morning (Nov 1, 08:30)
+        // 3: tx_yesterday (Oct 31, 20:00)
+        expect(sorted.map((t) => t.id)).toEqual(['tx_night', 'tx_afternoon', 'tx_morning', 'tx_yesterday']);
     });
 });

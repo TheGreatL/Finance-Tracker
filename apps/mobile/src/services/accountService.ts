@@ -1,5 +1,5 @@
 import type * as SQLite from 'expo-sqlite';
-import type { Institution, AccountPocket, PocketType, InstitutionType } from '../types/database';
+import type { Institution, AccountPocket, PocketType } from '../types/database';
 import { getInstitutionConfig } from '../constants/institutions';
 
 export interface CreateAccountInput {
@@ -58,6 +58,26 @@ export async function createInstitutionWithPocket(
       ) VALUES (?, ?, ?, ?, 'PHP', ?, ?, ?, ?, 0, ?, ?)`,
             [pockId, instId, pocketName, pocketType, startingBalance, startingBalance, interestRate, savingsDetails, now, now]
         );
+
+        // 3. Log Initial Balance into ledger if starting balance > 0
+        if (startingBalance > 0) {
+            const txInitId = `tx_init_${pockId}`;
+            await db.runAsync(
+                `INSERT INTO transactions (
+          id, title, pocket_id, to_pocket_id, type, amount, category, date, notes, created_at, updated_at
+        ) VALUES (?, ?, ?, NULL, 'income', ?, 'Initial Balance', ?, ?, ?, ?)`,
+                [
+                    txInitId,
+                    `Starting Balance: ${pocketName}`,
+                    pockId,
+                    startingBalance,
+                    now.split('T')[0],
+                    `Opening initial balance for ${instName} (${pocketName})`,
+                    now,
+                    now
+                ]
+            );
+        }
 
         createdInstitution = {
             id: instId,
@@ -128,6 +148,26 @@ export async function addPocket(db: SQLite.SQLiteDatabase, input: AddPocketInput
     ) VALUES (?, ?, ?, ?, 'PHP', ?, ?, ?, ?, 0, ?, ?)`,
         [pockId, institutionId, input.name.trim(), input.pocketType, startingBalance, startingBalance, interestRate, savingsDetails, now, now]
     );
+
+    // Log Initial Balance into ledger if starting balance > 0
+    if (startingBalance > 0) {
+        const txInitId = `tx_init_${pockId}`;
+        await db.runAsync(
+            `INSERT INTO transactions (
+        id, title, pocket_id, to_pocket_id, type, amount, category, date, notes, created_at, updated_at
+      ) VALUES (?, ?, ?, NULL, 'income', ?, 'Initial Balance', ?, ?, ?, ?)`,
+            [
+                txInitId,
+                `Starting Balance: ${input.name.trim()}`,
+                pockId,
+                startingBalance,
+                now.split('T')[0],
+                `Opening initial balance for ${input.name.trim()}`,
+                now,
+                now
+            ]
+        );
+    }
 
     return {
         id: pockId,
@@ -244,4 +284,96 @@ export async function updatePocketMetadata(db: SQLite.SQLiteDatabase, pocketId: 
      WHERE id = ?`,
         [name, pocketType, interestRate, savingsDetails, now, pocketId]
     );
+}
+
+/**
+ * Reconciles an account pocket balance and logs a formal Balance Adjustment ledger transaction.
+ */
+export async function reconcilePocketBalance(db: SQLite.SQLiteDatabase, pocketId: string, newBalance: number, notes?: string): Promise<void> {
+    const pocket = await db.getFirstAsync<AccountPocket>('SELECT * FROM account_pockets WHERE id = ?', [pocketId]);
+    if (!pocket) {
+        throw new Error('Pocket not found');
+    }
+
+    const diff = Math.round((newBalance - pocket.current_balance) * 100) / 100;
+    if (diff === 0) return;
+
+    const now = new Date().toISOString();
+    const isIncrease = diff > 0;
+    const amount = Math.abs(diff);
+    const txId = `tx_adj_${pocketId}_${Date.now()}`;
+
+    await db.withTransactionAsync(async () => {
+        await db.runAsync('UPDATE account_pockets SET current_balance = ?, updated_at = ? WHERE id = ?', [newBalance, now, pocketId]);
+
+        await db.runAsync(
+            `INSERT INTO transactions (
+        id, title, pocket_id, to_pocket_id, type, amount, category, date, notes, created_at, updated_at
+      ) VALUES (?, ?, ?, NULL, ?, ?, 'Balance Adjustment', ?, ?, ?, ?)`,
+            [
+                txId,
+                `Balance Adjustment: ${pocket.name}`,
+                pocketId,
+                isIncrease ? 'income' : 'expense',
+                amount,
+                now.split('T')[0],
+                notes?.trim() || `Reconciled balance from ₱${pocket.current_balance.toLocaleString()} to ₱${newBalance.toLocaleString()}`,
+                now,
+                now
+            ]
+        );
+    });
+}
+
+/**
+ * Idempotently backfills missing Initial Balance transactions for existing pockets with starting_balance > 0.
+ * Does NOT modify current_balance because existing balances already incorporate the starting balance.
+ */
+export async function backfillInitialBalanceTransactions(db: SQLite.SQLiteDatabase): Promise<number> {
+    if (typeof db.getAllAsync !== 'function') return 0;
+
+    try {
+        const eligiblePockets = await db.getAllAsync<{ id: string; name: string; starting_balance: number; created_at: string }>(
+            `SELECT p.id, p.name, p.starting_balance, p.created_at
+             FROM account_pockets p
+             WHERE p.starting_balance > 0
+               AND NOT EXISTS (
+                 SELECT 1 FROM transactions t
+                 WHERE t.pocket_id = p.id AND t.category = 'Initial Balance'
+               );`
+        );
+
+        if (!eligiblePockets || eligiblePockets.length === 0) {
+            return 0;
+        }
+
+        let insertedCount = 0;
+        const now = new Date().toISOString();
+
+        for (const p of eligiblePockets) {
+            const txId = `tx_init_${p.id}`;
+            const txDate = (p.created_at || now).split('T')[0];
+            await db.runAsync(
+                `INSERT INTO transactions (
+            id, title, pocket_id, to_pocket_id, type, amount, category, date, notes, created_at, updated_at
+          ) VALUES (?, ?, ?, NULL, 'income', ?, 'Initial Balance', ?, ?, ?, ?)`,
+                [
+                    txId,
+                    `Starting Balance: ${p.name}`,
+                    p.id,
+                    p.starting_balance,
+                    txDate,
+                    `Historical starting balance for ${p.name}`,
+                    p.created_at || now,
+                    now
+                ]
+            );
+            insertedCount++;
+        }
+
+        return insertedCount;
+    } catch (err) {
+        console.warn('[SQLite] Error backfilling initial balance transactions:', err);
+        return 0;
+    }
 }
