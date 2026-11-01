@@ -95,6 +95,7 @@ export default function ObligationsScreen() {
     const [loanDetailVisible, setLoanDetailVisible] = useState(false);
     const [paymentModalVisible, setPaymentModalVisible] = useState(false);
     const [editingLoan, setEditingLoan] = useState<LoanRecord | null>(null);
+    const [suggestedPaymentAmount, setSuggestedPaymentAmount] = useState<number | undefined>();
 
     // Subscriptions State
     const [subscriptions, setSubscriptions] = useState<SubscriptionRecord[]>([]);
@@ -799,10 +800,11 @@ export default function ObligationsScreen() {
                     setSelectedLoan(null);
                     modalBackStackRef.current = [];
                 }}
-                onRecordPayment={(loan) => {
+                onRecordPayment={(loan, suggestedAmount) => {
                     pushModalBackStack({ type: 'loanDetail', loanId: loan.id });
                     setLoanDetailVisible(false);
                     setSelectedLoan(loan);
+                    setSuggestedPaymentAmount(suggestedAmount);
                     setPaymentModalVisible(true);
                 }}
                 onEdit={(loan) => {
@@ -835,14 +837,17 @@ export default function ObligationsScreen() {
             <LoanPaymentModal
                 visible={paymentModalVisible}
                 loan={selectedLoan}
+                initialAmount={suggestedPaymentAmount}
                 pockets={allPockets}
                 onClose={() => {
                     setPaymentModalVisible(false);
+                    setSuggestedPaymentAmount(undefined);
                     popAndRestoreModal();
                 }}
                 onSubmit={async (input) => {
                     await handleRecordPayment(input);
                     setPaymentModalVisible(false);
+                    setSuggestedPaymentAmount(undefined);
                     popAndRestoreModal();
                 }}
             />

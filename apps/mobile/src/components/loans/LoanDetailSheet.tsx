@@ -1,35 +1,39 @@
-import React, { useState } from 'react';
-import { Modal, View, Text, ScrollView, Pressable, Alert, Image, Linking } from 'react-native';
-import {
-    X,
-    Calendar,
-    DollarSign,
-    Paperclip,
-    Trash2,
-    CheckCircle2,
-    AlertCircle,
-    Pencil,
-    User,
-    Sparkles,
-    Clock,
-    ShieldCheck
-} from 'lucide-react-native';
+import React, { useState, useMemo } from 'react';
+import { Modal, View, Text, ScrollView, Pressable, Alert, Linking } from 'react-native';
+import { X, Calendar, Paperclip, Trash2, Pencil, User, Sparkles, Clock, Check, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-react-native';
 import type { LoanRecord } from '../../types/database';
 import { formatCurrency, formatDisplayDate } from '../../utils/formatters';
 import { InstitutionLogo } from '../accounts/InstitutionLogo';
-import { getLoanTimelineMetrics } from '../../services/loanService';
+import { getLoanTimelineMetrics, calculateLoanInstallmentSchedule, type LoanInstallmentSchedule } from '../../services/loanService';
 
 interface LoanDetailSheetProps {
     visible: boolean;
     loan: LoanRecord | null;
     onClose: () => void;
-    onRecordPayment: (loan: LoanRecord) => void;
+    onRecordPayment: (loan: LoanRecord, suggestedAmount?: number) => void;
     onDelete: (loanId: string) => Promise<void>;
     onEdit?: (loan: LoanRecord) => void;
 }
 
 export function LoanDetailSheet({ visible, loan, onClose, onRecordPayment, onDelete, onEdit }: LoanDetailSheetProps) {
     const [deleting, setDeleting] = useState(false);
+    const [hideSettled, setHideSettled] = useState(true);
+    const [expandedInstallmentIndex, setExpandedInstallmentIndex] = useState<number | null>(null);
+
+    const schedule: LoanInstallmentSchedule | null = useMemo(() => (loan ? calculateLoanInstallmentSchedule(loan) : null), [loan]);
+
+    const suggestedPaymentAmount = useMemo(() => {
+        if (!loan) return 0;
+        if (schedule?.activeInstallment && schedule.activeInstallment.remainingDue > 0) {
+            return Math.min(schedule.activeInstallment.remainingDue, loan.remaining_balance);
+        }
+        return Math.min(loan.monthly_payment, loan.remaining_balance);
+    }, [loan, schedule]);
+
+    const totalSettledAmount = useMemo(() => {
+        if (!schedule) return 0;
+        return schedule.installments.filter((i) => i.status === 'paid').reduce((sum, i) => sum + i.amountPaid, 0);
+    }, [schedule]);
 
     if (!loan) return null;
 
@@ -222,25 +226,228 @@ export function LoanDetailSheet({ visible, loan, onClose, onRecordPayment, onDel
 
                             {metrics.hasTimeline && !isPaid && loan.term_months ? (
                                 <View className="bg-stone-50 p-2.5 rounded-xl border border-stone-200/70 mt-1 flex-row items-center justify-between">
-                                    <Text className="text-xs text-stone-600">Current Tenor Status</Text>
+                                    <Text className="text-xs text-stone-600">Amortization Progress</Text>
                                     <Text className="text-xs font-bold text-stone-900">
-                                        Month {metrics.elapsedMonths} of {loan.term_months} ({metrics.remainingMonths} mos left)
+                                        {schedule && schedule.installments.length > 0
+                                            ? `${schedule.settledCount} of ${loan.term_months} Settled`
+                                            : `Month ${metrics.elapsedMonths} of ${loan.term_months}`}
                                     </Text>
                                 </View>
                             ) : null}
                         </View>
 
-                        {/* Payment Schedule Card */}
+                        {/* Payment Schedule & Installment Stepper Card */}
                         <View className="bg-white p-4 rounded-2xl border border-stone-200/80 mb-3">
-                            <Text className="text-xs font-bold uppercase tracking-wider text-stone-400 mb-3">Payment Schedule</Text>
-                            <View className="flex-row items-center justify-between mb-2.5">
+                            <View className="flex-row items-center justify-between mb-3">
+                                <View>
+                                    <Text className="text-xs font-bold uppercase tracking-wider text-stone-400">Payment Schedule</Text>
+                                    {schedule && schedule.installments.length > 0 ? (
+                                        <Text className="text-xs font-bold text-stone-800 mt-0.5">
+                                            {schedule.settledCount} of {schedule.totalTermMonths} Installments Settled
+                                        </Text>
+                                    ) : null}
+                                </View>
+                                {schedule && schedule.settledCount > 0 ? (
+                                    <Pressable
+                                        onPress={() => setHideSettled((prev) => !prev)}
+                                        hitSlop={8}
+                                        pressRetentionOffset={10}
+                                        className="flex-row items-center bg-stone-100 active:bg-stone-200 px-2.5 py-1 rounded-full"
+                                    >
+                                        {hideSettled ? <Eye size={12} color="#57534E" /> : <EyeOff size={12} color="#57534E" />}
+                                        <Text className="text-[11px] font-bold text-stone-700 ml-1.5">
+                                            {hideSettled ? 'Show Settled' : 'Hide Settled'}
+                                        </Text>
+                                    </Pressable>
+                                ) : null}
+                            </View>
+
+                            <View className="flex-row items-center justify-between mb-2.5 pb-2.5 border-b border-stone-100">
                                 <Text className="text-xs text-stone-600">Monthly Amortization</Text>
                                 <Text className="text-sm font-bold text-stone-900">{formatCurrency(loan.monthly_payment)}</Text>
                             </View>
                             {loan.interest_rate ? (
-                                <View className="flex-row items-center justify-between pt-2 border-t border-stone-100">
+                                <View className="flex-row items-center justify-between mb-3 pb-2.5 border-b border-stone-100">
                                     <Text className="text-xs text-stone-600">Interest Rate</Text>
                                     <Text className="text-xs font-bold text-stone-900">{loan.interest_rate}% p.a.</Text>
+                                </View>
+                            ) : null}
+
+                            {/* Installment Stepper Timeline */}
+                            {schedule && schedule.installments.length > 0 ? (
+                                <View className="mt-2">
+                                    {/* Auto-collapse banner when settled items are hidden */}
+                                    {hideSettled && schedule.settledCount > 0 ? (
+                                        <Pressable
+                                            onPress={() => setHideSettled(false)}
+                                            hitSlop={8}
+                                            pressRetentionOffset={15}
+                                            className="bg-emerald-50/80 border border-emerald-200/70 rounded-xl p-2.5 flex-row items-center justify-between mb-3 active:bg-emerald-100/70"
+                                        >
+                                            <View className="flex-row items-center flex-1 mr-2">
+                                                <View className="w-5 h-5 rounded-full bg-emerald-100 items-center justify-center mr-2">
+                                                    <Check size={12} color="#059669" />
+                                                </View>
+                                                <Text className="text-xs font-semibold text-emerald-950">
+                                                    {schedule.settledCount} {schedule.settledCount === 1 ? 'Month' : 'Months'} Settled (
+                                                    {formatCurrency(totalSettledAmount)})
+                                                </Text>
+                                            </View>
+                                            <Text className="text-xs font-bold text-emerald-700">Show</Text>
+                                        </Pressable>
+                                    ) : null}
+
+                                    {/* Stepper items */}
+                                    {schedule.installments
+                                        .filter((item) => (hideSettled ? item.status !== 'paid' : true))
+                                        .map((item, idx, arr) => {
+                                            const isLast = idx === arr.length - 1;
+                                            const isExpanded = expandedInstallmentIndex === item.index;
+
+                                            return (
+                                                <View key={item.index} className="flex-row">
+                                                    {/* Node & vertical line column */}
+                                                    <View className="items-center w-6 mr-3">
+                                                        {item.status === 'paid' ? (
+                                                            <View className="w-5 h-5 rounded-full bg-emerald-500 items-center justify-center">
+                                                                <Check size={11} color="#FFFFFF" strokeWidth={3} />
+                                                            </View>
+                                                        ) : item.status === 'partially_paid' ? (
+                                                            <View className="w-5 h-5 rounded-full bg-amber-500 items-center justify-center border-2 border-amber-200">
+                                                                <View className="w-1.5 h-1.5 rounded-full bg-white" />
+                                                            </View>
+                                                        ) : (
+                                                            <View className="w-5 h-5 rounded-full border-2 border-stone-300 bg-white" />
+                                                        )}
+
+                                                        {!isLast && (
+                                                            <View
+                                                                className={`w-0.5 flex-1 my-0.5 ${
+                                                                    item.status === 'paid'
+                                                                        ? 'bg-emerald-400'
+                                                                        : item.status === 'partially_paid'
+                                                                          ? 'bg-amber-300'
+                                                                          : 'bg-stone-200'
+                                                                }`}
+                                                            />
+                                                        )}
+                                                    </View>
+
+                                                    {/* Row content */}
+                                                    <View className={`flex-1 ${isLast ? 'pb-1' : 'pb-4'}`}>
+                                                        <Pressable
+                                                            onPress={() => {
+                                                                if (item.status === 'partially_paid') {
+                                                                    setExpandedInstallmentIndex(isExpanded ? null : item.index);
+                                                                } else if (item.status === 'upcoming') {
+                                                                    onRecordPayment(loan, item.remainingDue);
+                                                                }
+                                                            }}
+                                                            className="flex-row items-center justify-between"
+                                                        >
+                                                            <View className="flex-1 mr-2">
+                                                                <View className="flex-row items-center flex-wrap">
+                                                                    <Text
+                                                                        className={`text-xs font-bold ${
+                                                                            item.status === 'paid'
+                                                                                ? 'text-stone-700'
+                                                                                : item.status === 'partially_paid'
+                                                                                  ? 'text-amber-950'
+                                                                                  : 'text-stone-800'
+                                                                        }`}
+                                                                    >
+                                                                        {formatDisplayDate(item.dueDate)}
+                                                                    </Text>
+                                                                    {item.isSettledEarly ? (
+                                                                        <View className="ml-1.5 bg-emerald-100/90 px-1.5 py-0.5 rounded">
+                                                                            <Text className="text-[9px] font-bold text-emerald-800">
+                                                                                Settled Early
+                                                                            </Text>
+                                                                        </View>
+                                                                    ) : null}
+                                                                </View>
+                                                                <Text className="text-[10px] text-stone-500 font-medium">
+                                                                    {item.index} of {schedule.totalTermMonths}
+                                                                </Text>
+                                                            </View>
+
+                                                            {/* Right amount and status pill */}
+                                                            <View className="items-end">
+                                                                <View className="flex-row items-center">
+                                                                    <Text
+                                                                        className={`text-xs font-bold mr-1.5 ${
+                                                                            item.status === 'paid'
+                                                                                ? 'text-stone-600'
+                                                                                : item.status === 'partially_paid'
+                                                                                  ? 'text-amber-900 font-extrabold'
+                                                                                  : 'text-stone-700'
+                                                                        }`}
+                                                                    >
+                                                                        {formatCurrency(
+                                                                            item.status === 'partially_paid'
+                                                                                ? item.remainingDue
+                                                                                : item.scheduledAmount
+                                                                        )}
+                                                                    </Text>
+                                                                    {item.status === 'paid' ? (
+                                                                        <View className="bg-emerald-100 px-2 py-0.5 rounded-full">
+                                                                            <Text className="text-[9px] font-bold text-emerald-800">PAID</Text>
+                                                                        </View>
+                                                                    ) : item.status === 'partially_paid' ? (
+                                                                        <View className="bg-amber-100 px-2 py-0.5 rounded-full flex-row items-center">
+                                                                            <Text className="text-[9px] font-bold text-amber-900 mr-0.5">
+                                                                                PARTIAL
+                                                                            </Text>
+                                                                            {isExpanded ? (
+                                                                                <ChevronUp size={10} color="#78350F" />
+                                                                            ) : (
+                                                                                <ChevronDown size={10} color="#78350F" />
+                                                                            )}
+                                                                        </View>
+                                                                    ) : null}
+                                                                </View>
+                                                            </View>
+                                                        </Pressable>
+
+                                                        {/* Expandable breakdown for partially paid */}
+                                                        {item.status === 'partially_paid' && isExpanded ? (
+                                                            <View className="mt-2 bg-amber-50/90 border border-amber-200/80 rounded-xl p-3">
+                                                                <Text className="text-[11px] font-semibold text-amber-900 mb-1">
+                                                                    Partial Payment Breakdown
+                                                                </Text>
+                                                                <View className="flex-row items-center justify-between mb-1">
+                                                                    <Text className="text-[10px] text-stone-600">Scheduled Installment</Text>
+                                                                    <Text className="text-[10px] font-semibold text-stone-900">
+                                                                        {formatCurrency(item.scheduledAmount)}
+                                                                    </Text>
+                                                                </View>
+                                                                <View className="flex-row items-center justify-between mb-1">
+                                                                    <Text className="text-[10px] text-emerald-700">Advance Credit Applied</Text>
+                                                                    <Text className="text-[10px] font-bold text-emerald-700">
+                                                                        - {formatCurrency(item.advanceCredit || 0)}
+                                                                    </Text>
+                                                                </View>
+                                                                <View className="flex-row items-center justify-between pt-1 border-t border-amber-200/60 mb-2">
+                                                                    <Text className="text-[10px] font-bold text-amber-950">Remaining Due</Text>
+                                                                    <Text className="text-[11px] font-extrabold text-amber-950">
+                                                                        {formatCurrency(item.remainingDue)}
+                                                                    </Text>
+                                                                </View>
+                                                                <Pressable
+                                                                    onPress={() => onRecordPayment(loan, item.remainingDue)}
+                                                                    hitSlop={8}
+                                                                    className="bg-amber-700 py-1.5 rounded-lg items-center active:bg-amber-800"
+                                                                >
+                                                                    <Text className="text-white text-[10px] font-bold">
+                                                                        Pay Remaining {formatCurrency(item.remainingDue)}
+                                                                    </Text>
+                                                                </Pressable>
+                                                            </View>
+                                                        ) : null}
+                                                    </View>
+                                                </View>
+                                            );
+                                        })}
                                 </View>
                             ) : null}
                         </View>
@@ -292,13 +499,14 @@ export function LoanDetailSheet({ visible, loan, onClose, onRecordPayment, onDel
                         <View className="mt-2 space-y-3 pb-8">
                             {!isPaid && (
                                 <Pressable
-                                    onPress={() => onRecordPayment(loan)}
+                                    onPress={() => onRecordPayment(loan, suggestedPaymentAmount)}
                                     hitSlop={8}
                                     pressRetentionOffset={20}
                                     className="bg-[#18342B] py-3.5 rounded-2xl items-center active:opacity-90"
                                 >
                                     <Text className="text-white font-bold text-sm">
-                                        Record Loan Payment (₱{loan.monthly_payment.toLocaleString()})
+                                        Record Loan Payment ({formatCurrency(suggestedPaymentAmount)}
+                                        {schedule?.activeInstallment?.status === 'partially_paid' ? ' Due' : ''})
                                     </Text>
                                 </Pressable>
                             )}

@@ -7,7 +7,8 @@ import {
     recordLoanPayment,
     deleteLoan,
     updateLoanMetadata,
-    getLoanTimelineMetrics
+    getLoanTimelineMetrics,
+    calculateLoanInstallmentSchedule
 } from '../src/services/loanService';
 import type { LoanRecord } from '../src/types/database';
 
@@ -483,5 +484,113 @@ describe('loanService operations', () => {
         expect(result).toBeDefined();
         expect(result?.title).toBe('GLoan');
         expect(result?.institution_name).toBe('GCash');
+    });
+
+    describe('calculateLoanInstallmentSchedule waterfall allocation', () => {
+        it('accurately distributes partial advance payments for 12-month GLoan', () => {
+            const loan: LoanRecord = {
+                id: 'loan_g1',
+                title: 'GLoan 20k',
+                principal_amount: 20000,
+                processingFee: 0,
+                total_amount: 27416.04,
+                remaining_balance: 19131.37, // 8,284.67 paid
+                monthly_payment: 2284.67,
+                start_date: '2026-09-12',
+                due_date: '2026-10-12',
+                term_months: 12,
+                status: 'active',
+                created_at: '2026-09-12',
+                updated_at: '2026-11-01'
+            };
+
+            // Reference date: November 1, 2026
+            const refDate = new Date(2026, 10, 1);
+            const schedule = calculateLoanInstallmentSchedule(loan, refDate);
+
+            expect(schedule.totalTermMonths).toBe(12);
+            expect(schedule.settledCount).toBe(3);
+            expect(schedule.upcomingCount).toBe(8);
+            expect(schedule.totalPaid).toBe(8284.67);
+            expect(schedule.remainingDebt).toBe(19131.37);
+
+            // Month 1: Oct 12, 2026
+            expect(schedule.installments[0].dueDate).toBe('2026-10-12');
+            expect(schedule.installments[0].status).toBe('paid');
+            expect(schedule.installments[0].amountPaid).toBe(2284.67);
+            expect(schedule.installments[0].remainingDue).toBe(0);
+
+            // Month 2: Nov 12, 2026 (Paid early)
+            expect(schedule.installments[1].dueDate).toBe('2026-11-12');
+            expect(schedule.installments[1].status).toBe('paid');
+            expect(schedule.installments[1].isSettledEarly).toBe(true);
+
+            // Month 3: Dec 12, 2026 (Paid early)
+            expect(schedule.installments[2].dueDate).toBe('2026-12-12');
+            expect(schedule.installments[2].status).toBe('paid');
+            expect(schedule.installments[2].isSettledEarly).toBe(true);
+
+            // Month 4: Jan 12, 2027 (Partially paid with 854.01 remaining)
+            expect(schedule.installments[3].dueDate).toBe('2027-01-12');
+            expect(schedule.installments[3].status).toBe('partially_paid');
+            expect(schedule.installments[3].amountPaid).toBe(1430.66);
+            expect(schedule.installments[3].remainingDue).toBe(854.01);
+            expect(schedule.installments[3].advanceCredit).toBe(1430.66);
+
+            // Active installment should point to Month 4
+            expect(schedule.activeInstallment?.index).toBe(4);
+            expect(schedule.activeInstallment?.remainingDue).toBe(854.01);
+
+            // Month 5: Feb 12, 2027 (Upcoming)
+            expect(schedule.installments[4].dueDate).toBe('2027-02-12');
+            expect(schedule.installments[4].status).toBe('upcoming');
+            expect(schedule.installments[4].remainingDue).toBe(2284.67);
+
+            // Month 12: Sep 12, 2027 (Upcoming)
+            expect(schedule.installments[11].dueDate).toBe('2027-09-12');
+            expect(schedule.installments[11].status).toBe('upcoming');
+        });
+
+        it('returns empty installments for loans without term_months', () => {
+            const loan: LoanRecord = {
+                id: 'loan_p1',
+                title: 'Family loan',
+                total_amount: 10000,
+                remaining_balance: 5000,
+                monthly_payment: 1000,
+                due_date: '2026-12-01',
+                status: 'active',
+                created_at: '2026-01-01',
+                updated_at: '2026-01-01'
+            };
+
+            const schedule = calculateLoanInstallmentSchedule(loan);
+            expect(schedule.totalTermMonths).toBe(0);
+            expect(schedule.installments).toHaveLength(0);
+            expect(schedule.activeInstallment).toBeNull();
+            expect(schedule.totalPaid).toBe(5000);
+        });
+
+        it('handles fully paid loan gracefully', () => {
+            const loan: LoanRecord = {
+                id: 'loan_paid',
+                title: 'Settled Loan',
+                total_amount: 6000,
+                remaining_balance: 0,
+                monthly_payment: 1000,
+                start_date: '2026-01-01',
+                term_months: 6,
+                due_date: '2026-02-01',
+                status: 'paid',
+                created_at: '2026-01-01',
+                updated_at: '2026-06-01'
+            };
+
+            const schedule = calculateLoanInstallmentSchedule(loan);
+            expect(schedule.settledCount).toBe(6);
+            expect(schedule.upcomingCount).toBe(0);
+            expect(schedule.activeInstallment).toBeNull();
+            expect(schedule.installments.every((i) => i.status === 'paid')).toBe(true);
+        });
     });
 });

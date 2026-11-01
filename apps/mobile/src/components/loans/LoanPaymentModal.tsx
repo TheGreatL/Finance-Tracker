@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
-import { X, Check, Wallet, Calendar, ChevronDown, Sparkles } from 'lucide-react-native';
+import { X, Calendar, ChevronDown, Sparkles } from 'lucide-react-native';
 import type { LoanRecord, AccountPocket, RecordLoanPaymentInput } from '../../types/database';
 import { formatCurrency, formatDisplayDate, formatMoneyInput, parseMoneyInput } from '../../utils/formatters';
 import { DatePickerModal } from '../common/DatePickerModal';
@@ -11,12 +11,13 @@ import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 interface LoanPaymentModalProps {
     visible: boolean;
     loan: LoanRecord | null;
+    initialAmount?: number;
     pockets: (AccountPocket & { institution_name?: string; institution_code?: string; institution_color?: string })[];
     onClose: () => void;
     onSubmit: (input: RecordLoanPaymentInput) => Promise<void>;
 }
 
-export function LoanPaymentModal({ visible, loan, pockets, onClose, onSubmit }: LoanPaymentModalProps) {
+export function LoanPaymentModal({ visible, loan, initialAmount, pockets, onClose, onSubmit }: LoanPaymentModalProps) {
     const [selectedPocketId, setSelectedPocketId] = useState<string>('');
     const [amountStr, setAmountStr] = useState('');
     const [interestCashbackStr, setInterestCashbackStr] = useState('');
@@ -29,7 +30,11 @@ export function LoanPaymentModal({ visible, loan, pockets, onClose, onSubmit }: 
 
     useEffect(() => {
         if (loan) {
-            setAmountStr(formatMoneyInput(String(Math.min(loan.monthly_payment, loan.remaining_balance))));
+            const targetAmount =
+                initialAmount !== undefined && initialAmount > 0
+                    ? Math.min(initialAmount, loan.remaining_balance)
+                    : Math.min(loan.monthly_payment, loan.remaining_balance);
+            setAmountStr(formatMoneyInput(String(targetAmount)));
             setInterestCashbackStr('');
             setDateStr(new Date().toISOString().split('T')[0]);
             setNotes(`Payment for ${loan.title}`);
@@ -37,7 +42,7 @@ export function LoanPaymentModal({ visible, loan, pockets, onClose, onSubmit }: 
         if (pockets.length > 0 && !selectedPocketId) {
             setSelectedPocketId(pockets[0].id);
         }
-    }, [loan, pockets]);
+    }, [loan, initialAmount, pockets]);
 
     if (!loan) return null;
 

@@ -434,3 +434,154 @@ export function getLoanTimelineMetrics(loan: LoanRecord, referenceDate: Date = n
         hasTimeline: Boolean(loan.start_date || loan.term_months)
     };
 }
+
+export type InstallmentStatus = 'paid' | 'partially_paid' | 'upcoming';
+
+export interface InstallmentItem {
+    index: number;
+    dueDate: string;
+    scheduledAmount: number;
+    amountPaid: number;
+    remainingDue: number;
+    status: InstallmentStatus;
+    isSettledEarly: boolean;
+    advanceCredit?: number;
+}
+
+export interface LoanInstallmentSchedule {
+    totalTermMonths: number;
+    installments: InstallmentItem[];
+    activeInstallment: InstallmentItem | null;
+    settledCount: number;
+    upcomingCount: number;
+    totalPaid: number;
+    remainingDebt: number;
+}
+
+export function calculateLoanInstallmentSchedule(loan: LoanRecord, referenceDate: Date = new Date()): LoanInstallmentSchedule {
+    const totalPaid = Math.max(0, Math.round((loan.total_amount - loan.remaining_balance) * 100) / 100);
+
+    if (!loan.term_months || loan.term_months <= 0 || !loan.monthly_payment || loan.monthly_payment <= 0) {
+        return {
+            totalTermMonths: 0,
+            installments: [],
+            activeInstallment: null,
+            settledCount: 0,
+            upcomingCount: 0,
+            totalPaid,
+            remainingDebt: loan.remaining_balance
+        };
+    }
+
+    const termMonths = loan.term_months;
+    const installments: InstallmentItem[] = [];
+    let unallocatedCash = totalPaid;
+    let settledCount = 0;
+    let upcomingCount = 0;
+
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const refDateStr = `${referenceDate.getFullYear()}-${pad(referenceDate.getMonth() + 1)}-${pad(referenceDate.getDate())}`;
+
+    let baseYear = referenceDate.getFullYear();
+    let baseMonth = referenceDate.getMonth();
+    let baseDay = 12;
+    let hasStartDate = false;
+
+    if (loan.start_date) {
+        const parts = loan.start_date.split('-');
+        if (parts.length === 3) {
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10);
+            const d = parseInt(parts[2], 10);
+            if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+                baseYear = y;
+                baseMonth = m - 1;
+                baseDay = d;
+                hasStartDate = true;
+            }
+        }
+    }
+
+    if (!hasStartDate && loan.due_date) {
+        const parts = loan.due_date.split('-');
+        if (parts.length === 3) {
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10);
+            const d = parseInt(parts[2], 10);
+            if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+                baseYear = y;
+                baseMonth = m - 1; // Month 1 due date
+                baseDay = d;
+            }
+        }
+    }
+
+    for (let i = 1; i <= termMonths; i++) {
+        // If hasStartDate, month 1 is baseMonth + 1; otherwise baseMonth is month 1
+        const targetMonthOffset = hasStartDate ? i : i - 1;
+        const targetMonth = baseMonth + targetMonthOffset;
+        const tempDate = new Date(baseYear, targetMonth + 1, 0);
+        const day = Math.min(baseDay, tempDate.getDate());
+        const instDate = new Date(baseYear, targetMonth, day);
+        const dueDateStr = `${instDate.getFullYear()}-${pad(instDate.getMonth() + 1)}-${pad(instDate.getDate())}`;
+
+        // Scheduled amount handling for last installment rounding
+        let scheduledAmount = Math.round(loan.monthly_payment * 100) / 100;
+        if (i === termMonths && loan.total_amount > 0) {
+            const prevTotal = Math.round(loan.monthly_payment * (termMonths - 1) * 100) / 100;
+            const lastScheduled = Math.max(0, Math.round((loan.total_amount - prevTotal) * 100) / 100);
+            if (Math.abs(lastScheduled - loan.monthly_payment) < 1.0) {
+                scheduledAmount = lastScheduled;
+            }
+        }
+
+        let amountPaid: number;
+        let remainingDue: number;
+        let status: InstallmentStatus;
+        let advanceCredit: number | undefined;
+
+        if (unallocatedCash >= scheduledAmount - 0.009) {
+            status = 'paid';
+            amountPaid = scheduledAmount;
+            remainingDue = 0;
+            unallocatedCash = Math.max(0, Math.round((unallocatedCash - scheduledAmount) * 100) / 100);
+            settledCount++;
+        } else if (unallocatedCash > 0.009) {
+            status = 'partially_paid';
+            amountPaid = unallocatedCash;
+            remainingDue = Math.max(0, Math.round((scheduledAmount - unallocatedCash) * 100) / 100);
+            advanceCredit = amountPaid;
+            unallocatedCash = 0;
+        } else {
+            status = 'upcoming';
+            amountPaid = 0;
+            remainingDue = scheduledAmount;
+            upcomingCount++;
+        }
+
+        const isSettledEarly = status === 'paid' && refDateStr < dueDateStr;
+
+        installments.push({
+            index: i,
+            dueDate: dueDateStr,
+            scheduledAmount,
+            amountPaid,
+            remainingDue,
+            status,
+            isSettledEarly,
+            advanceCredit
+        });
+    }
+
+    const activeInstallment = installments.find((inst) => inst.status !== 'paid') || null;
+
+    return {
+        totalTermMonths: termMonths,
+        installments,
+        activeInstallment,
+        settledCount,
+        upcomingCount,
+        totalPaid,
+        remainingDebt: loan.remaining_balance
+    };
+}
