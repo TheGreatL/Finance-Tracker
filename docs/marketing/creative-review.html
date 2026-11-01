@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<!--
+  Creative Review Page — Personal Finance Tracker
+  Generated using .agents/skills/ad-creative/assets/creative-review-template.html
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Creative Review · Personal Finance Tracker</title>
+<style>
+  :root {
+    --bg: #f4f3f0; --card: #ffffff; --ink: #16150f; --muted: #6b6a63;
+    --line: #e4e2dc; --accent: #18342B; --accent-soft: #D1FAE5;
+    --radius: 14px; --shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.05);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 32px 20px 80px; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  a { color: var(--accent); }
+
+  header.project { margin-bottom: 28px; }
+  header.project h1 { font-size: 20px; margin: 6px 0 2px; letter-spacing: -.01em; }
+  header.project .sub { color: var(--muted); font-size: 13px; }
+
+  .concepts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin: 14px 0 28px; }
+  .concept { text-align: left; background: var(--card); border: 1.5px solid var(--line); border-radius: var(--radius);
+    padding: 14px 16px; cursor: pointer; transition: border-color .12s, box-shadow .12s; font: inherit; color: inherit; }
+  .concept:hover { border-color: #cfcdc6; }
+  .concept[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); background: #fff; }
+  .concept .row1 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .concept .num { font-size: 11px; font-weight: 700; color: var(--muted); }
+  .concept .frames { font-size: 11px; color: var(--muted); }
+  .concept .name { font-weight: 650; font-size: 15px; margin: 4px 0 3px; }
+  .concept .tag { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 28px; align-items: start; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .col-label { margin-bottom: 10px; }
+
+  .toggles { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 12px; }
+  .seg { display: inline-flex; background: #ecebe6; border-radius: 999px; padding: 3px; }
+  .seg button { border: 0; background: transparent; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--muted);
+    padding: 5px 12px; border-radius: 999px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .seg .lbl { align-self: center; font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+
+  .post { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+  .post .top { display: flex; align-items: center; gap: 10px; padding: 11px 12px; }
+  .post .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--accent-soft); color: var(--accent);
+    display: grid; place-items: center; font-weight: 700; font-size: 13px; overflow: hidden; flex: none; }
+  .post .avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .post .who { line-height: 1.2; }
+  .post .who .name { font-weight: 650; font-size: 13.5px; }
+  .post .who .partner { font-size: 11.5px; color: var(--muted); }
+  .post .dots { margin-left: auto; color: var(--muted); font-weight: 700; letter-spacing: 2px; }
+  .frame { position: relative; aspect-ratio: 4/5; background: #ded9d0; display: grid; }
+  .frame img { width: 100%; height: 100%; object-fit: cover; grid-area: 1/1; z-index: 1; }
+  .frame .ph { grid-area: 1/1; display: flex; flex-direction: column; justify-content: space-between; padding: 16px;
+    background: linear-gradient(135deg,#efece5,#e2ddd2); }
+  .frame .ph .plabel { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #948e80; }
+  .frame .ph .pprompt { font-size: 13px; color: #5f5a4e; line-height: 1.4; }
+  .frame .badge { position: absolute; top: 12px; left: 12px; z-index: 2; background: rgba(255,255,255,.92);
+    font-size: 11.5px; font-weight: 600; padding: 5px 10px; border-radius: 999px; display: flex; align-items: center; gap: 5px; }
+  .frame .counter { position: absolute; top: 12px; right: 12px; z-index: 2; background: rgba(0,0,0,.6); color: #fff; font-size: 11px;
+    font-weight: 600; padding: 3px 9px; border-radius: 999px; }
+  .frame .headline { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 18px 16px 20px; color: #fff;
+    font-size: 21px; font-weight: 700; line-height: 1.2; letter-spacing: -.01em;
+    background: linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,0)); }
+  .frame .headline.light { color: var(--ink); background: linear-gradient(to top, rgba(255,255,255,.85), rgba(255,255,255,0)); }
+
+  /* Instagram chrome */
+  .ig-cta { display: flex; align-items: center; justify-content: space-between; padding: 12px; border-top: 1px solid var(--line);
+    font-weight: 650; font-size: 13.5px; }
+  .ig-cta .chev { color: var(--muted); }
+  .ig-actions { display: flex; gap: 16px; padding: 10px 12px 2px; color: #26251f; }
+  .ig-actions svg { width: 22px; height: 22px; }
+  .ig-actions .save { margin-left: auto; }
+  .likes { padding: 6px 12px 2px; font-weight: 650; font-size: 13px; }
+  .caption { padding: 2px 12px 14px; font-size: 13px; line-height: 1.4; }
+  .caption .h { font-weight: 650; }
+  .caption .more { color: var(--muted); }
+
+  /* Facebook chrome — link card below image + text actions */
+  .fb-card { display: flex; align-items: center; gap: 12px; padding: 12px; background: #f3f4f6; border-top: 1px solid var(--line); }
+  .fb-card .meta { min-width: 0; flex: 1; }
+  .fb-card .dom { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .fb-card .hl { font-size: 14px; font-weight: 650; line-height: 1.25; margin-top: 2px; overflow: hidden; }
+  .fb-card .btn { flex: none; background: #e4e6eb; color: #050505; font-weight: 650; font-size: 12.5px; padding: 8px 14px; border-radius: 7px; }
+  .fb-actions { display: flex; padding: 4px 12px; border-top: 1px solid var(--line); }
+  .fb-actions span { flex: 1; text-align: center; padding: 8px 0; font-size: 13px; font-weight: 600; color: var(--muted); }
+
+  .board { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .board .frames-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+  @media (max-width: 480px) { .board .frames-grid { grid-template-columns: repeat(2, 1fr); } }
+  .thumb { border: 0; background: transparent; padding: 0; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+  .thumb .box { aspect-ratio: 4/5; border-radius: 9px; overflow: hidden; border: 2px solid transparent; background: #e7e2d8;
+    display: grid; transition: border-color .12s; }
+  .thumb[aria-current="true"] .box { border-color: var(--accent); }
+  .thumb .box img { width: 100%; height: 100%; object-fit: cover; grid-area: 1/1; z-index: 1; }
+  .thumb .box .mini { grid-area: 1/1; padding: 8px; font-size: 10.5px; color: #7a7566; line-height: 1.3;
+    background: linear-gradient(135deg,#efece5,#e2ddd2); overflow: hidden; }
+  .thumb .cap { margin-top: 6px; font-size: 12px; }
+  .thumb .cap .n { color: var(--muted); font-weight: 700; margin-right: 6px; }
+
+  .copy { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); }
+  .copy .block { padding: 14px 0; border-top: 1px solid var(--line); }
+  .copy .block:first-of-type { border-top: 0; padding-top: 4px; }
+  .headline-opt { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; font: inherit; color: inherit;
+    background: #faf9f6; border: 1.5px solid var(--line); border-radius: 10px; padding: 11px 13px; cursor: pointer; margin-top: 8px; }
+  .headline-opt[aria-pressed="true"] { border-color: var(--accent); background: #fff; box-shadow: 0 0 0 3px var(--accent-soft); }
+  .headline-opt .n { font-size: 11px; font-weight: 700; color: var(--muted); margin-top: 2px; }
+  .headline-opt .t { font-size: 14px; line-height: 1.35; }
+  .kv { font-size: 13.5px; line-height: 1.5; }
+  .kv .dest { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  .steps { margin: 8px 0 0; padding: 0; list-style: none; }
+  .steps li { display: flex; gap: 10px; padding: 5px 0; font-size: 13px; line-height: 1.4; }
+  .steps li .i { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--accent-soft); color: var(--accent);
+    display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+  .grounding { background: #f6f5ef; border: 1px dashed #cfcabb; border-radius: 10px; padding: 12px 14px; font-size: 12.5px; color: #5f5a4e; line-height: 1.45; margin-top: 8px; }
+  .err { background: #fbeaea; border: 1px solid #e6b7b7; color: #8a2b2b; border-radius: 10px; padding: 14px 16px; font-size: 13px; }
+  footer { margin-top: 40px; text-align: center; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<script type="application/json" id="review-data">
+{
+  "project": {
+    "brand": "Personal Finance Tracker",
+    "date": "2026-11-01",
+    "note": "Grounded PH Paid-Social Creative Slate (Meta / Instagram / Facebook)"
+  },
+  "platforms": ["instagram", "facebook"],
+  "concepts": [
+    {
+      "name": "15th & 30th Variable Payday",
+      "tagline": "Problem / Solution + Callout for PH employees with OT, undertime, and cutoff deductions",
+      "frames": [
+        {
+          "label": "Hook",
+          "src": "screens/04c_job_detail.png",
+          "prompt": "Close-up of JobDetailModal on Pixel 7a showing Senior Full-Stack Engineer 1st Cutoff Net (₱31,400.00), SSS 1st Cutoff (-₱600), and PhilHealth/Pag-IBIG 2nd Cutoff depositing into BDO Payroll Savings.",
+          "headline": "Your 15th and 30th paychecks never match. Your tracker should.",
+          "headlineTheme": "dark"
+        },
+        {
+          "label": "The problem",
+          "src": "screens/04b_income_jobs.png",
+          "prompt": "Salary & Income screen on Pixel 7a showing 2 Active Jobs (Senior Full-Stack Engineer + UI/UX Retainer) with separate cutoff deductions."
+        },
+        {
+          "label": "The mechanism",
+          "src": "screens/04e_payslip_detail.png",
+          "prompt": "PaySlipDetailModal on Pixel 7a showing itemized Gross (₱17,530), SSS Statutory Deduction (-₱600), and Net Deposit (₱16,930) to BDO Unibank."
+        },
+        {
+          "label": "The ask",
+          "src": "screens/01_dashboard.png",
+          "prompt": "Dashboard card on Pixel 7a showing Total Net Worth (₱197,280.00) and instant pocket balance updates.",
+          "headline": "Log your next cutoff in 30 seconds."
+        }
+      ],
+      "headlines": [
+        "Your 15th and 30th paychecks never match. Your tracker should.",
+        "Track 15th/30th cutoffs with OT, undertime, and SSS.",
+        "Built for PH payslips: 1st/2nd cutoffs, OT, and LWOP."
+      ],
+      "primaryText": "Most budget apps assume you earn the exact same amount every month. If you work in the Philippines, your 15th cutoff has overtime or night diff, your 30th cutoff deducts SSS or Pag-IBIG, and one late morning changes your net pay. Personal Finance Tracker lets you confirm your exact attendance adjustments before crediting your BDO, BPI, or GCash pocket.",
+      "destination": {
+        "url": "financetracker.ph/download",
+        "cta": "Download APK",
+        "offer": "100% On-Device SQLite · Free"
+      },
+      "rollout": {
+        "title": "Test Hypothesis (Falsifiable)",
+        "steps": [
+          "Metric: Link CTR and APK download CVR on Meta 4:5 Feed placements.",
+          "Audience: Broad PH (18-40, Metro Manila / Cebu / Davao) using creative-as-targeting for BPO and corporate payroll terms.",
+          "Hypothesis: Beats Concept 02 (Multi-Pocket Grid) on CTR by +20% among PH salaried workers because 15th/30th cutoff variability is an unaddressed pain in foreign budget apps."
+        ]
+      },
+      "grounding": "All product capabilities are grounded in apps/mobile/src/services/salaryService.ts, RecordPaydayModal.tsx, and PaySlipDetailModal.tsx (semi_monthly schedule, first_cutoff/second_cutoff deductions, overtime_pay, holiday_pay, undertime_deduction, absence_deduction). No customer reviews or performance metrics are fabricated."
+    },
+    {
+      "name": "16 PH Banks & Pockets Grid",
+      "tagline": "Tier-A Grid Static showing BDO, BPI, GCash, Maya, SeaBank, and GoTyme in one offline ledger",
+      "frames": [
+        {
+          "label": "Hook",
+          "src": "screens/02_accounts.png",
+          "prompt": "Accounts & Wallets screen on Pixel 7a showing SeaBank, BDO Unibank, GoTyme Bank, Maya, BPI, and GCash with total liquid assets of ₱197,280.00.",
+          "headline": "Stop doing mental math across 4 banking apps and 2 e-wallets.",
+          "headlineTheme": "dark"
+        },
+        {
+          "label": "The mechanism",
+          "src": "screens/02b_maya_pockets.png",
+          "prompt": "Maya Account Detail Sheet on Pixel 7a showing Maya Personal Goal (6% p.a. Interest Savings, ₱28,500) separated from Maya Everyday Wallet (₱4,200)."
+        },
+        {
+          "label": "The ask",
+          "src": "screens/01_dashboard.png",
+          "prompt": "Dashboard hero card on Pixel 7a showing Total Net Worth in PHP with zero bank login prompts.",
+          "headline": "Track every PH bank and e-wallet on your phone."
+        }
+      ],
+      "headlines": [
+        "Stop doing mental math across 4 banking apps and 2 e-wallets.",
+        "GCash, Maya, SeaBank, GoTyme, BDO, and BPI in one offline ledger.",
+        "Separate your everyday Wallet from Interest Savings pockets."
+      ],
+      "primaryText": "Pay comes into BDO. Bills leave from GCash. Emergency money sits in SeaBank and GoTyme pockets earning interest. Checking what you actually have left means opening five apps and hoping none of them are under maintenance. Personal Finance Tracker tracks 16 Philippine bank and e-wallet presets with separate Wallet and Savings pockets right on your phone.",
+      "destination": {
+        "url": "financetracker.ph/download",
+        "cta": "Download Free",
+        "offer": "Works Offline · Zero Bank Logins"
+      },
+      "rollout": {
+        "title": "Test Hypothesis (Falsifiable)",
+        "steps": [
+          "Metric: Thumbstop rate (3-sec view / impression) and CPC on Instagram Feed & Stories.",
+          "Audience: Broad PH digital banking users.",
+          "Hypothesis: Tier-A Grid Static format achieves lower CPC than text-only statics by letting cold viewers self-select the specific PH banks and digital wallets they already use."
+        ]
+      },
+      "grounding": "Grounded in apps/mobile/src/constants/institutions.ts (11 PH banks, 5 e-wallets, 4 lending apps, plus Cash/Custom) and account_pockets schema (wallet vs savings pocket_type with interest_rate)."
+    },
+    {
+      "name": "GLoan Cashback & Utang Tracker",
+      "tagline": "Specific PH lending mechanics: Principal vs Processing Fee, Tenor Progress, and Early Payoff Rebates",
+      "frames": [
+        {
+          "label": "Hook",
+          "src": "screens/03_obligations_loans.png",
+          "prompt": "Loans & Debt screen on Pixel 7a showing GCash GLoan Cash Loan (Eligible for ₱680 interest cashback on early full payoff), Flight Ticket Spot Utang, and BillEase Monitor Installment.",
+          "headline": "Track the real cost of your GLoan, BillEase, Tala, and personal utang.",
+          "headlineTheme": "dark"
+        },
+        {
+          "label": "The problem",
+          "src": "screens/03b_obligations_subscriptions.png",
+          "prompt": "Subscriptions screen on Pixel 7a showing Spotify Duo, ChatGPT Plus, PLDT Home Fiber, and Netflix Premium tied to specific billing pockets."
+        },
+        {
+          "label": "The payoff",
+          "src": "screens/08_notifications.png",
+          "prompt": "Notification Center on Pixel 7a showing 15th Cutoff Payday Credited and GLoan Installment Due with ₱680.00 interest cashback eligibility.",
+          "headline": "See your exact payoff date and every peso of interest."
+        }
+      ],
+      "headlines": [
+        "Track the real cost of your GLoan, BillEase, Tala, and personal utang.",
+        "Paid off a loan early? Log the interest cashback direct to your pocket.",
+        "Institutional loans and barkada utang tracked to the last peso."
+      ],
+      "primaryText": "When you borrow ₱10,000 on a lending app, upfront processing fees reduce what lands in your wallet while monthly installments follow the total contract amount. And if you pay off a loan early, you get interest cashback back into your account. We built a loan tracker that handles processing fees, tenor months elapsed, due-date reminders, and early-payoff rebates alongside personal utang.",
+      "destination": {
+        "url": "financetracker.ph/download",
+        "cta": "Track Your Loans",
+        "offer": "Built for PH Lending Apps & P2P Debt"
+      },
+      "rollout": {
+        "title": "Test Hypothesis (Falsifiable)",
+        "steps": [
+          "Metric: Conversion rate (Install / Click) among problem-aware borrowers.",
+          "Audience: PH adults 21-45.",
+          "Hypothesis: Naming upfront processing fees and early-payoff interest cashback increases post-click install CVR over generic debt-tracking copy by proving domain fit in the ad itself."
+        ]
+      },
+      "grounding": "Grounded in apps/mobile/src/services/loanService.ts and database schema (lender_type: institution | person, principal_amount, processing_fee, total_amount, term_months, has_interest_cashback, interest_cashback_received)."
+    },
+    {
+      "name": "Taglish PocketBot & Privacy",
+      "tagline": "Conversation / iMessage-style hook showing Taglish affordability math with 100% on-device SQLite privacy",
+      "frames": [
+        {
+          "label": "Hook",
+          "src": "screens/05_pocketbot.png",
+          "prompt": "PocketBot Advisor screen on Pixel 7a with user message bubble: 'Kaya ko ba bilhin ang ₱15k phone?' and bot reply calculating real pocket balances minus upcoming subscriptions and loan dues.",
+          "headline": "\"Kaya ko ba bilhin ang ₱15k phone?\" Ask your actual balances.",
+          "headlineTheme": "dark"
+        },
+        {
+          "label": "The objection",
+          "src": "screens/07_ledger.png",
+          "prompt": "Ledger screen on Pixel 7a showing 15th Cutoff Salary, GLoan Monthly Installment, SeaBank 4.5% Transfer, SM Supermarket Groceries, and Meralco Bill."
+        },
+        {
+          "label": "The ask",
+          "src": "screens/01b_dashboard_recent.png",
+          "prompt": "Dashboard Quick Actions (Expense, Income, Transfer, Scan OCR) and Recent Activity on Pixel 7a.",
+          "headline": "Check if you can afford it before you checkout."
+        }
+      ],
+      "headlines": [
+        "\"Kaya ko ba bilhin ang ₱15k phone?\" Ask your actual balances.",
+        "A finance tracker that understands Taglish and never asks for bank OTPs.",
+        "All your balances stay in SQLite on your phone. Works without internet."
+      ],
+      "primaryText": "Before you tap checkout on a ₱15k phone, ask PocketBot: \"Kaya ko ba bilhin ang 15k phone?\" or \"Magkano pa utang ko?\" It checks your actual wallet pockets, upcoming Netflix/Spotify renewals, and loan due dates to tell you if the purchase is safe, tight, or unaffordable. Works offline in English and Taglish, and your financial data stays on your device in SQLite.",
+      "destination": {
+        "url": "financetracker.ph/download",
+        "cta": "Try PocketBot Free",
+        "offer": "100% On-Device SQLite · Offline Ready"
+      },
+      "rollout": {
+        "title": "Test Hypothesis (Falsifiable)",
+        "steps": [
+          "Metric: Video/Carousel Hold Rate and Comment Engagement on Meta & TikTok.",
+          "Audience: Cold PH audience (18-34) + Retargeting objection-handling layer.",
+          "Hypothesis: Verbatim Taglish query ('Kaya ko ba bilhin ang ₱15k phone?') combined with the zero-OTP privacy guarantee resolves the #1 security objection in PH fintech ads."
+        ]
+      },
+      "grounding": "Grounded in apps/mobile/src/services/chatEngine.ts (Taglish intent parsing for 'kaya ko ba', 'utang', 'magkano', k/m shorthand), geminiService.ts, and databaseBackupService.ts (on-device SQLite + JSON export)."
+    }
+  ]
+}
+</script>
+
+<div class="wrap">
+  <header class="project" id="project"></header>
+  <div class="eyebrow">Creative concept · toggle between ideas</div>
+  <div class="concepts" id="concepts"></div>
+  <div class="grid">
+    <section>
+      <div class="eyebrow col-label" id="preview-label">In-feed preview</div>
+      <div class="toggles" id="toggles"></div>
+      <div class="post" id="post"></div>
+    </section>
+    <section>
+      <div class="board">
+        <div class="eyebrow" id="board-label">Storyboard · tap to jump</div>
+        <div class="frames-grid" id="frames-grid"></div>
+      </div>
+      <div class="copy" id="copy"></div>
+    </section>
+  </div>
+  <footer id="footer"></footer>
+</div>
+
+<script>
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, c => (
+  { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const PLATFORMS = { instagram: "Instagram", facebook: "Facebook" };
+
+let DATA;
+try {
+  DATA = JSON.parse(document.getElementById("review-data").textContent);
+} catch (e) {
+  document.querySelector(".wrap").innerHTML =
+    '<div class="err"><b>Couldn\'t read the review data.</b><br/>The <code>#review-data</code> block must be valid JSON. Parser said: ' + esc(e.message) + '</div>';
+  throw e;
+}
+
+function invalid(msg) {
+  document.querySelector(".wrap").innerHTML =
+    '<div class="err"><b>The review data is missing something.</b><br/>' + esc(msg) + '</div>';
+  throw new Error(msg);
+}
+if (!DATA || !Array.isArray(DATA.concepts) || !DATA.concepts.length)
+  invalid('"concepts" must be a non-empty array.');
+DATA.concepts.forEach((c, i) => {
+  if (!c || typeof c !== "object") invalid(`concepts[${i}] must be an object.`);
+  if (!Array.isArray(c.frames) || !c.frames.length) invalid(`concepts[${i}].frames must be a non-empty array.`);
+});
+
+const state = { concept: 0, frame: 0, platform: null, handle: 0, headline: 0 };
+const concept = () => DATA.concepts[state.concept];
+
+const platformList = () => (DATA.platforms || ["instagram"]).filter(p => PLATFORMS[p]);
+state.platform = platformList()[0] || "instagram";
+
+const heart = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>';
+const comment = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.4 8.4 0 0 1-11.8 7.7L3 21l1.9-6.2A8.4 8.4 0 1 1 21 11.5z"/></svg>';
+const share = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
+const bookmark = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
+
+function renderProject() {
+  const p = DATA.project || {};
+  const line = [p.brand, p.agency && `× ${p.agency}`].filter(Boolean).join(" ");
+  document.getElementById("project").innerHTML =
+    `<div class="eyebrow">Creative review${p.date ? " · " + esc(p.date) : ""}</div>
+     <h1>${esc(line || "Ad creative")}</h1>${p.note ? `<div class="sub">${esc(p.note)}</div>` : ""}`;
+  document.getElementById("footer").innerHTML =
+    `Creative review${p.agency ? " · " + esc(p.agency) : ""} · concepts for approval. Nothing here is live until you pick.`;
+}
+
+function renderConcepts() {
+  document.getElementById("concepts").innerHTML = DATA.concepts.map((c, i) => `
+    <button class="concept" aria-pressed="${i === state.concept}" data-i="${i}">
+      <div class="row1"><span class="num">${String(i + 1).padStart(2, "0")}</span>
+        <span class="frames">${c.frames.length} frame${c.frames.length === 1 ? "" : "s"}</span></div>
+      <div class="name">${esc(c.name)}</div>
+      <div class="tag">${esc(c.tagline || "")}</div>
+    </button>`).join("");
+  document.querySelectorAll(".concept").forEach(b =>
+    b.onclick = () => { state.concept = +b.dataset.i; state.frame = 0; state.handle = 0; state.headline = 0; renderAll(); });
+}
+
+function handles() {
+  return concept().handles || [{
+    name: DATA.project?.brand || "brand",
+    partner: DATA.project?.agency ? "Paid partnership with " + DATA.project.agency.toLowerCase() : "Sponsored",
+    initials: (DATA.project?.brand || "AD").slice(0, 2).toUpperCase()
+  }];
+}
+
+function renderToggles() {
+  const plats = platformList(), hs = handles();
+  let html = "";
+  if (plats.length > 1) {
+    html += `<div class="seg" role="group">${plats.map(p =>
+      `<button data-plat="${esc(p)}" aria-pressed="${p === state.platform}">${esc(PLATFORMS[p])}</button>`).join("")}</div>`;
+  }
+  if (hs.length > 1) {
+    html += `<div class="seg" role="group"><span class="lbl">Handle</span>${hs.map((h, i) =>
+      `<button data-handle="${i}" aria-pressed="${i === state.handle}">${esc(h.name)}</button>`).join("")}</div>`;
+  }
+  const el = document.getElementById("toggles");
+  el.innerHTML = html;
+  el.querySelectorAll("[data-plat]").forEach(b => b.onclick = () => { state.platform = b.dataset.plat; renderToggles(); renderPost(); });
+  el.querySelectorAll("[data-handle]").forEach(b => b.onclick = () => { state.handle = +b.dataset.handle; renderToggles(); renderPost(); });
+  document.getElementById("preview-label").textContent = (hs.length > 1 ? "Whitelisted ad · " : "") + "In-feed preview";
+}
+
+function localImageSource(value) {
+  if (typeof value !== "string") return "";
+  const syntax = value.replace(/[\t\n\r]/g, "").replace(/\\/g, "/")
+    .replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, "");
+  if (/^\/\//.test(syntax)) return "";
+  try {
+    const base = new URL(document.baseURI);
+    const image = new URL(value, base);
+    if (image.protocol === "data:" || (image.protocol === "file:" && !image.host)) return value;
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(syntax) && image.origin === base.origin) return value;
+  } catch (_) {}
+  return "";
+}
+
+function frameVisual(f, phCls) {
+  const ph = `<div class="${phCls}"><div class="plabel">${esc(f.label)}</div><div class="pprompt">${esc(f.prompt || "")}</div></div>`;
+  const localImg = localImageSource(f.image);
+  const img = localImg ? `<img src="${esc(localImg)}" alt="${esc(f.label)}" onerror="this.remove()" />` : "";
+  return ph + img;
+}
+
+function frameHTML(c, f) {
+  const total = c.frames.length;
+  const headlineText = state.frame === 0 ? (c.headlines?.[state.headline] || f.headline || "") : (f.headline || "");
+  const theme = f.headlineTheme === "light" ? " light" : "";
+  return `<div class="frame">
+      ${frameVisual(f, "ph")}
+      <span class="counter">${state.frame + 1}/${total}</span>
+      ${headlineText ? `<div class="headline${theme}">${esc(headlineText)}</div>` : ""}
+    </div>`;
+}
+
+function renderPost() {
+  const c = concept(), f = c.frames[state.frame], h = handles()[state.handle] || handles()[0];
+  const dest = c.destination || {};
+  const top = `<div class="top">
+      <div class="avatar">${h.initials ? esc(h.initials) : ""}</div>
+      <div class="who"><div class="name">${esc(h.name)}</div><div class="partner">${esc(h.partner || "Sponsored")}</div></div>
+      <div class="dots">···</div>
+    </div>`;
+
+  let chrome;
+  if (state.platform === "facebook") {
+    const domain = dest.url ? esc(dest.url) : "";
+    const hl = c.headlines?.[state.headline] || f.headline || dest.offer || "";
+    chrome = `<div class="fb-card">
+        <div class="meta"><div class="dom">${domain}</div><div class="hl">${esc(hl)}</div></div>
+        ${dest.cta ? `<div class="btn">${esc(dest.cta)}</div>` : ""}
+      </div>
+      <div class="fb-actions"><span>Like</span><span>Comment</span><span>Share</span></div>`;
+  } else {
+    chrome = `<div class="ig-cta"><span>${esc(dest.cta || "Learn more")}</span><span class="chev">›</span></div>
+      <div class="ig-actions">${heart}${comment}${share}<span class="save">${bookmark}</span></div>
+      ${c.likes ? `<div class="likes">${esc(c.likes)} likes</div>` : ""}
+      <div class="caption"><span class="h">${esc(h.name)}</span> ${esc((c.primaryText || "").slice(0, 90))}<span class="more"> … more</span></div>`;
+  }
+
+  document.getElementById("post").innerHTML = top + frameHTML(c, f) + chrome;
+  document.getElementById("board-label").textContent = `${c.name} · ${state.frame + 1}/${c.frames.length} · tap to jump`;
+}
+
+function renderBoard() {
+  const c = concept();
+  document.getElementById("frames-grid").innerHTML = c.frames.map((f, i) => `
+    <button class="thumb" aria-current="${i === state.frame}" data-i="${i}">
+      <div class="box">${frameVisual(f, "mini")}</div>
+      <div class="cap"><span class="n">${String(i + 1).padStart(2, "0")}</span>${esc(f.label)}</div>
+    </button>`).join("");
+  document.querySelectorAll(".thumb").forEach(b =>
+    b.onclick = () => { state.frame = +b.dataset.i; renderPost(); renderBoard(); });
+}
+
+function renderCopy() {
+  const c = concept(), dest = c.destination || {};
+  let html = "";
+  if (c.headlines?.length) {
+    html += `<div class="block"><div class="eyebrow">Headline · tap to preview</div>${c.headlines.map((h, i) =>
+      `<button class="headline-opt" aria-pressed="${i === state.headline}" data-i="${i}">
+        <span class="n">${String(i + 1).padStart(2, "0")}</span><span class="t">${esc(h)}</span></button>`).join("")}</div>`;
+  }
+  if (c.primaryText) html += `<div class="block"><div class="eyebrow">Primary text</div><div class="kv" style="margin-top:8px">${esc(c.primaryText)}</div></div>`;
+  if (dest.url || dest.cta) {
+    html += `<div class="block"><div class="eyebrow">Destination</div><div class="kv" style="margin-top:8px">
+      ${dest.url ? `<span class="dest">${esc(dest.url)}</span><br/>` : ""}
+      ${dest.cta ? `CTA: ${esc(dest.cta)}` : ""}${dest.offer ? ` → ${esc(dest.offer)}` : ""}</div></div>`;
+  }
+  if (c.rollout?.steps?.length) {
+    html += `<div class="block"><div class="eyebrow">${esc(c.rollout.title || "How it runs")}</div>
+      <ol class="steps">${c.rollout.steps.map((s, i) => `<li><span class="i">${i + 1}</span><span>${esc(s)}</span></li>`).join("")}</ol></div>`;
+  }
+  if (c.grounding) html += `<div class="block"><div class="eyebrow">Live data · real assets</div><div class="grounding">${esc(c.grounding)}</div></div>`;
+  const el = document.getElementById("copy");
+  el.innerHTML = html;
+  el.querySelectorAll(".headline-opt").forEach(b =>
+    b.onclick = () => { state.headline = +b.dataset.i; state.frame = 0; renderPost(); renderBoard(); renderCopy(); });
+}
+
+function renderAll() { renderConcepts(); renderToggles(); renderPost(); renderBoard(); renderCopy(); }
+renderProject();
+renderAll();
+</script>
+</body>
+</html>
+

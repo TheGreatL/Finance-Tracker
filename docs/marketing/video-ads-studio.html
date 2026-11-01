@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>9:16 Video Ad Studio · Personal Finance Tracker</title>
+<style>
+  :root {
+    --bg: #111110;
+    --panel: #1c1b19;
+    --card: #252421;
+    --line: #33312d;
+    --ink: #f5f4f0;
+    --muted: #9c988e;
+    --accent: #10b981;
+    --accent-dark: #18342b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .layout {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 24px 20px 64px;
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+  @media (max-width: 920px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  .stage-col {
+    position: sticky;
+    top: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .canvas-shell {
+    position: relative;
+    width: 360px;
+    height: 640px;
+    border-radius: 28px;
+    overflow: hidden;
+    background: #000;
+    border: 2px solid var(--line);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+  }
+  canvas#ad-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .controls {
+    width: 360px;
+    margin-top: 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  button.btn {
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  button.btn:hover { border-color: #57534e; }
+  button.btn.primary {
+    background: var(--accent);
+    color: #06281e;
+    border-color: var(--accent);
+  }
+  button.btn.primary:hover { background: #34d399; }
+  button.btn[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: var(--accent-dark);
+    color: #a7f3d0;
+  }
+  .scrubber {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .scrubber input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent);
+  }
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h1 {
+    font-size: 22px;
+    margin: 4px 0 6px;
+    letter-spacing: -0.02em;
+  }
+  .sub {
+    color: var(--muted);
+    font-size: 13.5px;
+    margin-bottom: 20px;
+  }
+  .tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+  .tab {
+    text-align: left;
+    background: var(--panel);
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    padding: 14px;
+    color: var(--ink);
+    cursor: pointer;
+    font: inherit;
+  }
+  .tab[aria-selected="true"] {
+    border-color: var(--accent);
+    background: #172620;
+  }
+  .tab .tier {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+  }
+  .tab .title {
+    font-weight: 700;
+    font-size: 14.5px;
+    margin: 4px 0;
+  }
+  .tab .desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.35;
+  }
+  .spec-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 18px 20px;
+    margin-bottom: 18px;
+  }
+  .spec-card h2 {
+    font-size: 16px;
+    margin: 4px 0 10px;
+  }
+  table.beat-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 10px;
+  }
+  table.beat-table th, table.beat-table td {
+    border-top: 1px solid var(--line);
+    padding: 9px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  table.beat-table th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .code-box {
+    background: #141311;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px;
+    color: #d6d3cd;
+    white-space: pre-wrap;
+    margin-top: 8px;
+  }
+  .status-pill {
+    font-size: 12px;
+    color: #a7f3d0;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <div class="stage-col">
+    <div class="canvas-shell">
+      <canvas id="ad-canvas" width="1080" height="1920"></canvas>
+    </div>
+    <div class="controls">
+      <div class="btn-row">
+        <button class="btn primary" id="btn-play">Play Ad</button>
+        <button class="btn" id="btn-restart">Restart</button>
+        <button class="btn" id="btn-safezone" aria-pressed="false">720x1200 Safe Zone</button>
+      </div>
+      <div class="scrubber">
+        <span id="time-label">00.0s</span>
+        <input type="range" id="scrubber" min="0" max="18" step="0.05" value="0" />
+        <span id="dur-label">18.0s</span>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="btn-export" style="width:100%">Render &amp; Download 1080x1920 Video (.webm)</button>
+      </div>
+      <div class="status-pill" id="export-status">Ready · 1080x1920 (9:16) · 30fps · WebAudio SFX</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="eyebrow">Programmatic 9:16 Video Ads · Zero AI Slop</div>
+    <h1>Personal Finance Tracker Video Ad Studio</h1>
+    <div class="sub">
+      Built with the <code>video</code> and <code>ad-creative</code> skills (<code>imessage-video-ads.md</code>, <code>short-form-video-specs.md</code>, and <code>motion-video-ads.md</code>). Select any of the 3 formats below to preview at 1080x1920 with deterministic audio cues, or export a playable <code>.webm</code> video file.
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-ad="0">
+        <div class="tier">Format 01 · iMessage Reveal (18s)</div>
+        <div class="title">15th Cutoff Payslip Receipt</div>
+        <div class="desc">Receipt-as-hook chat thread with live thumb typing, silent typing dots, tritone SFX, and static end card.</div>
+      </button>
+      <button class="tab" role="tab" aria-selected="false" data-ad="1">
+        <div class="tier">Format 02 · "No Yapping" Split (15s)</div>
+        <div class="title">50/50 Payday + GLoan Cashback</div>
+        <div class="desc">Silent, fast tutorial split-screen with static black-stroke TikTok captions placed at the center seam.</div>
+      </button>
+      <button class="tab" role="tab" aria-selected="false" data-ad="2">
+        <div class="tier">Format 03 · Swiss Motion (16s)</div>
+        <div class="title">16 PH Banks · Zero Bank OTPs</div>
+        <div class="desc">Token-driven Swiss typographic &amp; wireglow poster beats with subtle living motion and Veo/Kling prompts.</div>
+      </button>
+    </div>
+
+    <div id="spec-details"></div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById("ad-canvas");
+const ctx = canvas.getContext("2d");
+
+let currentAd = 0;
+let currentTime = 0;
+let isPlaying = false;
+let showSafeZone = false;
+let lastFrameTs = 0;
+let firedSfx = new Set();
+let audioCtx = null;
+let audioDest = null;
+
+const AD_DURATIONS = [18.0, 15.0, 16.0];
+
+// Preload real Pixel_7a native screenshots captured from the running app
+const PIXEL_SCREENS = window.PIXEL_SCREENS = {};
+const SCREEN_PATHS = {
+  dashboard: "screens/01_dashboard.png",
+  accounts: "screens/02_accounts.png",
+  mayaPockets: "screens/02b_maya_pockets.png",
+  loans: "screens/03_obligations_loans.png",
+  subs: "screens/03b_obligations_subscriptions.png",
+  incomeJobs: "screens/04b_income_jobs.png",
+  jobDetail: "screens/04c_job_detail.png",
+  payslip: "screens/04e_payslip_detail.png",
+  pocketbot: "screens/05_pocketbot.png",
+  ledger: "screens/07_ledger.png",
+  notifications: "screens/08_notifications.png"
+};
+Object.keys(SCREEN_PATHS).forEach(k => {
+  const img = new Image();
+  img.onload = () => { renderFrame(); };
+  img.src = SCREEN_PATHS[k];
+  PIXEL_SCREENS[k] = img;
+});
+
+function drawPhoneCrop(imgKey, sx, sy, sw, sh, dx, dy, dw, dh, radius) {
+  const img = PIXEL_SCREENS[imgKey];
+  if (!img || !img.complete || !img.naturalWidth) return false;
+  ctx.save();
+  roundRect(ctx, dx, dy, dw, dh, radius);
+  ctx.clip();
+  ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+  ctx.restore();
+  ctx.save();
+  roundRect(ctx, dx, dy, dw, dh, radius);
+  ctx.strokeStyle = "rgba(255,255,255,0.22)";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.restore();
+  return true;
+}
+
+function ensureAudio() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AC();
+    audioDest = audioCtx.createMediaStreamDestination();
+  }
+  if (audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
+}
+
+function playSound(type) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const gain = audioCtx.createGain();
+  gain.connect(audioCtx.destination);
+  if (audioDest) gain.connect(audioDest);
+
+  if (type === "send") {
+    // Whoosh up (send bubble)
+    const osc = audioCtx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(280, now);
+    osc.frequency.exponentialRampToValueAtTime(680, now + 0.14);
+    gain.gain.setValueAtTime(0.01, now);
+    gain.gain.linearRampToValueAtTime(0.22, now + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+    osc.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.17);
+  } else if (type === "receive") {
+    // Two-note chime (receive bubble — never on typing indicator)
+    const notes = [587.33, 880];
+    notes.forEach((freq, idx) => {
+      const osc = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      g.connect(audioCtx.destination);
+      if (audioDest) g.connect(audioDest);
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, now + idx * 0.09);
+      g.gain.setValueAtTime(0.001, now + idx * 0.09);
+      g.gain.linearRampToValueAtTime(0.2, now + idx * 0.09 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.09 + 0.25);
+      osc.connect(g);
+      osc.start(now + idx * 0.09);
+      osc.stop(now + idx * 0.09 + 0.26);
+    });
+  } else if (type === "tap") {
+    const osc = audioCtx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(190, now);
+    osc.frequency.exponentialRampToValueAtTime(90, now + 0.04);
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+    osc.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.05);
+  }
+}
+
+/* ============================================================================
+   AD 01: iMessage / Chat Reveal (18.0s)
+   Grounded in: salaryService.ts, RecordPaydayModal.tsx, PaySlipDetailModal.tsx
+   ========================================================================== */
+const IMESSAGE_TIMELINE = [
+  { id: "b1", from: "peer", type: "receipt", appearAt: 0.2, sfx: "receive" },
+  { id: "b2", from: "me", text: "wait pano mo nacompute exact 15th cutoff mo with OT and undertime", typeStart: 1.0, appearAt: 2.6, sfx: "send" },
+  { id: "b3", from: "peer", text: "di ko cinompute haha inadjust ko lang bago pumasok sa bdo pocket", typingStart: 3.1, appearAt: 4.5, sfx: "receive" },
+  { id: "b4", from: "me", text: "lahat ng tinry kong budget app pang fixed monthly salary lang eh", typeStart: 5.0, appearAt: 6.7, sfx: "send" },
+  { id: "b5", from: "peer", text: "kaya nga eh. dito hiwalay 1st cutoff (SSS) at 2nd cutoff (PhilHealth + Pag-IBIG)", typingStart: 7.1, appearAt: 8.7, sfx: "receive" },
+  { id: "b6", from: "me", text: "wait anong app yan?? kailangan ba i-link bank otp", typeStart: 9.2, appearAt: 10.7, sfx: "send" },
+  { id: "b7", from: "peer", text: "Personal Finance Tracker. zero bank login, sa phone sqlite lang nakasave", typingStart: 11.1, appearAt: 12.6, sfx: "receive" },
+  { id: "b8", from: "peer", text: "pati gloan cashback at billease tracked. kunin mo sa financetracker.ph/download", typingStart: 12.9, appearAt: 14.2, sfx: "receive", underline: "financetracker.ph/download" },
+  { id: "b9", from: "me", text: "sige downloading na", typeStart: 14.5, appearAt: 15.2, sfx: "send" }
+];
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function wrapLines(ctx, text, maxWidth) {
+  const words = text.split(" ");
+  const lines = [];
+  let line = "";
+  for (let i = 0; i < words.length; i++) {
+    const test = line ? line + " " + words[i] : words[i];
+    if (ctx.measureText(test).width > maxWidth && line) {
+      lines.push(line);
+      line = words[i];
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function drawStaticEndCard(alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "#122620";
+  ctx.fillRect(0, 0, 1080, 1920);
+
+  // Brand icon mark
+  roundRect(ctx, 450, 480, 180, 180, 42);
+  ctx.fillStyle = "#10b981";
+  ctx.fill();
+
+  ctx.fillStyle = "#06281e";
+  ctx.font = "900 92px -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("₱", 540, 602);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "800 58px -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText("Personal Finance Tracker", 540, 760);
+
+  ctx.fillStyle = "#a7f3d0";
+  ctx.font = "600 34px -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText("Built for Philippine Paydays, Pockets & Loans", 540, 830);
+
+  // Feature pills inside 720x1200 safe zone
+  const pills = [
+    "15th & 30th Cutoffs · OT, Undertime & SSS/Pag-IBIG",
+    "16 PH Banks & Wallets · BDO, BPI, GCash, Maya, SeaBank",
+    "GLoan Early-Payoff Cashback, BillEase & Personal Utang",
+    "100% On-Device SQLite · Zero Bank Logins or OTPs"
+  ];
+  pills.forEach((p, idx) => {
+    const py = 920 + idx * 102;
+    roundRect(ctx, 180, py, 720, 82, 20);
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    ctx.fill();
+    ctx.fillStyle = "#f5f4f0";
+    ctx.font = "600 26px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(p, 540, py + 50);
+  });
+
+  // Static CTA button
+  roundRect(ctx, 240, 1340, 600, 96, 48);
+  ctx.fillStyle = "#10b981";
+  ctx.fill();
+  ctx.fillStyle = "#06281e";
+  ctx.font = "800 34px -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText("financetracker.ph/download", 540, 1400);
+
+  ctx.restore();
+}
+
+function renderImessageAd(t) {
+  // Background
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, 1080, 1920);
+
+  // Trigger deterministic SFX
+  IMESSAGE_TIMELINE.forEach(item => {
+    if (t >= item.appearAt && !firedSfx.has(item.id)) {
+      firedSfx.add(item.id);
+      if (isPlaying) playSound(item.sfx);
+    }
+  });
+
+  // Top chat header inside safe zone
+  ctx.fillStyle = "#161618";
+  ctx.fillRect(0, 0, 1080, 320);
+  ctx.strokeStyle = "#2c2c2e";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, 320);
+  ctx.lineTo(1080, 320);
+  ctx.stroke();
+
+  // Avatar
+  ctx.beginPath();
+  ctx.arc(540, 225, 38, 0, Math.PI * 2);
+  ctx.fillStyle = "#18342b";
+  ctx.fill();
+  ctx.fillStyle = "#a7f3d0";
+  ctx.font = "700 28px -apple-system, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("JM", 540, 235);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "600 26px -apple-system, sans-serif";
+  ctx.fillText("Jules (BGC Cutoff)", 540, 295);
+
+  // Draw messages
+  let curY = 355;
+  ctx.textAlign = "left";
+
+  IMESSAGE_TIMELINE.forEach(item => {
+    if (t >= item.appearAt) {
+      if (item.type === "receipt") {
+        // Real Pixel 7a UI screenshot crop of PaySlipDetailModal card (with vector fallback)
+        const cardX = 180;
+        const cardW = 580;
+        const cardH = 310;
+        const drewReal = drawPhoneCrop("payslip", 30, 620, 1020, 1480, cardX, curY, cardW, cardH, 28);
+        if (!drewReal) {
+          roundRect(ctx, cardX, curY, cardW, cardH, 28);
+          ctx.fillStyle = "#1c1c1e";
+          ctx.fill();
+          ctx.strokeStyle = "#2c2c2e";
+          ctx.stroke();
+
+          roundRect(ctx, cardX + 24, curY + 22, 190, 38, 12);
+          ctx.fillStyle = "#d1fae5";
+          ctx.fill();
+          ctx.fillStyle = "#18342b";
+          ctx.font = "800 20px -apple-system, sans-serif";
+          ctx.fillText("15TH CUTOFF SLIP", cardX + 40, curY + 48);
+
+          ctx.fillStyle = "#a8a29e";
+          ctx.font = "600 21px -apple-system, sans-serif";
+          ctx.fillText("Basic Pay: ₱16,000.00", cardX + 24, curY + 95);
+          ctx.fillStyle = "#34d399";
+          ctx.fillText("+ Overtime (8 hrs): +₱1,850.00", cardX + 24, curY + 130);
+          ctx.fillStyle = "#f87171";
+          ctx.fillText("- Undertime (1.5 hrs): -₱320.00", cardX + 24, curY + 165);
+          ctx.fillText("- SSS (1st Cutoff): -₱600.00", cardX + 24, curY + 200);
+
+          roundRect(ctx, cardX + 20, curY + 220, cardW - 40, 52, 14);
+          ctx.fillStyle = "#0038a8";
+          ctx.fill();
+          ctx.fillStyle = "#ffffff";
+          ctx.font = "800 23px -apple-system, sans-serif";
+          ctx.fillText("BDO Savings · Net Credit: ₱16,930.00", cardX + 38, curY + 254);
+        }
+
+        curY += cardH + 18;
+      } else {
+        ctx.font = "400 27px -apple-system, BlinkMacSystemFont, sans-serif";
+        const maxBubbleW = 540;
+        const lines = wrapLines(ctx, item.text, maxBubbleW - 44);
+        const bh = lines.length * 36 + 26;
+        let maxW = 0;
+        lines.forEach(l => {
+          const w = ctx.measureText(l).width;
+          if (w > maxW) maxW = w;
+        });
+        const bw = Math.max(120, maxW + 44);
+        const bx = item.from === "me" ? 900 - bw : 180;
+
+        roundRect(ctx, bx, curY, bw, bh, 26);
+        ctx.fillStyle = item.from === "me" ? "#0a84ff" : "#262629";
+        ctx.fill();
+
+        ctx.fillStyle = "#ffffff";
+        lines.forEach((l, li) => {
+          const ly = curY + 37 + li * 36;
+          ctx.fillText(l, bx + 22, ly);
+          if (item.underline && l.includes(item.underline)) {
+            const idx = l.indexOf(item.underline);
+            const preW = ctx.measureText(l.slice(0, idx)).width;
+            const ulW = ctx.measureText(item.underline).width;
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(bx + 22 + preW, ly + 4);
+            ctx.lineTo(bx + 22 + preW + ulW, ly + 4);
+            ctx.stroke();
+          }
+        });
+
+        curY += bh + 14;
+      }
+    } else if (item.from === "peer" && item.typingStart && t >= item.typingStart && t < item.appearAt) {
+      // Silent typing indicator bubble
+      roundRect(ctx, 180, curY, 118, 62, 26);
+      ctx.fillStyle = "#262629";
+      ctx.fill();
+      for (let d = 0; d < 3; d++) {
+        const pulse = Math.sin((t * 8) + d * 1.3) * 0.35 + 0.55;
+        ctx.fillStyle = `rgba(255,255,255,${pulse.toFixed(2)})`;
+        ctx.beginPath();
+        ctx.arc(216 + d * 24, curY + 31, 7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      curY += 76;
+    }
+  });
+
+  // Composer bar at bottom of safe zone (y=1330)
+  let composerText = "iMessage";
+  let isTyping = false;
+  IMESSAGE_TIMELINE.forEach(item => {
+    if (item.from === "me" && item.typeStart && t >= item.typeStart && t < item.appearAt) {
+      const p = (t - item.typeStart) / (item.appearAt - item.typeStart);
+      const chars = Math.max(1, Math.floor(p * item.text.length));
+      composerText = item.text.slice(0, chars);
+      isTyping = true;
+    }
+  });
+
+  roundRect(ctx, 180, 1340, 720, 68, 34);
+  ctx.fillStyle = "#1c1c1e";
+  ctx.fill();
+  ctx.strokeStyle = "#3a3a3c";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = isTyping ? "#ffffff" : "#636366";
+  ctx.font = "400 25px -apple-system, sans-serif";
+  const clippedComposer = composerText.length > 42 ? "…" + composerText.slice(-42) : composerText;
+  ctx.fillText(clippedComposer, 212, 1382);
+
+  // Send arrow icon
+  ctx.beginPath();
+  ctx.arc(862, 1374, 22, 0, Math.PI * 2);
+  ctx.fillStyle = isTyping ? "#0a84ff" : "#2c2c2e";
+  ctx.fill();
+
+  // 0:15.8 -> 300ms crossfade into Static End Card
+  if (t >= 15.8) {
+    const alpha = Math.min(1, (t - 15.8) / 0.3);
+    drawStaticEndCard(alpha);
+  }
+}
+
+/* ============================================================================
+   AD 02: "No Yapping" 50/50 Split-Screen Tutorial (15.0s)
+   Grounded in: short-form-video-specs.md Format 2 + classic TikTok caption spec
+   ========================================================================== */
+function drawTikTokCaption(text, centerY) {
+  ctx.save();
+  ctx.font = "800 46px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  ctx.textAlign = "center";
+  ctx.lineJoin = "round";
+  ctx.miterLimit = 2;
+  const lines = wrapLines(ctx, text, 680);
+  const startY = centerY - ((lines.length - 1) * 56) / 2;
+  lines.forEach((line, i) => {
+    const y = startY + i * 56;
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = 14;
+    ctx.strokeText(line, 540, y);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(line, 540, y);
+  });
+  ctx.restore();
+}
+
+function renderSplitScreenAd(t) {
+  if (t >= 12.8) {
+    drawStaticEndCard(1);
+    return;
+  }
+
+  // Top half (y: 0 -> 960): Input Action Modal
+  ctx.fillStyle = "#1c1917";
+  ctx.fillRect(0, 0, 1080, 960);
+
+  // Bottom half (y: 960 -> 1920): Live Pocket & Loan Ledger Output
+  ctx.fillStyle = "#0c1713";
+  ctx.fillRect(0, 960, 1080, 960);
+
+  // Divider line
+  ctx.fillStyle = "#10b981";
+  ctx.fillRect(0, 956, 1080, 8);
+
+  const step = t < 4.2 ? 1 : (t < 8.5 ? 2 : 3);
+  const stepKey = "split_" + step;
+  if (!firedSfx.has(stepKey)) {
+    firedSfx.add(stepKey);
+    if (isPlaying) playSound("tap");
+  }
+
+  ctx.textAlign = "left";
+  if (step === 1) {
+    // Top: Real Pixel 7a JobDetailModal (1st/2nd Cutoff & Statutory Deductions)
+    const topOk = drawPhoneCrop("jobDetail", 20, 180, 1040, 1820, 180, 225, 720, 680, 32);
+    // Bottom: Real Pixel 7a Dashboard (Net Worth ₱197,280 + BDO Unibank ₱41,930)
+    const botOk = drawPhoneCrop("dashboard", 20, 310, 1040, 1650, 180, 1015, 720, 400, 32);
+
+    if (!topOk || !botOk) {
+      roundRect(ctx, 180, 250, 720, 620, 32);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.fillStyle = "#1c1917";
+      ctx.font = "800 34px -apple-system, sans-serif";
+      ctx.fillText("Confirm 15th Cutoff Payday", 220, 320);
+
+      roundRect(ctx, 180, 1060, 720, 320, 32);
+      ctx.fillStyle = "#18342b";
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "900 64px -apple-system, sans-serif";
+      ctx.fillText("₱41,930.00", 220, 1220);
+    }
+
+    drawTikTokCaption("1. Separate 1st & 2nd cutoff deductions into BDO (no yapping)", 960);
+  } else if (step === 2) {
+    // Top: Real Pixel 7a Loans & Debt screen (GCash GLoan w/ ₱680 cashback + Barkada Utang)
+    const topOk = drawPhoneCrop("loans", 20, 410, 1040, 1650, 180, 225, 720, 680, 32);
+    // Bottom: Real Pixel 7a Notification Center showing GLoan cashback alert & 15th Cutoff deposit
+    const botOk = drawPhoneCrop("notifications", 20, 680, 1040, 820, 180, 1015, 720, 400, 32);
+
+    if (!topOk || !botOk) {
+      roundRect(ctx, 180, 250, 720, 620, 32);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.fillStyle = "#1c1917";
+      ctx.font = "800 34px -apple-system, sans-serif";
+      ctx.fillText("GLoan Early Payoff + Cashback", 220, 320);
+    }
+
+    drawTikTokCaption("2. Track GLoan early-payoff cashback & barkada utang", 960);
+  } else {
+    // Step 3: Top: Real Pixel 7a PocketBot Taglish check ("Kaya ko ba bilhin ang ₱15k phone?")
+    const topOk = drawPhoneCrop("pocketbot", 20, 450, 1040, 1340, 180, 225, 720, 680, 32);
+    // Bottom: Real Pixel 7a Maya Account Detail (6% p.a. Savings vs Everyday Wallet)
+    const botOk = drawPhoneCrop("mayaPockets", 20, 960, 1040, 960, 180, 1015, 720, 400, 32);
+
+    if (!topOk || !botOk) {
+      roundRect(ctx, 180, 250, 720, 620, 32);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.fillStyle = "#1c1917";
+      ctx.font = "800 34px -apple-system, sans-serif";
+      ctx.fillText("Ask PocketBot in Taglish", 220, 320);
+    }
+
+    drawTikTokCaption("3. Ask PocketBot in Taglish before touching your 6% savings", 960);
+  }
+}
+
+/* ============================================================================
+   AD 03: Swiss Typographic / Wireglow Motion Ad (16.0s)
+   Grounded in: motion-video-ads.md Styles G & H
+   ========================================================================== */
+function renderMotionPosterAd(t) {
+  if (t >= 13.5) {
+    drawStaticEndCard(1);
+    return;
+  }
+
+  const beat = t < 4.5 ? 0 : (t < 9.0 ? 1 : 2);
+  const localT = t - (beat * 4.5);
+  const beatKey = "motion_" + beat;
+  if (!firedSfx.has(beatKey)) {
+    firedSfx.add(beatKey);
+    if (isPlaying) playSound("tap");
+  }
+
+  // Swiss / Wireglow dark token field
+  ctx.fillStyle = "#121312";
+  ctx.fillRect(0, 0, 1080, 1920);
+
+  // Subtle architectural grid lines
+  ctx.strokeStyle = "rgba(255,255,255,0.06)";
+  ctx.lineWidth = 2;
+  [180, 540, 900].forEach(x => {
+    ctx.beginPath();
+    ctx.moveTo(x, 220);
+    ctx.lineTo(x, 1420);
+    ctx.stroke();
+  });
+  [220, 620, 1020, 1420].forEach(y => {
+    ctx.beginPath();
+    ctx.moveTo(180, y);
+    ctx.lineTo(900, y);
+    ctx.stroke();
+  });
+
+  // Living accent sweep (one dominant motion per beat per motion-video-ads.md)
+  const sweepW = Math.min(720, 180 + localT * 180);
+  ctx.fillStyle = "#10b981";
+  ctx.fillRect(180, 616, sweepW, 8);
+  ctx.fillRect(180, 240, 28, 28);
+
+  ctx.textAlign = "left";
+  if (beat === 0) {
+    ctx.fillStyle = "#f5f4f0";
+    ctx.font = "900 74px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("15TH CUTOFF", 180, 370);
+    ctx.fillText("MEETS 30TH", 180, 460);
+    ctx.fillStyle = "#10b981";
+    ctx.fillText("REALITY.", 180, 550);
+
+    // Real Pixel 7a Salary & Income / Job Detail screen inside the Swiss grid with living float
+    const floatY = Math.sin(localT * 2.5) * 8;
+    const drewJob = drawPhoneCrop("incomeJobs", 20, 380, 1040, 1560, 200, 650 + floatY, 680, 640, 28);
+    if (!drewJob) {
+      const h1 = 260 + Math.sin(localT * 2.5) * 18;
+      const h2 = 210 + Math.cos(localT * 2.5) * 18;
+      roundRect(ctx, 220, 1120 - h1, 260, h1, 16);
+      ctx.fillStyle = "#18342b";
+      ctx.fill();
+      ctx.strokeStyle = "#10b981";
+      ctx.stroke();
+
+      roundRect(ctx, 540, 1120 - h2, 260, h2, 16);
+      ctx.fillStyle = "#27272a";
+      ctx.fill();
+    }
+
+    ctx.fillStyle = "#a8a29e";
+    ctx.font = "700 24px ui-monospace, monospace";
+    ctx.fillText("VARIABLE PAYDAY ENGINE · BUILT FOR PH PAYROLL", 180, 1360);
+  } else if (beat === 1) {
+    ctx.fillStyle = "#f5f4f0";
+    ctx.font = "900 72px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("16 PH BANKS.", 180, 370);
+    ctx.fillText("SEPARATE", 180, 460);
+    ctx.fillStyle = "#10b981";
+    ctx.fillText("POCKETS.", 180, 550);
+
+    const floatY = Math.sin(localT * 2.5) * 8;
+    const drewAcc = drawPhoneCrop("accounts", 20, 920, 1040, 1220, 200, 650 + floatY, 680, 640, 28);
+    if (!drewAcc) {
+      const banks = [
+        ["BDO", "#0038a8"], ["BPI", "#b11116"], ["GCash", "#0057e7"], ["Maya", "#16a34a"],
+        ["SeaBank", "#ea580c"], ["GoTyme", "#0284c7"], ["UnionBank", "#f97316"], ["CIMB", "#dc2626"]
+      ];
+      banks.forEach((b, idx) => {
+        const col = idx % 2;
+        const row = Math.floor(idx / 2);
+        const bx = 200 + col * 350;
+        const by = 690 + row * 120 + Math.sin(localT * 3 + idx) * 4;
+        roundRect(ctx, bx, by, 320, 92, 18);
+        ctx.fillStyle = b[1];
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "800 30px -apple-system, sans-serif";
+        ctx.fillText(b[0] + " · Pocket", bx + 28, by + 56);
+      });
+    }
+
+    ctx.fillStyle = "#a8a29e";
+    ctx.font = "700 24px ui-monospace, monospace";
+    ctx.fillText("WALLET VS INTEREST SAVINGS (% P.A.) IN ONE LEDGER", 180, 1360);
+  } else {
+    ctx.fillStyle = "#f5f4f0";
+    ctx.font = "900 72px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("ZERO BANK", 180, 370);
+    ctx.fillText("LOGINS OR", 180, 460);
+    ctx.fillStyle = "#10b981";
+    ctx.fillText("OTPS EVER.", 180, 550);
+
+    // Wireglow vault pulse around real Pixel 7a Ledger & Subscriptions screen
+    const pulseR = 350 + Math.sin(localT * 4) * 14;
+    ctx.beginPath();
+    ctx.arc(540, 965, pulseR, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(16, 185, 129, 0.35)";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    const floatY = Math.sin(localT * 2.5) * 6;
+    const drewLed = drawPhoneCrop("ledger", 20, 560, 1040, 1520, 200, 650 + floatY, 680, 640, 28);
+    if (!drewLed) {
+      roundRect(ctx, 290, 850, 500, 220, 28);
+      ctx.fillStyle = "#18342b";
+      ctx.fill();
+      ctx.strokeStyle = "#10b981";
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = "#a8a29e";
+    ctx.font = "700 24px ui-monospace, monospace";
+    ctx.fillText("YOUR FINANCIAL DATA NEVER LEAVES YOUR PHONE", 180, 1360);
+  }
+}
+
+function drawSafeZoneOverlay() {
+  if (!showSafeZone) return;
+  ctx.save();
+  // Shaded danger zones outside 720x1200 (x: 180..900, y: 220..1420)
+  ctx.fillStyle = "rgba(239, 68, 68, 0.22)";
+  ctx.fillRect(0, 0, 1080, 220);
+  ctx.fillRect(0, 1420, 1080, 500);
+  ctx.fillRect(0, 220, 180, 1200);
+  ctx.fillRect(900, 220, 180, 1200);
+
+  ctx.strokeStyle = "#10b981";
+  ctx.lineWidth = 4;
+  ctx.setLineDash([14, 10]);
+  ctx.strokeRect(180, 220, 720, 1200);
+
+  ctx.fillStyle = "#10b981";
+  ctx.font = "700 22px ui-monospace, monospace";
+  ctx.textAlign = "left";
+  ctx.fillText("SAFE ZONE: 720x1200 (y=220..1420, x=180..900)", 196, 254);
+  ctx.restore();
+}
+
+function renderFrame() {
+  if (currentAd === 0) {
+    renderImessageAd(currentTime);
+  } else if (currentAd === 1) {
+    renderSplitScreenAd(currentTime);
+  } else {
+    renderMotionPosterAd(currentTime);
+  }
+  drawSafeZoneOverlay();
+
+  document.getElementById("time-label").textContent = currentTime.toFixed(1).padStart(4, "0") + "s";
+  document.getElementById("scrubber").value = currentTime;
+}
+
+function tick(ts) {
+  if (!lastFrameTs) lastFrameTs = ts;
+  const dt = (ts - lastFrameTs) / 1000;
+  lastFrameTs = ts;
+
+  if (isPlaying) {
+    const dur = AD_DURATIONS[currentAd];
+    currentTime += dt;
+    if (currentTime >= dur) {
+      currentTime = dur;
+      isPlaying = false;
+      document.getElementById("btn-play").textContent = "Play Ad";
+    }
+    renderFrame();
+  }
+  requestAnimationFrame(tick);
+}
+
+const SPEC_DATA = [
+  {
+    title: "Format 01 · iMessage / Chat Reveal Video Ad (18.0s, 1080x1920)",
+    skillRef: "ad-creative/references/imessage-video-ads.md · Angle: Receipt-as-Hook",
+    grounding: "All payroll figures & UI match apps/mobile/src/services/salaryService.ts, RecordPaydayModal.tsx, and PaySlipDetailModal.tsx. Dramatized peer exchange disclosed via Sponsored placement tag.",
+    beats: [
+      ["0:00.2", "Hook Attachment", "Peer drops screenshot of 15th Cutoff Payslip (Basic ₱16,000, +OT ₱1,850, -Undertime ₱320, -SSS ₱600 -> Net ₱16,930 to BDO Savings). Receive tritone fires."],
+      ["0:01.0–0:02.6", "Thumb Composer + Send", "Composer types 'wait pano mo nacompute exact 15th cutoff mo with OT and undertime' at thumb pace, then fires send whoosh."],
+      ["0:03.1–0:08.7", "Silent Typing -> Mechanism", "Silent typing dots precede peer explanation of 1st cutoff (SSS) vs 2nd cutoff (PhilHealth + Pag-IBIG) and pocket adjustments."],
+      ["0:09.2–0:12.6", "The Question -> Late Brand Reveal", "You ask 'wait anong app yan?? kailangan ba i-link bank otp'. Brand ('Personal Finance Tracker') appears only after peer asks, paired with zero-OTP SQLite proof."],
+      ["0:12.9–0:15.2", "Link-Underlined URL + Closer", "Peer shares link-underlined financetracker.ph/download and GLoan/BillEase note; 600ms pause before 'sige downloading na'."],
+      ["0:15.8–0:18.0", "300ms Crossfade -> Static End Card", "Hard static end card (no Ken Burns drift) with official brand icon, 4 proof pills inside the 720x1200 safe zone, and URL."]
+    ],
+    promptBox: "Playwright / Canvas deterministic capture: 1080x1920 @ 30fps. Click 'Render & Download 1080x1920 Video (.webm)' on the left to export this exact timeline with synced WebAudio send/receive SFX."
+  },
+  {
+    title: "Format 02 · 'No Yapping' 50/50 Split-Screen Tutorial (15.0s, 1080x1920)",
+    skillRef: "ad-creative/references/short-form-video-specs.md · Part 1 Safe Zone + Format 2 Split-Screen",
+    grounding: "Grounded in RecordPaydayModal.tsx, LoanPaymentModal.tsx (early payoff interest cashback), and chatEngine.ts (Taglish affordability check).",
+    beats: [
+      ["0:00.0–0:04.2", "Step 1: 15th Cutoff Input | BDO Pocket Output", "Top half shows overtime & undertime adjustments; bottom half shows BDO Savings pocket credited immediately. Static black-stroke caption at seam."],
+      ["0:04.2–0:08.5", "Step 2: GLoan Early Payoff | GCash Cashback", "Top half shows Principal vs 3% Processing Fee & Early Payoff Cashback (+₱680); bottom half shows loan marked PAID and rebate deposited to GCash."],
+      ["0:08.5–0:12.8", "Step 3: Taglish PocketBot | SQLite Privacy", "Top half asks 'Kaya ko ba bilhin ang ₱15k phone?' with TIGHT verdict; bottom half confirms 100% On-Device SQLite & JSON backup."],
+      ["0:12.8–0:15.0", "Static Brand End Card", "Clean cut to static end card inside 720x1200 safe zone."]
+    ],
+    promptBox: "Caption CSS recipe enforced on canvas:\nfont-weight: 800; color: #fff; -webkit-text-stroke: 14px #000; paint-order: stroke fill; static visibility (zero entrance/exit animation)."
+  },
+  {
+    title: "Format 03 · Swiss Typographic & Wireglow Motion Ad (16.0s, 1080x1920)",
+    skillRef: "ad-creative/references/motion-video-ads.md · Style G (Swiss Typographic) + Style H (Wireglow)",
+    grounding: "Brand tokens resolved from app palette: FIELD #121312, INK #F5F4F0, ACCENT #10B981, TYPE FEEL Bold Grotesque Sans + Monospace.",
+    beats: [
+      ["0:00.0–0:04.5", "Beat 1: 15th Cutoff Meets 30th Reality", "Enormous Swiss headline in upper two-thirds; living bar comparison of 1st Cutoff (+OT / -SSS) vs 2nd Cutoff (-Pag-IBIG) in lower grid."],
+      ["0:04.5–0:09.0", "Beat 2: 16 PH Banks. Separate Pockets.", "8 Philippine bank & e-wallet pocket badges (BDO, BPI, GCash, Maya, SeaBank, GoTyme, UnionBank, CIMB) with subtle vertical breathing motion."],
+      ["0:09.0–0:13.5", "Beat 3: Zero Bank Logins or OTPs Ever.", "Wireglow concentric pulse around the on-device expo-sqlite vault card."],
+      ["0:13.5–0:16.0", "Beat 4: Static End Card", "Brand mark, 4 proof pills, and download CTA."]
+    ],
+    promptBox: "Veo 3.1 / Kling Image-to-Video Prompt (if rendering external B-roll stills):\n\"Swiss International Typographic Style poster: the words '15TH CUTOFF MEETS 30TH REALITY' set enormous in bold grotesque sans, #F5F4F0 on a #121312 background, aligned to an asymmetric grid with one thin #10B981 rule line. Subtle living motion of existing elements only: the #10B981 rule line extends horizontally across the grid while the two cutoff bars gently settle. Composition stays exactly as it is. No camera whip, no scene change, no morphing.\""
+  }
+];
+
+function renderSpecDetails() {
+  const s = SPEC_DATA[currentAd];
+  document.getElementById("spec-details").innerHTML = `
+    <div class="spec-card">
+      <div class="eyebrow">${s.skillRef}</div>
+      <h2>${s.title}</h2>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:12px">${s.grounding}</div>
+      <table class="beat-table">
+        <thead><tr><th style="width:120px">Time</th><th style="width:210px">Beat / Role</th><th>Visual, Audio &amp; Copy Spec</th></tr></thead>
+        <tbody>
+          ${s.beats.map(b => `<tr><td><code>${b[0]}</code></td><td><strong>${b[1]}</strong></td><td>${b[2]}</td></tr>`).join("")}
+        </tbody>
+      </table>
+      <div class="code-box">${s.promptBox}</div>
+    </div>
+  `;
+}
+
+document.querySelectorAll(".tab").forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", "false"));
+    btn.setAttribute("aria-selected", "true");
+    currentAd = Number(btn.dataset.ad);
+    currentTime = 0;
+    isPlaying = false;
+    firedSfx.clear();
+    document.getElementById("btn-play").textContent = "Play Ad";
+    document.getElementById("scrubber").max = AD_DURATIONS[currentAd];
+    document.getElementById("dur-label").textContent = AD_DURATIONS[currentAd].toFixed(1) + "s";
+    renderSpecDetails();
+    renderFrame();
+  };
+});
+
+document.getElementById("btn-play").onclick = () => {
+  ensureAudio();
+  if (currentTime >= AD_DURATIONS[currentAd]) {
+    currentTime = 0;
+    firedSfx.clear();
+  }
+  isPlaying = !isPlaying;
+  document.getElementById("btn-play").textContent = isPlaying ? "Pause" : "Play Ad";
+};
+
+document.getElementById("btn-restart").onclick = () => {
+  ensureAudio();
+  currentTime = 0;
+  firedSfx.clear();
+  isPlaying = true;
+  document.getElementById("btn-play").textContent = "Pause";
+  renderFrame();
+};
+
+document.getElementById("btn-safezone").onclick = (e) => {
+  showSafeZone = !showSafeZone;
+  e.currentTarget.setAttribute("aria-pressed", String(showSafeZone));
+  renderFrame();
+};
+
+document.getElementById("scrubber").oninput = (e) => {
+  currentTime = Number(e.target.value);
+  isPlaying = false;
+  document.getElementById("btn-play").textContent = "Play Ad";
+  renderFrame();
+};
+
+document.getElementById("btn-export").onclick = () => {
+  ensureAudio();
+  const statusEl = document.getElementById("export-status");
+  const stream = canvas.captureStream(30);
+  if (audioDest) {
+    const audioTracks = audioDest.stream.getAudioTracks();
+    if (audioTracks.length > 0) stream.addTrack(audioTracks[0]);
+  }
+  const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+    ? "video/webm;codecs=vp9"
+    : "video/webm";
+  const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6000000 });
+  const chunks = [];
+  recorder.ondataavailable = (ev) => { if (ev.data && ev.data.size > 0) chunks.push(ev.data); };
+  recorder.onstop = () => {
+    const blob = new Blob(chunks, { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `finance-tracker-ad-0${currentAd + 1}-1080x1920.webm`;
+    a.click();
+    statusEl.textContent = `Downloaded finance-tracker-ad-0${currentAd + 1}-1080x1920.webm (1080x1920 @ 30fps)`;
+  };
+
+  currentTime = 0;
+  firedSfx.clear();
+  isPlaying = true;
+  document.getElementById("btn-play").textContent = "Pause";
+  statusEl.textContent = "Recording 1080x1920 @ 30fps in real time... please wait until playback finishes.";
+  recorder.start();
+
+  const checkDone = setInterval(() => {
+    if (!isPlaying && currentTime >= AD_DURATIONS[currentAd] - 0.05) {
+      clearInterval(checkDone);
+      recorder.stop();
+    }
+  }, 150);
+};
+
+renderSpecDetails();
+renderFrame();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
+
