@@ -30,10 +30,21 @@ export function AddPocketModal({ visible, institutionId, institutionName, onClos
     const [error, setError] = useState('');
     const keyboardInset = useKeyboardBottomInset(36);
 
+    React.useEffect(() => {
+        if (visible) {
+            setError('');
+        }
+    }, [visible]);
+
     const handleSave = async () => {
         setError('');
         const rawAmount = parseMoneyInput(startingBalanceStr);
         const rate = interestRateStr ? parseFloat(interestRateStr) : null;
+
+        if (!institutionId || !institutionId.trim()) {
+            setError('Target account was not found. Please reopen from the account details.');
+            return;
+        }
 
         if (!pocketName.trim()) {
             setError('Please provide a name for this pocket.');

@@ -34,6 +34,66 @@ describe('accountService lifecycle and safety operations', () => {
         expect(insert.params).toContain(6.0);
     });
 
+    it('addPocket throws error when institutionId is empty string', async () => {
+        const mockDb: any = {
+            runAsync: vi.fn()
+        };
+
+        await expect(
+            addPocket(mockDb, {
+                institutionId: '',
+                name: 'Emergency Savings',
+                pocketType: 'savings',
+                startingBalance: 1000
+            })
+        ).rejects.toThrow('Target institution ID is required to add a pocket.');
+    });
+
+    it('addPocket resolves institutionId when passed as an institution code', async () => {
+        const executed: { sql: string; params: any[] }[] = [];
+        const mockDb: any = {
+            getFirstAsync: vi.fn(async (sql: string, params: any[]) => {
+                if (sql.includes('WHERE id = ?')) {
+                    return null; // Not found by exact ID
+                }
+                if (sql.includes('WHERE code = ?') && params[0] === 'maya') {
+                    return { id: 'inst_maya_real_id' };
+                }
+                return null;
+            }),
+            runAsync: vi.fn(async (sql: string, params: any[]) => {
+                executed.push({ sql, params });
+                return { changes: 1 };
+            })
+        };
+
+        const pocket = await addPocket(mockDb, {
+            institutionId: 'maya',
+            name: 'Personal Savings Goals',
+            pocketType: 'savings',
+            startingBalance: 5000,
+            interestRate: 6.0
+        });
+
+        expect(pocket.institution_id).toBe('inst_maya_real_id');
+        expect(executed[0].params[1]).toBe('inst_maya_real_id');
+    });
+
+    it('addPocket throws error when target institution is not found in database', async () => {
+        const mockDb: any = {
+            getFirstAsync: vi.fn(async () => null),
+            runAsync: vi.fn()
+        };
+
+        await expect(
+            addPocket(mockDb, {
+                institutionId: 'non_existent_institution',
+                name: 'Savings',
+                pocketType: 'savings'
+            })
+        ).rejects.toThrow('Target institution "non_existent_institution" not found.');
+    });
+
     it('archivePocket throws an error if pocket has positive balance', async () => {
         const mockDb: any = {
             getFirstAsync: vi.fn(async () => ({ current_balance: 1500 })),

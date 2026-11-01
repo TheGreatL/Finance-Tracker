@@ -94,6 +94,27 @@ export async function createInstitutionWithPocket(
 }
 
 export async function addPocket(db: SQLite.SQLiteDatabase, input: AddPocketInput): Promise<AccountPocket> {
+    const rawInstitutionId = input.institutionId?.trim();
+    if (!rawInstitutionId) {
+        throw new Error('Target institution ID is required to add a pocket.');
+    }
+
+    let institutionId = rawInstitutionId;
+
+    if (typeof db.getFirstAsync === 'function') {
+        const existingById = await db.getFirstAsync<{ id: string }>('SELECT id FROM institutions WHERE id = ? LIMIT 1;', [rawInstitutionId]);
+        if (existingById) {
+            institutionId = existingById.id;
+        } else {
+            const existingByCode = await db.getFirstAsync<{ id: string }>('SELECT id FROM institutions WHERE code = ? LIMIT 1;', [rawInstitutionId]);
+            if (existingByCode) {
+                institutionId = existingByCode.id;
+            } else {
+                throw new Error(`Target institution "${rawInstitutionId}" not found.`);
+            }
+        }
+    }
+
     const pockId = `pock_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const now = new Date().toISOString();
     const startingBalance = input.startingBalance ?? 0.0;
@@ -105,12 +126,12 @@ export async function addPocket(db: SQLite.SQLiteDatabase, input: AddPocketInput
       id, institution_id, name, pocket_type, currency, starting_balance, current_balance,
       interest_rate, savings_details, is_archived, created_at, updated_at
     ) VALUES (?, ?, ?, ?, 'PHP', ?, ?, ?, ?, 0, ?, ?)`,
-        [pockId, input.institutionId, input.name.trim(), input.pocketType, startingBalance, startingBalance, interestRate, savingsDetails, now, now]
+        [pockId, institutionId, input.name.trim(), input.pocketType, startingBalance, startingBalance, interestRate, savingsDetails, now, now]
     );
 
     return {
         id: pockId,
-        institution_id: input.institutionId,
+        institution_id: institutionId,
         name: input.name.trim(),
         pocket_type: input.pocketType,
         currency: 'PHP',

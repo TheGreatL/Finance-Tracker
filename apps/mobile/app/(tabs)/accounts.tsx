@@ -44,6 +44,7 @@ export default function AccountsScreen() {
     const [institutionPockets, setInstitutionPockets] = useState<AccountPocket[]>([]);
     const [detailSheetVisible, setDetailSheetVisible] = useState(false);
     const [addPocketVisible, setAddPocketVisible] = useState(false);
+    const [addPocketInstitution, setAddPocketInstitution] = useState<Institution | null>(null);
     const [editingPocket, setEditingPocket] = useState<AccountPocket | null>(null);
 
     const selectedInstitutionIdRef = useRef<string | null>(null);
@@ -113,6 +114,11 @@ export default function AccountsScreen() {
     }) => {
         const db = await getDatabase();
         await addPocket(db, input);
+        const targetId = input.institutionId || selectedInstitution?.id || addPocketInstitution?.id;
+        if (targetId) {
+            const pockets = await getPocketsByInstitution(db, targetId);
+            setInstitutionPockets(pockets);
+        }
         await loadData();
         showToast(`Pocket "${input.name}" added`);
     };
@@ -308,18 +314,28 @@ export default function AccountsScreen() {
                     setDetailSheetVisible(false);
                     setSelectedInstitution(null);
                 }}
-                onAddPocket={() => setAddPocketVisible(true)}
+                onAddPocket={() => {
+                    setAddPocketInstitution(selectedInstitution);
+                    setAddPocketVisible(true);
+                }}
                 onEditPocket={(pocket) => setEditingPocket(pocket)}
                 onUpdateNotes={handleUpdateNotes}
             />
 
-            {selectedInstitution && (
+            {(selectedInstitution || addPocketInstitution) && (
                 <AddPocketModal
                     visible={addPocketVisible}
-                    institutionId={selectedInstitution.id}
-                    institutionName={selectedInstitution.name}
-                    onClose={() => setAddPocketVisible(false)}
-                    onSubmit={handleAddPocket}
+                    institutionId={addPocketInstitution?.id || selectedInstitution?.id || ''}
+                    institutionName={addPocketInstitution?.name || selectedInstitution?.name || 'Account'}
+                    onClose={() => {
+                        setAddPocketVisible(false);
+                        setAddPocketInstitution(null);
+                    }}
+                    onSubmit={async (input) => {
+                        await handleAddPocket(input);
+                        setAddPocketVisible(false);
+                        setAddPocketInstitution(null);
+                    }}
                 />
             )}
 
