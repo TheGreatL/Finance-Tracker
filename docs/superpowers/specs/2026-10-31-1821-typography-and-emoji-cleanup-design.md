@@ -48,4 +48,3 @@
 - `npm run typecheck`: Confirm TypeScript compilation across the monorepo.
 - `npm run test --workspace=@finance-tracker/mobile`: Verify all 25 test suites pass without regression.
 - Unicode regex scan: Ensure zero emoji occurrences remain in `apps/mobile/src` and `apps/mobile/app`.
-

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Modal, View, Text, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, Alert } from 'react-native';
+import { Modal, View, Text, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, Alert, Switch } from 'react-native';
 import { X, Plus, Trash2, Archive, RotateCcw, AlertCircle, Building2, Briefcase, Calendar, ChevronDown } from 'lucide-react-native';
 import type {
     AccountPocket,
@@ -57,6 +57,7 @@ export function EditJobModal({ visible, job, pockets, onClose, onSubmit, onArchi
     const [datePickerVisible, setDatePickerVisible] = useState(false);
     const [grossSalaryStr, setGrossSalaryStr] = useState('');
     const [targetPocketId, setTargetPocketId] = useState('');
+    const [isVariableSalary, setIsVariableSalary] = useState(false);
     const [notes, setNotes] = useState('');
     const [deductions, setDeductions] = useState<DeductionFormRow[]>([]);
 
@@ -76,6 +77,7 @@ export function EditJobModal({ visible, job, pockets, onClose, onSubmit, onArchi
             setDatePickerVisible(false);
             setGrossSalaryStr(formatMoneyInput(String(job.gross_salary)));
             setTargetPocketId(job.target_pocket_id);
+            setIsVariableSalary(Boolean(job.is_variable_salary));
             setNotes(job.notes || '');
             setError('');
 
@@ -234,6 +236,7 @@ export function EditJobModal({ visible, job, pockets, onClose, onSubmit, onArchi
                     payoutDate: isOneTime ? payoutDate.trim() : null,
                     grossSalary,
                     targetPocketId,
+                    isVariableSalary,
                     notes: notes.trim()
                 },
                 cleanedDeductions
@@ -502,7 +505,7 @@ export function EditJobModal({ visible, job, pockets, onClose, onSubmit, onArchi
                                 </View>
 
                                 {/* Target Pocket Selection */}
-                                <View className="mb-2">
+                                <View className="mb-3">
                                     <SearchableSelectField
                                         label="Direct Deposit Account Pocket *"
                                         selectedId={targetPocketId}
@@ -510,6 +513,25 @@ export function EditJobModal({ visible, job, pockets, onClose, onSubmit, onArchi
                                         onSelect={(opt) => setTargetPocketId(opt.id)}
                                         placeholder="Select deposit pocket..."
                                     />
+                                </View>
+
+                                {/* Variable Salary Toggle */}
+                                <View className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-3.5 mb-2">
+                                    <View className="flex-row items-center justify-between">
+                                        <View className="flex-1 mr-3">
+                                            <Text className="text-xs font-bold text-slate-900 dark:text-white">
+                                                Variable Salary (Attendance Based)
+                                            </Text>
+                                            <Text className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                                Prompt on payday to enter actual hours, OT, undertime, or exact net payout. Disables auto-deposit.
+                                            </Text>
+                                        </View>
+                                        <Switch
+                                            value={isVariableSalary}
+                                            onValueChange={setIsVariableSalary}
+                                            trackColor={{ false: '#CBD5E1', true: '#10B981' }}
+                                        />
+                                    </View>
                                 </View>
                             </View>
 

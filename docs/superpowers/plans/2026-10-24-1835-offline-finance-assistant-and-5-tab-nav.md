@@ -13,12 +13,14 @@
 **Spec:** [`docs/superpowers/specs/2026-10-24-1832-offline-finance-assistant-and-5-tab-nav-design.md`](file:///c:/Users/user/Desktop/projects/finance-tracker/docs/superpowers/specs/2026-10-24-1832-offline-finance-assistant-and-5-tab-nav-design.md)
 
 ## Global Constraints
+
 - Zero external AI APIs: all processing and calculations must be 100% local, offline, deterministic, and instant.
 - Maintain accurate financial calculations (strictly compare liquid assets and upcoming loan obligations).
 - All unit tests must pass via `npm test --workspace=@finance-tracker/mobile`.
 - TypeScript compiler checks must pass cleanly via `npx turbo run typecheck`.
 
 ## Review Focus
+
 - Amount parsing edge cases: shorthand notation (`15k`, `1.5k`), currency prefixes (`₱`, `P`, `php`), comma-separated numbers (`15,000`).
 - Affordability calculation safety: warning if purchase risks loan payments due within 14 days.
 - Tab bar center alignment: center tab must feel elevated and tap targets must remain responsive.
@@ -29,120 +31,124 @@
 ### Task 1: Offline NLP Intent & Calculation Engine (`chatEngine.ts`)
 
 **Files:**
+
 - Create: [`apps/mobile/src/services/chatEngine.ts`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/src/services/chatEngine.ts)
 - Create: [`apps/mobile/tests/chat_engine.test.ts`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/tests/chat_engine.test.ts)
 
 - [x] **Step 1: Write unit tests for `chatEngine.ts`**
-  - Test `parseAmount`: `"5000"`, `"₱12,500"`, `"15k"`, `"2.5k"`, `"php 3500"`, and invalid inputs.
-  - Test `detectIntent`: `"can i afford 5000"` -> `affordability`, `"how much will i have if 3000"` -> `projection`, `"how much do i owe"` -> `debt`, `"how much money in gcash"` -> `institution_balance`, `"total balance"` -> `balance`.
-  - Test `evaluateChatPrompt`:
-    - Affordability verdict when user has plenty of funds (`safe`).
-    - Affordability verdict when user has enough cash but an upcoming loan due in 5 days is compromised (`tight`).
-    - Affordability verdict when amount exceeds total money (`unaffordable`).
-    - Projection balance calculation.
-    - Debt summary reporting active loans and next due date.
-    - Institution-specific balance reporting.
+    - Test `parseAmount`: `"5000"`, `"₱12,500"`, `"15k"`, `"2.5k"`, `"php 3500"`, and invalid inputs.
+    - Test `detectIntent`: `"can i afford 5000"` -> `affordability`, `"how much will i have if 3000"` -> `projection`, `"how much do i owe"` -> `debt`, `"how much money in gcash"` -> `institution_balance`, `"total balance"` -> `balance`.
+    - Test `evaluateChatPrompt`:
+        - Affordability verdict when user has plenty of funds (`safe`).
+        - Affordability verdict when user has enough cash but an upcoming loan due in 5 days is compromised (`tight`).
+        - Affordability verdict when amount exceeds total money (`unaffordable`).
+        - Projection balance calculation.
+        - Debt summary reporting active loans and next due date.
+        - Institution-specific balance reporting.
 
 - [x] **Step 2: Implement `parseAmount` and `detectIntent` in `chatEngine.ts`**
-  - Regular expressions for extracting numerical values, currency signs, and multipliers (`k`, `m`).
-  - Intent classification using keyword tokens.
+    - Regular expressions for extracting numerical values, currency signs, and multipliers (`k`, `m`).
+    - Intent classification using keyword tokens.
 
 - [x] **Step 3: Implement `evaluateChatPrompt` in `chatEngine.ts`**
-  - Integrate with `getAllActivePockets`, `getLoansSummary`, and `getActiveLoans`.
-  - Construct markdown-formatted conversational response strings with status indicators (`safe` | `tight` | `unaffordable` | `info`).
+    - Integrate with `getAllActivePockets`, `getLoansSummary`, and `getActiveLoans`.
+    - Construct markdown-formatted conversational response strings with status indicators (`safe` | `tight` | `unaffordable` | `info`).
 
 - [x] **Step 4: Run tests and typecheck**
-  Run `npm test --workspace=@finance-tracker/mobile` and `npx turbo run typecheck`.
+      Run `npm test --workspace=@finance-tracker/mobile` and `npx turbo run typecheck`.
 
 - [x] **Step 5: Commit changes**
-  Commit as: `feat(mobile): implement offline chatEngine with intent parsing and financial calculations`
+      Commit as: `feat(mobile): implement offline chatEngine with intent parsing and financial calculations`
 
 ---
 
 ### Task 2: 5-Tab Navigation Layout with Center Assistant (`_layout.tsx`)
 
 **Files:**
-- Modify: [`apps/mobile/app/(tabs)/_layout.tsx`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/app/(tabs)/_layout.tsx)
+
+- Modify: [`apps/mobile/app/(tabs)/_layout.tsx`](<file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/app/(tabs)/_layout.tsx>)
 
 - [x] **Step 1: Configure 5 tabs in `_layout.tsx`**
-  - Tab 1: `index` (Dashboard) — `LayoutDashboard`
-  - Tab 2: `accounts` (Accounts & Loans) — `WalletCards`
-  - Tab 3: `assistant` (Advisor) — Raised center pill with `Bot` / `Sparkles` icon, Pistachio `#BBD583` background, and Deep Pine `#18342B` tint.
-  - Tab 4: `two` (Ledger) — `ReceiptText`
-  - Tab 5: `analytics` (Analytics) — `PieChart` or `BarChart3`
+    - Tab 1: `index` (Dashboard) — `LayoutDashboard`
+    - Tab 2: `accounts` (Accounts & Loans) — `WalletCards`
+    - Tab 3: `assistant` (Advisor) — Raised center pill with `Bot` / `Sparkles` icon, Pistachio `#BBD583` background, and Deep Pine `#18342B` tint.
+    - Tab 4: `two` (Ledger) — `ReceiptText`
+    - Tab 5: `analytics` (Analytics) — `PieChart` or `BarChart3`
 
 - [x] **Step 2: Verify typecheck**
-  Run `npx turbo run typecheck`.
+      Run `npx turbo run typecheck`.
 
 - [x] **Step 3: Commit changes**
-  Commit as: `feat(mobile): update bottom navigation to 5-tab layout with elevated center assistant`
+      Commit as: `feat(mobile): update bottom navigation to 5-tab layout with elevated center assistant`
 
 ---
 
 ### Task 3: Conversational Assistant Screen & UI Components
 
 **Files:**
+
 - Create: [`apps/mobile/src/components/chat/ChatMessageBubble.tsx`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/src/components/chat/ChatMessageBubble.tsx)
 - Create: [`apps/mobile/src/components/chat/PromptSuggestionChips.tsx`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/src/components/chat/PromptSuggestionChips.tsx)
-- Create: [`apps/mobile/app/(tabs)/assistant.tsx`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/app/(tabs)/assistant.tsx)
+- Create: [`apps/mobile/app/(tabs)/assistant.tsx`](<file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/app/(tabs)/assistant.tsx>)
 
 - [x] **Step 1: Build `ChatMessageBubble.tsx`**
-  - Distinguish user vs bot messages.
-  - Support formatted responses, bullet points, and colored verdict banners.
+    - Distinguish user vs bot messages.
+    - Support formatted responses, bullet points, and colored verdict banners.
 
 - [x] **Step 2: Build `PromptSuggestionChips.tsx`**
-  - Horizontal scroll of quick prompt chips.
-  - Tapping emits prompt to parent screen.
+    - Horizontal scroll of quick prompt chips.
+    - Tapping emits prompt to parent screen.
 
 - [x] **Step 3: Build `apps/mobile/app/(tabs)/assistant.tsx`**
-  - Message state initialized with a friendly welcome message.
-  - Chat list with auto-scroll on new message.
-  - Text input with submit action calling `evaluateChatPrompt`.
-  - "Clear Chat" action in header.
+    - Message state initialized with a friendly welcome message.
+    - Chat list with auto-scroll on new message.
+    - Text input with submit action calling `evaluateChatPrompt`.
+    - "Clear Chat" action in header.
 
 - [x] **Step 4: Verify typecheck**
-  Run `npx turbo run typecheck`.
+      Run `npx turbo run typecheck`.
 
 - [x] **Step 5: Commit changes**
-  Commit as: `feat(mobile): add conversational assistant screen and prompt suggestion chips`
+      Commit as: `feat(mobile): add conversational assistant screen and prompt suggestion chips`
 
 ---
 
 ### Task 4: Analytics Screen (`analytics.tsx`)
 
 **Files:**
+
 - Create: [`apps/mobile/src/services/analyticsService.ts`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/src/services/analyticsService.ts)
-- Create: [`apps/mobile/app/(tabs)/analytics.tsx`](file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/app/(tabs)/analytics.tsx)
+- Create: [`apps/mobile/app/(tabs)/analytics.tsx`](<file:///c:/Users/user/Desktop/projects/finance-tracker/apps/mobile/app/(tabs)/analytics.tsx>)
 
 - [x] **Step 1: Implement `analyticsService.ts`**
-  - Calculate category breakdown from current month's transactions.
-  - Calculate total inflow vs outflow.
-  - Calculate asset distribution (Banks vs E-Wallets vs Cash).
+    - Calculate category breakdown from current month's transactions.
+    - Calculate total inflow vs outflow.
+    - Calculate asset distribution (Banks vs E-Wallets vs Cash).
 
 - [x] **Step 2: Build `apps/mobile/app/(tabs)/analytics.tsx`**
-  - Monthly Cash Flow card (Income vs Expense).
-  - Category spending progress bars with percentages.
-  - Asset distribution card.
+    - Monthly Cash Flow card (Income vs Expense).
+    - Category spending progress bars with percentages.
+    - Asset distribution card.
 
 - [x] **Step 3: Run tests and typecheck**
-  Run `npm test --workspace=@finance-tracker/mobile` and `npx turbo run typecheck`.
+      Run `npm test --workspace=@finance-tracker/mobile` and `npx turbo run typecheck`.
 
 - [x] **Step 4: Commit changes**
-  Commit as: `feat(mobile): implement analytics screen with category spending and cash flow`
+      Commit as: `feat(mobile): implement analytics screen with category spending and cash flow`
 
 ---
 
 ### Task 5: Final Verification & Manual Testing Walkthrough
 
 - [x] **Step 1: Run complete test suite and monorepo typecheck**
-  - `npm test --workspace=@finance-tracker/mobile`
-  - `npx turbo run typecheck`
+    - `npm test --workspace=@finance-tracker/mobile`
+    - `npx turbo run typecheck`
 
 - [x] **Step 2: Test chatbot scenarios**
-  - Test `"can i afford 5000"`
-  - Test `"how much will i have if i buy this for 2500"`
-  - Test `"how much do i owe?"`
-  - Test `"how much in GCash?"`
-  - Test tapping suggestion chips.
+    - Test `"can i afford 5000"`
+    - Test `"how much will i have if i buy this for 2500"`
+    - Test `"how much do i owe?"`
+    - Test `"how much in GCash?"`
+    - Test tapping suggestion chips.
 
 - [x] **Step 3: Verify 5-tab navigation on mobile**

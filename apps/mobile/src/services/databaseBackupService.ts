@@ -328,8 +328,8 @@ export async function importDatabaseBackup(db: SQLiteDatabase, backup: DatabaseB
             `INSERT INTO jobs (
         id, title, company_name, employment_type, pay_schedule,
         pay_day_1, pay_day_2, payout_date, gross_salary, salary_period,
-        target_pocket_id, status, color, notes, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        target_pocket_id, is_variable_salary, status, color, notes, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
             j.id,
             j.title,
             j.company_name,
@@ -341,6 +341,7 @@ export async function importDatabaseBackup(db: SQLiteDatabase, backup: DatabaseB
             j.gross_salary,
             j.salary_period || 'per_paycheck',
             j.target_pocket_id,
+            j.is_variable_salary ? 1 : 0,
             j.status || 'active',
             j.color || '#4F46E5',
             j.notes || '',
@@ -373,8 +374,10 @@ export async function importDatabaseBackup(db: SQLiteDatabase, backup: DatabaseB
         await db.runAsync(
             `INSERT INTO pay_slips (
         id, job_id, pocket_id, transaction_id, pay_date, gross_amount,
-        total_deductions, net_amount, deductions_snapshot, status, notes, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        total_deductions, net_amount, deductions_snapshot, basic_pay,
+        overtime_pay, holiday_pay, allowances, undertime_deduction,
+        absence_deduction, earnings_snapshot, status, notes, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
             ps.id,
             ps.job_id,
             ps.pocket_id,
@@ -384,6 +387,13 @@ export async function importDatabaseBackup(db: SQLiteDatabase, backup: DatabaseB
             ps.total_deductions,
             ps.net_amount,
             ps.deductions_snapshot || '[]',
+            ps.basic_pay || 0.0,
+            ps.overtime_pay || 0.0,
+            ps.holiday_pay || 0.0,
+            ps.allowances || 0.0,
+            ps.undertime_deduction || 0.0,
+            ps.absence_deduction || 0.0,
+            ps.earnings_snapshot ?? null,
             ps.status || 'paid',
             ps.notes || '',
             ps.created_at,

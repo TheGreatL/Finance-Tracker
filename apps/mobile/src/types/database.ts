@@ -209,6 +209,7 @@ export interface JobRecord {
     gross_salary: number;
     salary_period: 'monthly' | 'per_paycheck';
     target_pocket_id: string;
+    is_variable_salary?: number;
     status: JobStatus;
     color?: string;
     notes?: string;
@@ -249,6 +250,12 @@ export interface DeductionSnapshotItem {
     pay_cutoff?: DeductionCutoff;
 }
 
+export interface EarningsSnapshotItem {
+    name: string;
+    amount: number;
+    type: 'basic' | 'overtime' | 'holiday' | 'allowance' | 'undertime' | 'absence';
+}
+
 export interface PaySlipRecord {
     id: string;
     job_id: string;
@@ -259,6 +266,13 @@ export interface PaySlipRecord {
     total_deductions: number;
     net_amount: number;
     deductions_snapshot: string; // JSON stringified DeductionSnapshotItem[]
+    basic_pay?: number;
+    overtime_pay?: number;
+    holiday_pay?: number;
+    allowances?: number;
+    undertime_deduction?: number;
+    absence_deduction?: number;
+    earnings_snapshot?: string | null; // JSON stringified EarningsSnapshotItem[]
     status: PaySlipStatus;
     notes?: string;
     created_at: string;
@@ -269,6 +283,25 @@ export interface PaySlipRecord {
     pocket_name?: string;
     institution_name?: string;
     institution_color?: string;
+}
+
+export interface RecordPaydayInput {
+    jobId: string;
+    payDate: string;
+    pocketId?: string;
+    mode?: 'quick' | 'detailed';
+    basicPay?: number;
+    overtimePay?: number;
+    holidayPay?: number;
+    allowances?: number;
+    undertimeDeduction?: number;
+    absenceDeduction?: number;
+    grossAmount?: number;
+    totalDeductions?: number;
+    netAmount: number;
+    deductionsSnapshot?: DeductionSnapshotItem[];
+    earningsSnapshot?: EarningsSnapshotItem[];
+    notes?: string;
 }
 
 export interface CreateDeductionInput {
@@ -291,6 +324,7 @@ export interface CreateJobInput {
     grossSalary: number;
     salaryPeriod?: 'monthly' | 'per_paycheck';
     targetPocketId: string;
+    isVariableSalary?: boolean;
     color?: string;
     notes?: string;
 }
@@ -306,6 +340,7 @@ export interface UpdateJobInput {
     grossSalary?: number;
     salaryPeriod?: 'monthly' | 'per_paycheck';
     targetPocketId?: string;
+    isVariableSalary?: boolean;
     status?: JobStatus;
     color?: string;
     notes?: string;

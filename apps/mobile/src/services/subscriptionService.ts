@@ -212,6 +212,23 @@ export async function getAllSubscriptions(db: SQLite.SQLiteDatabase): Promise<Su
   `);
 }
 
+export async function getSubscriptionById(db: SQLite.SQLiteDatabase, id: string): Promise<SubscriptionRecord | null> {
+    return db.getFirstAsync<SubscriptionRecord>(
+        `SELECT
+      s.*,
+      p.name AS pocket_name,
+      i.name AS institution_name,
+      i.code AS institution_code,
+      i.color AS institution_color
+    FROM subscriptions s
+    LEFT JOIN account_pockets p ON s.pocket_id = p.id
+    LEFT JOIN institutions i ON p.institution_id = i.id
+    WHERE s.id = ?
+    LIMIT 1;`,
+        [id]
+    );
+}
+
 export async function getSubscriptionsSummary(db: SQLite.SQLiteDatabase): Promise<SubscriptionsSummary> {
     const all = await getAllSubscriptions(db);
     const active = all.filter((s) => s.status === 'active');

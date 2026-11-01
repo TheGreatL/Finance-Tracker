@@ -249,6 +249,27 @@ export async function getRecentTransactions(db: SQLite.SQLiteDatabase, limit: nu
     return rows;
 }
 
+export async function getTransactionById(db: SQLite.SQLiteDatabase, id: string): Promise<TransactionRecord | null> {
+    return await db.getFirstAsync<TransactionRecord>(
+        `SELECT 
+      t.id, t.title, t.pocket_id, t.to_pocket_id, t.type, t.amount, t.category, t.date, t.notes, t.created_at, t.updated_at,
+      p.name AS pocket_name,
+      i.name AS institution_name,
+      i.color AS institution_color,
+      i.code AS institution_code,
+      p_to.name AS to_pocket_name,
+      i_to.name AS to_institution_name
+    FROM transactions t
+    LEFT JOIN account_pockets p ON t.pocket_id = p.id
+    LEFT JOIN institutions i ON p.institution_id = i.id
+    LEFT JOIN account_pockets p_to ON t.to_pocket_id = p_to.id
+    LEFT JOIN institutions i_to ON p_to.institution_id = i_to.id
+    WHERE t.id = ?
+    LIMIT 1`,
+        [id]
+    );
+}
+
 export interface UpdateTransactionMetadataInput {
     title?: string;
     category?: string;

@@ -1,12 +1,12 @@
 export interface BaseTransaction {
-  type: 'income' | 'expense' | 'transfer';
-  amount: number;
+    type: 'income' | 'expense' | 'transfer';
+    amount: number;
 }
 
 export interface NetBalanceSummary {
-  totalBalance: number;
-  totalIncome: number;
-  totalExpense: number;
+    totalBalance: number;
+    totalIncome: number;
+    totalExpense: number;
 }
 
 /**
@@ -14,23 +14,22 @@ export interface NetBalanceSummary {
  * Internal transfers are excluded from income and expense aggregates.
  */
 export function calculateNetBalance(transactions: readonly BaseTransaction[]): NetBalanceSummary {
-  let totalIncome = 0;
-  let totalExpense = 0;
+    let totalIncome = 0;
+    let totalExpense = 0;
 
-  for (const tx of transactions) {
-    if (tx.type === 'income') {
-      totalIncome += tx.amount;
-    } else if (tx.type === 'expense') {
-      totalExpense += tx.amount;
+    for (const tx of transactions) {
+        if (tx.type === 'income') {
+            totalIncome += tx.amount;
+        } else if (tx.type === 'expense') {
+            totalExpense += tx.amount;
+        }
     }
-  }
 
-  const totalBalance = totalIncome - totalExpense;
+    const totalBalance = totalIncome - totalExpense;
 
-  return {
-    totalBalance,
-    totalIncome,
-    totalExpense,
-  };
+    return {
+        totalBalance,
+        totalIncome,
+        totalExpense
+    };
 }
-

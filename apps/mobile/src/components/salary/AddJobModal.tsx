@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Modal, View, Text, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
+import { Modal, View, Text, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, Switch } from 'react-native';
 import { X, Plus, Trash2, Briefcase, Building2, Check, AlertCircle, Calendar, ChevronDown } from 'lucide-react-native';
 import type {
     AccountPocket,
@@ -51,6 +51,7 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
     const [datePickerVisible, setDatePickerVisible] = useState(false);
     const [grossSalaryStr, setGrossSalaryStr] = useState('');
     const [targetPocketId, setTargetPocketId] = useState('');
+    const [isVariableSalary, setIsVariableSalary] = useState(false);
     const [notes, setNotes] = useState('');
     const [deductions, setDeductions] = useState<DeductionFormRow[]>([]);
 
@@ -79,6 +80,7 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
             setDatePickerVisible(false);
             setGrossSalaryStr('');
             setTargetPocketId(pockets[0]?.id || '');
+            setIsVariableSalary(false);
             setNotes('');
             setError('');
             setFieldErrors({});
@@ -266,6 +268,7 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
                     grossSalary,
                     salaryPeriod: 'per_paycheck',
                     targetPocketId,
+                    isVariableSalary,
                     notes: notes.trim()
                 },
                 cleanedDeductions
@@ -506,7 +509,7 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
                                 </View>
 
                                 {/* Target Pocket Selection */}
-                                <View className="mb-2">
+                                <View className="mb-3">
                                     <SearchableSelectField
                                         label="Direct Deposit Account Pocket *"
                                         selectedId={targetPocketId}
@@ -514,6 +517,25 @@ export function AddJobModal({ visible, pockets, onClose, onSubmit }: AddJobModal
                                         onSelect={(opt) => setTargetPocketId(opt.id)}
                                         placeholder="Select deposit pocket..."
                                     />
+                                </View>
+
+                                {/* Variable Salary Toggle */}
+                                <View className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-3.5 mb-2">
+                                    <View className="flex-row items-center justify-between">
+                                        <View className="flex-1 mr-3">
+                                            <Text className="text-xs font-bold text-slate-900 dark:text-white">
+                                                Variable Salary (Attendance Based)
+                                            </Text>
+                                            <Text className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                                Prompt on payday to enter actual hours, OT, undertime, or exact net payout. Disables auto-deposit.
+                                            </Text>
+                                        </View>
+                                        <Switch
+                                            value={isVariableSalary}
+                                            onValueChange={setIsVariableSalary}
+                                            trackColor={{ false: '#CBD5E1', true: '#10B981' }}
+                                        />
+                                    </View>
                                 </View>
                             </View>
 

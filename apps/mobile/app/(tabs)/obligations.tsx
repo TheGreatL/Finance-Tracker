@@ -7,9 +7,10 @@ import { useSidebar } from '../../src/context/SidebarContext';
 import { useToast } from '../../src/context/ToastContext';
 import { getDatabase } from '../../src/database/db';
 import { getAllActivePockets } from '../../src/services/accountService';
-import { getAllLoans, createLoan, updateLoanMetadata, deleteLoan, recordLoanPayment } from '../../src/services/loanService';
+import { getAllLoans, getLoanById, createLoan, updateLoanMetadata, deleteLoan, recordLoanPayment } from '../../src/services/loanService';
 import {
     getAllSubscriptions,
+    getSubscriptionById,
     getSubscriptionsSummary,
     createSubscription,
     updateSubscription,
@@ -20,6 +21,7 @@ import {
 } from '../../src/services/subscriptionService';
 import {
     getAllJobs,
+    getJobById,
     getIncomeSummary,
     createJob,
     updateJob,
@@ -28,7 +30,6 @@ import {
     deleteJob,
     recordPaydayManual,
     processDuePaydays,
-    getNextPayDate,
     type IncomeSummary
 } from '../../src/services/salaryService';
 import { formatCurrency, formatDisplayDate } from '../../src/utils/formatters';
@@ -37,6 +38,7 @@ import type {
     SubscriptionRecord,
     JobRecord,
     PaySlipRecord,
+    RecordPaydayInput,
     AccountPocket,
     CreateLoanInput,
     UpdateLoanMetadataInput,
@@ -63,9 +65,14 @@ import { JobDetailSheet } from '../../src/components/salary/JobDetailSheet';
 import { AddJobModal } from '../../src/components/salary/AddJobModal';
 import { EditJobModal } from '../../src/components/salary/EditJobModal';
 import { PaySlipDetailModal } from '../../src/components/salary/PaySlipDetailModal';
+import { RecordPaydayModal } from '../../src/components/salary/RecordPaydayModal';
+import { UpcomingPaydayBanner } from '../../src/components/salary/UpcomingPaydayBanner';
 import { IncomeVisualBreakdownChart } from '../../src/components/salary/IncomeVisualBreakdownChart';
 
 type ObligationCategory = 'loans' | 'subscriptions' | 'income';
+
+type ModalStackItem =
+    { type: 'jobDetail'; jobId: string } | { type: 'loanDetail'; loanId: string } | { type: 'subscriptionDetail'; subscriptionId: string };
 
 export default function ObligationsScreen() {
     const insets = useSafeAreaInsets();
@@ -118,12 +125,57 @@ export default function ObligationsScreen() {
     const [editJobVisible, setEditJobVisible] = useState(false);
     const [jobDetailVisible, setJobDetailVisible] = useState(false);
     const [selectedJob, setSelectedJob] = useState<JobRecord | null>(null);
+    const [recordPaydayJob, setRecordPaydayJob] = useState<JobRecord | null>(null);
+    const [recordPaydayVisible, setRecordPaydayVisible] = useState(false);
     const [selectedPaySlip, setSelectedPaySlip] = useState<PaySlipRecord | null>(null);
     const [paySlipModalVisible, setPaySlipModalVisible] = useState(false);
 
     // Refs to preserve open item sheets during background refreshes
     const selectedLoanIdRef = useRef<string | null>(null);
     const selectedSubscriptionIdRef = useRef<string | null>(null);
+    const modalBackStackRef = useRef<ModalStackItem[]>([]);
+
+    const pushModalBackStack = useCallback((item: ModalStackItem) => {
+        modalBackStackRef.current.push(item);
+    }, []);
+
+    const popAndRestoreModal = useCallback(async () => {
+        const prev = modalBackStackRef.current.pop();
+        if (!prev) return;
+
+        setTimeout(async () => {
+            try {
+                const db = await getDatabase();
+                if (prev.type === 'jobDetail') {
+                    const refreshedJob = await getJobById(db, prev.jobId);
+                    if (refreshedJob) {
+                        setSelectedJob(refreshedJob);
+                        setJobDetailVisible(true);
+                    } else if (modalBackStackRef.current.length > 0) {
+                        popAndRestoreModal();
+                    }
+                } else if (prev.type === 'loanDetail') {
+                    const refreshedLoan = await getLoanById(db, prev.loanId);
+                    if (refreshedLoan) {
+                        setSelectedLoan(refreshedLoan);
+                        setLoanDetailVisible(true);
+                    } else if (modalBackStackRef.current.length > 0) {
+                        popAndRestoreModal();
+                    }
+                } else if (prev.type === 'subscriptionDetail') {
+                    const refreshedSub = await getSubscriptionById(db, prev.subscriptionId);
+                    if (refreshedSub) {
+                        setSelectedSubscription(refreshedSub);
+                        setSubDetailVisible(true);
+                    } else if (modalBackStackRef.current.length > 0) {
+                        popAndRestoreModal();
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to restore modal back-stack in obligations:', err);
+            }
+        }, 120);
+    }, []);
 
     useEffect(() => {
         selectedLoanIdRef.current = selectedLoan?.id ?? null;
@@ -300,13 +352,11 @@ export default function ObligationsScreen() {
         showToast('Job removed');
     };
 
-    const handleRecordPayday = async (job: JobRecord) => {
+    const handleRecordPayday = async (input: RecordPaydayInput) => {
         const db = await getDatabase();
-        const now = new Date();
-        const payDate = getNextPayDate(job.pay_schedule, job.pay_day_1, job.pay_day_2, now, job.payout_date);
-        await recordPaydayManual(db, job.id, payDate, `Manual payday payout for ${job.title}`);
+        await recordPaydayManual(db, input);
         await loadData();
-        showToast(job.pay_schedule === 'one_time' ? 'One-time payout deposited' : 'Payday deposited');
+        showToast(input.mode === 'detailed' ? 'Payday recorded with attendance breakdown' : 'Payday deposited');
     };
 
     // Filtered lists
@@ -636,6 +686,21 @@ export default function ObligationsScreen() {
                 {/* SALARY & INCOME TAB */}
                 {selectedTab === 'income' && (
                     <View>
+                        {/* Upcoming Payday Banner */}
+                        {incomeSummary.nextPayday && incomeTabStatus === 'active' && (
+                            <UpcomingPaydayBanner
+                                className="px-0 mb-3"
+                                nextPayday={incomeSummary.nextPayday}
+                                onPress={() => {
+                                    const targetJob = jobs.find((j) => j.id === incomeSummary.nextPayday?.jobId);
+                                    if (targetJob) {
+                                        setRecordPaydayJob(targetJob);
+                                        setRecordPaydayVisible(true);
+                                    }
+                                }}
+                            />
+                        )}
+
                         {/* Sub-status Switcher: Active vs Archived */}
                         <View className="flex-row items-center justify-between mb-3">
                             <View className="flex-row bg-stone-200/80 p-0.5 rounded-xl">
@@ -732,25 +797,38 @@ export default function ObligationsScreen() {
                 onClose={() => {
                     setLoanDetailVisible(false);
                     setSelectedLoan(null);
-                }}
-                onEdit={(loan) => {
-                    setEditingLoan(loan);
-                    setLoanDetailVisible(false);
+                    modalBackStackRef.current = [];
                 }}
                 onRecordPayment={(loan) => {
+                    pushModalBackStack({ type: 'loanDetail', loanId: loan.id });
+                    setLoanDetailVisible(false);
                     setSelectedLoan(loan);
                     setPaymentModalVisible(true);
                 }}
-                onDelete={handleDeleteLoan}
+                onEdit={(loan) => {
+                    pushModalBackStack({ type: 'loanDetail', loanId: loan.id });
+                    setLoanDetailVisible(false);
+                    setEditingLoan(loan);
+                }}
+                onDelete={async (loanId) => {
+                    await handleDeleteLoan(loanId);
+                    setLoanDetailVisible(false);
+                    setSelectedLoan(null);
+                    modalBackStackRef.current = [];
+                }}
             />
 
             <EditLoanModal
                 visible={!!editingLoan}
                 loan={editingLoan}
-                onClose={() => setEditingLoan(null)}
+                onClose={() => {
+                    setEditingLoan(null);
+                    popAndRestoreModal();
+                }}
                 onSave={async (loanId, updates) => {
                     await handleUpdateLoan(loanId, updates);
                     setEditingLoan(null);
+                    popAndRestoreModal();
                 }}
             />
 
@@ -758,8 +836,15 @@ export default function ObligationsScreen() {
                 visible={paymentModalVisible}
                 loan={selectedLoan}
                 pockets={allPockets}
-                onClose={() => setPaymentModalVisible(false)}
-                onSubmit={handleRecordPayment}
+                onClose={() => {
+                    setPaymentModalVisible(false);
+                    popAndRestoreModal();
+                }}
+                onSubmit={async (input) => {
+                    await handleRecordPayment(input);
+                    setPaymentModalVisible(false);
+                    popAndRestoreModal();
+                }}
             />
 
             {/* Subscription Modals */}
@@ -770,16 +855,19 @@ export default function ObligationsScreen() {
                 onClose={() => {
                     setAddSubVisible(false);
                     setEditingSubscription(null);
+                    popAndRestoreModal();
                 }}
                 onSubmit={async (data) => {
                     await handleCreateSubscription(data);
                     setAddSubVisible(false);
                     setEditingSubscription(null);
+                    popAndRestoreModal();
                 }}
                 onUpdate={async (id, data) => {
                     await handleUpdateSubscription(id, data);
                     setAddSubVisible(false);
                     setEditingSubscription(null);
+                    popAndRestoreModal();
                 }}
             />
 
@@ -789,16 +877,22 @@ export default function ObligationsScreen() {
                 onClose={() => {
                     setSubDetailVisible(false);
                     setSelectedSubscription(null);
+                    modalBackStackRef.current = [];
                 }}
                 onEdit={(sub) => {
-                    setSelectedSubscription(null);
+                    pushModalBackStack({ type: 'subscriptionDetail', subscriptionId: sub.id });
                     setSubDetailVisible(false);
                     setEditingSubscription(sub);
                     setAddSubVisible(true);
                 }}
                 onTogglePause={handleTogglePauseSubscription}
                 onCancelSubscription={handleCancelSubscription}
-                onDelete={handleDeleteSubscription}
+                onDelete={async (id) => {
+                    await handleDeleteSubscription(id);
+                    setSubDetailVisible(false);
+                    setSelectedSubscription(null);
+                    modalBackStackRef.current = [];
+                }}
             />
 
             {/* Job Modals */}
@@ -811,11 +905,32 @@ export default function ObligationsScreen() {
                 onClose={() => {
                     setEditJobVisible(false);
                     setSelectedJob(null);
+                    popAndRestoreModal();
                 }}
-                onSubmit={handleUpdateJob}
-                onArchive={handleArchiveJob}
-                onUnarchive={handleUnarchiveJob}
-                onDelete={handleDeleteJob}
+                onSubmit={async (id, updates, deductions) => {
+                    await handleUpdateJob(id, updates, deductions);
+                    setEditJobVisible(false);
+                    setSelectedJob(null);
+                    popAndRestoreModal();
+                }}
+                onArchive={async (id) => {
+                    await handleArchiveJob(id);
+                    setEditJobVisible(false);
+                    setSelectedJob(null);
+                    modalBackStackRef.current = [];
+                }}
+                onUnarchive={async (id) => {
+                    await handleUnarchiveJob(id);
+                    setEditJobVisible(false);
+                    setSelectedJob(null);
+                    modalBackStackRef.current = [];
+                }}
+                onDelete={async (id) => {
+                    await handleDeleteJob(id);
+                    setEditJobVisible(false);
+                    setSelectedJob(null);
+                    modalBackStackRef.current = [];
+                }}
             />
 
             <JobDetailSheet
@@ -824,20 +939,44 @@ export default function ObligationsScreen() {
                 onClose={() => {
                     setJobDetailVisible(false);
                     setSelectedJob(null);
+                    modalBackStackRef.current = [];
                 }}
                 onEdit={(job) => {
+                    pushModalBackStack({ type: 'jobDetail', jobId: job.id });
                     setSelectedJob(job);
                     setJobDetailVisible(false);
                     setEditJobVisible(true);
                 }}
-                onRecordPayday={async (job) => {
-                    await handleRecordPayday(job);
+                onRecordPayday={(job) => {
+                    pushModalBackStack({ type: 'jobDetail', jobId: job.id });
                     setJobDetailVisible(false);
-                    setSelectedJob(null);
+                    setRecordPaydayJob(job);
+                    setRecordPaydayVisible(true);
                 }}
                 onViewPaySlip={(slip) => {
+                    if (selectedJob) {
+                        pushModalBackStack({ type: 'jobDetail', jobId: selectedJob.id });
+                    }
+                    setJobDetailVisible(false);
                     setSelectedPaySlip(slip);
                     setPaySlipModalVisible(true);
+                }}
+            />
+
+            <RecordPaydayModal
+                visible={recordPaydayVisible}
+                job={recordPaydayJob}
+                pockets={allPockets}
+                onClose={() => {
+                    setRecordPaydayVisible(false);
+                    setRecordPaydayJob(null);
+                    popAndRestoreModal();
+                }}
+                onSubmit={async (input) => {
+                    await handleRecordPayday(input);
+                    setRecordPaydayVisible(false);
+                    setRecordPaydayJob(null);
+                    popAndRestoreModal();
                 }}
             />
 
@@ -847,6 +986,7 @@ export default function ObligationsScreen() {
                 onClose={() => {
                     setPaySlipModalVisible(false);
                     setSelectedPaySlip(null);
+                    popAndRestoreModal();
                 }}
             />
         </View>

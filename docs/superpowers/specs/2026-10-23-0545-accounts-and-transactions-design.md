@@ -3,6 +3,7 @@
 **Created:** 2026-10-23 05:45 (Local Time)
 
 ## Intent & Why
+
 Personal finance in the Philippines commonly involves multiple financial institutions—such as Maya, GoTyme, SeaBank, GCash, BPI, BDO, UnionBank, and physical cash. Users frequently hold both an everyday spending "Wallet" balance and an interest-earning "Savings" pocket (e.g. 4.0%–4.5% p.a. digital bank savings) within the same institution.
 
 Presenting separate cards for every single account/pocket clutters the UI. This system groups balances by **Institution** (Bank or E-Wallet) into clean, recognizable cards. Tapping an institution card reveals its individual **Pockets** (Wallet vs. Savings with interest details). A transactional engine logs income, expenses, and inter-pocket transfers in local SQLite, ensuring balances always balance.
@@ -12,31 +13,35 @@ Presenting separate cards for every single account/pocket clutters the UI. This 
 ## Goals, Non-Goals, and Anti-Goals
 
 ### Goals
-1. **Consolidated Institution Cards**: The main accounts view displays cards grouped by institution (e.g., *Maya: ₱52,000*), preventing screen clutter.
+
+1. **Consolidated Institution Cards**: The main accounts view displays cards grouped by institution (e.g., _Maya: ₱52,000_), preventing screen clutter.
 2. **Pockets / Sub-Accounts**: Each institution holds 1 or more pockets:
-   - **Wallet Pocket**: Everyday spending, checking, e-wallet credits (0% interest).
-   - **Savings Pocket**: Interest-bearing savings with annual interest rate (`interest_rate`, e.g. `4.5%`) and notes (`savings_details`, e.g. "Credited daily", "Emergency fund").
+    - **Wallet Pocket**: Everyday spending, checking, e-wallet credits (0% interest).
+    - **Savings Pocket**: Interest-bearing savings with annual interest rate (`interest_rate`, e.g. `4.5%`) and notes (`savings_details`, e.g. "Credited daily", "Emergency fund").
 3. **Dynamic Philippine Catalog**: A comprehensive registry of Philippine banks and e-wallets (BPI, BDO, UnionBank, Metrobank, RCBC, Maya, GoTyme, SeaBank, GCash, GrabPay, ShopeePay, Physical Cash) with brand colors and logos/icons. No single provider is hardcoded as a static variable or special default.
 4. **Transaction CRUD**: Full logging for:
-   - **Expense**: Subtracts money from a designated pocket.
-   - **Income**: Adds money to a designated pocket.
-   - **Transfer**: Moves money from Pocket A to Pocket B (within the same institution or across institutions).
+    - **Expense**: Subtracts money from a designated pocket.
+    - **Income**: Adds money to a designated pocket.
+    - **Transfer**: Moves money from Pocket A to Pocket B (within the same institution or across institutions).
 5. **Dev Seed & Production Reset**:
-   - In `__DEV__`, seed realistic mock institutions, pockets, and transactions for immediate visual verification.
-   - Provide a prominent "Reset to Zero" / "Wipe All Data" action to clear mock data so the user can enter their own real base money.
-   - In production builds, the app starts with a clean empty database.
+    - In `__DEV__`, seed realistic mock institutions, pockets, and transactions for immediate visual verification.
+    - Provide a prominent "Reset to Zero" / "Wipe All Data" action to clear mock data so the user can enter their own real base money.
+    - In production builds, the app starts with a clean empty database.
 
 ### Non-Goals
+
 - Automated bank scraping or Open Banking API credential integrations (all tracking is private, manual, and offline-first).
 - Multi-currency forex live rate conversion (base currency is PHP `₱` for this phase).
 
 ### Anti-Goals
+
 - Hardcoding GCash as the default institution or singleton variable.
 - Forcing a flat account list that creates 15+ disconnected cards on the home screen.
 
 ---
 
 ## Constraints
+
 - **Offline-First Storage**: Powered entirely by `expo-sqlite` on the mobile device.
 - **Color Contrast**: Follows the Pistachio (`#BBD583`) and Deep Forest Pine (`#18342B`) design system, meeting WCAG AA/AAA.
 - **Double-Entry Balance Recalculation**: Account balances are derived from base starting balance plus transaction sums, or managed atomically inside SQLite transactions.
@@ -46,16 +51,20 @@ Presenting separate cards for every single account/pocket clutters the UI. This 
 ## Approaches Considered
 
 ### Approach 1: Flat Accounts with Tags
+
 Every pocket is an independent top-level account card.
-- *Pros:* Simple database structure.
-- *Cons:* Visual clutter: users with 3 banks and 2 e-wallets, each with checking, savings, and stash pockets, end up with 10–15 cards on the screen.
+
+- _Pros:_ Simple database structure.
+- _Cons:_ Visual clutter: users with 3 banks and 2 e-wallets, each with checking, savings, and stash pockets, end up with 10–15 cards on the screen.
 
 ### Approach 2: Parent Institution Cards with Drill-Down Pockets (Chosen by User)
-Institutions are the top-level cards (e.g. *Maya*, *BPI*, *GoTyme*, *Cash*). Each card displays its total aggregate balance and pocket count. Tapping the card opens a detail view displaying the breakdown:
-- *Wallet Pocket* (₱2,000)
-- *Personal Savings Pocket* (₱50,000 @ 4.5% p.a.)
-- *Pros:* Cleanest UI, realistic mental model of Philippine banking apps, expandable.
-- *Trade-off:* Requires a two-tier relational model (`institutions` -> `pockets`), which is well-supported by SQLite foreign keys.
+
+Institutions are the top-level cards (e.g. _Maya_, _BPI_, _GoTyme_, _Cash_). Each card displays its total aggregate balance and pocket count. Tapping the card opens a detail view displaying the breakdown:
+
+- _Wallet Pocket_ (₱2,000)
+- _Personal Savings Pocket_ (₱50,000 @ 4.5% p.a.)
+- _Pros:_ Cleanest UI, realistic mental model of Philippine banking apps, expandable.
+- _Trade-off:_ Requires a two-tier relational model (`institutions` -> `pockets`), which is well-supported by SQLite foreign keys.
 
 ---
 
@@ -113,73 +122,73 @@ CREATE TABLE IF NOT EXISTS transactions (
 ---
 
 ## Philippine Institution Catalog (`src/constants/institutions.ts`)
+
 A typed catalog of popular Philippine providers:
+
 - **E-Wallets & Digital Banks**:
-  - `maya`: Maya (Color: `#00D665`, Digital Bank / E-Wallet)
-  - `gotyme`: GoTyme Bank (Color: `#00B4D8`, Digital Bank)
-  - `seabank`: SeaBank (Color: `#FF5722`, Digital Bank)
-  - `gcash`: GCash (Color: `#007DFE`, E-Wallet)
-  - `grabpay`: GrabPay (Color: `#00B14F`, E-Wallet)
-  - `shopeepay`: ShopeePay (Color: `#EE4D2D`, E-Wallet)
-  - `cimb`: CIMB Bank (Color: `#ED1C24`, Digital Bank)
-  - `tonik`: Tonik (Color: `#6F2DBD`, Digital Bank)
+    - `maya`: Maya (Color: `#00D665`, Digital Bank / E-Wallet)
+    - `gotyme`: GoTyme Bank (Color: `#00B4D8`, Digital Bank)
+    - `seabank`: SeaBank (Color: `#FF5722`, Digital Bank)
+    - `gcash`: GCash (Color: `#007DFE`, E-Wallet)
+    - `grabpay`: GrabPay (Color: `#00B14F`, E-Wallet)
+    - `shopeepay`: ShopeePay (Color: `#EE4D2D`, E-Wallet)
+    - `cimb`: CIMB Bank (Color: `#ED1C24`, Digital Bank)
+    - `tonik`: Tonik (Color: `#6F2DBD`, Digital Bank)
 - **Universal / Commercial Banks**:
-  - `bpi`: Bank of the Philippine Islands (Color: `#B11116`, Bank)
-  - `bdo`: BDO Unibank (Color: `#002B7F`, Bank)
-  - `unionbank`: UnionBank of the Philippines (Color: `#F58220`, Bank)
-  - `metrobank`: Metrobank (Color: `#003882`, Bank)
-  - `rcbc`: RCBC (Color: `#0066B2`, Bank)
-  - `security_bank`: Security Bank (Color: `#005596`, Bank)
+    - `bpi`: Bank of the Philippine Islands (Color: `#B11116`, Bank)
+    - `bdo`: BDO Unibank (Color: `#002B7F`, Bank)
+    - `unionbank`: UnionBank of the Philippines (Color: `#F58220`, Bank)
+    - `metrobank`: Metrobank (Color: `#003882`, Bank)
+    - `rcbc`: RCBC (Color: `#0066B2`, Bank)
+    - `security_bank`: Security Bank (Color: `#005596`, Bank)
 - **Cash & Custom**:
-  - `cash`: Physical Cash / Personal Wallet (Color: `#10B981`)
-  - `custom`: Other / Custom Bank (Color: `#5C6E63`)
+    - `cash`: Physical Cash / Personal Wallet (Color: `#10B981`)
+    - `custom`: Other / Custom Bank (Color: `#5C6E63`)
 
 ## Business Logic & Technical Rules (Builder Calls)
 
 1. **Transaction Title**: `title TEXT NOT NULL` is explicitly included in the `transactions` schema and form, matching `TransactionItem.tsx`.
 2. **Atomic Balance Updates & Reversal**:
-   - Creating an expense decreases pocket balance; creating income increases pocket balance; transfer moves from source to destination.
-   - Deleting or editing a transaction atomically reverses the previous amount before applying the new values inside a single SQLite transaction (`db.withTransactionAsync`).
+    - Creating an expense decreases pocket balance; creating income increases pocket balance; transfer moves from source to destination.
+    - Deleting or editing a transaction atomically reverses the previous amount before applying the new values inside a single SQLite transaction (`db.withTransactionAsync`).
 3. **Archiving Invariant**:
-   - A pocket cannot be archived if its balance is greater than ₱0.00 (users must transfer funds out first). Archived pockets are excluded from active picker dropdowns and the main carousel.
+    - A pocket cannot be archived if its balance is greater than ₱0.00 (users must transfer funds out first). Archived pockets are excluded from active picker dropdowns and the main carousel.
 4. **CRUD Scope**:
-   - Includes Add Transaction modal, Edit/Delete Transaction action with automatic balance adjustment, Dashboard recent list integration, and the full Ledger tab (`(tabs)/two.tsx`).
+    - Includes Add Transaction modal, Edit/Delete Transaction action with automatic balance adjustment, Dashboard recent list integration, and the full Ledger tab (`(tabs)/two.tsx`).
 
 ---
 
 ## UI Components & User Flow
 
 1. **Unified "Add Account" Creation Flow (Option A)**:
-   - When tapping `+ Add Account`, the user selects an institution from the Philippine Catalog (e.g. *Maya*, *BPI*, *Cash*).
-   - In the same modal, the user immediately configures its initial pocket (e.g., Pocket Name: *"Main Wallet"*, Starting Base Money: *₱5,000*).
-   - This ensures every institution card always holds at least 1 pocket with an initial base balance. Additional pockets (e.g. high-yield savings) can be added anytime.
+    - When tapping `+ Add Account`, the user selects an institution from the Philippine Catalog (e.g. _Maya_, _BPI_, _Cash_).
+    - In the same modal, the user immediately configures its initial pocket (e.g., Pocket Name: _"Main Wallet"_, Starting Base Money: _₱5,000_).
+    - This ensures every institution card always holds at least 1 pocket with an initial base balance. Additional pockets (e.g. high-yield savings) can be added anytime.
 
 2. **Dashboard Accounts Carousel / Grid**:
-   - Shows summary cards for each active institution with logo, brand color bar, total balance (sum of all pockets), and pocket count badge (e.g. *"2 pockets"*).
-   - Tap opens the **Institution Detail Sheet**.
+    - Shows summary cards for each active institution with logo, brand color bar, total balance (sum of all pockets), and pocket count badge (e.g. _"2 pockets"_).
+    - Tap opens the **Institution Detail Sheet**.
 
 3. **Institution Detail Modal / Sheet**:
-   - Lists the pockets belonging to this institution:
-     - **Wallet Pocket Card**: Balance, quick "Add Expense" button.
-     - **Savings Pocket Card**: Balance, Interest Badge (`4.5% p.a.`), and savings details note.
-   - Button to `+ Add Pocket` (e.g., add a second savings goal or stash).
+    - Lists the pockets belonging to this institution:
+        - **Wallet Pocket Card**: Balance, quick "Add Expense" button.
+        - **Savings Pocket Card**: Balance, Interest Badge (`4.5% p.a.`), and savings details note.
+    - Button to `+ Add Pocket` (e.g., add a second savings goal or stash).
 
 4. **Add / Edit Pocket Modal**:
-   - Select pocket type (`Wallet / Everyday` vs `Savings / Interest`).
-   - If Savings selected: reveals `Interest Rate (%)` field and `Savings Details / Notes` input.
-   - Input initial base money (`Starting Balance`).
+    - Select pocket type (`Wallet / Everyday` vs `Savings / Interest`).
+    - If Savings selected: reveals `Interest Rate (%)` field and `Savings Details / Notes` input.
+    - Input initial base money (`Starting Balance`).
 
 5. **Add Transaction Modal (CRUD)**:
-   - Type selector: `Expense` | `Income` | `Transfer`.
-   - Amount keypad/input with currency symbol.
-   - Payee / Merchant `Title` input (e.g. *"Whole Foods Market"*).
-   - Category picker (Food, Groceries, Salary, Utilities, etc.).
-   - Source Pocket picker (organized by Institution > Pocket).
-   - If Transfer: Destination Pocket picker.
+    - Type selector: `Expense` | `Income` | `Transfer`.
+    - Amount keypad/input with currency symbol.
+    - Payee / Merchant `Title` input (e.g. _"Whole Foods Market"_).
+    - Category picker (Food, Groceries, Salary, Utilities, etc.).
+    - Source Pocket picker (organized by Institution > Pocket).
+    - If Transfer: Destination Pocket picker.
 
 6. **Database Reset Feature**:
-   - Located in Settings or quick action on Dashboard:
-   - Wipes all tables, leaving 0 institutions, 0 pockets, and 0 transactions.
-   - Prompts confirmation dialog before resetting.
-
-
+    - Located in Settings or quick action on Dashboard:
+    - Wipes all tables, leaving 0 institutions, 0 pockets, and 0 transactions.
+    - Prompts confirmation dialog before resetting.

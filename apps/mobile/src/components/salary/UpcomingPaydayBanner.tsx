@@ -12,6 +12,7 @@ interface UpcomingPaydayBannerProps {
         netAmount: number;
         pocketName: string;
         daysRemaining: number;
+        isVariableSalary?: boolean;
     };
     onPress?: () => void;
     className?: string;
@@ -20,8 +21,18 @@ interface UpcomingPaydayBannerProps {
 export function UpcomingPaydayBanner({ nextPayday, onPress, className = '' }: UpcomingPaydayBannerProps) {
     if (!nextPayday) return null;
 
-    const dueBadge =
-        nextPayday.daysRemaining === 0 ? 'Payday Today' : nextPayday.daysRemaining === 1 ? 'Tomorrow' : `In ${nextPayday.daysRemaining}d`;
+    const isVariable = Boolean(nextPayday.isVariableSalary);
+    const dueBadge = isVariable
+        ? nextPayday.daysRemaining === 0
+            ? 'Confirm Payday'
+            : nextPayday.daysRemaining === 1
+              ? 'Due Tomorrow'
+              : `In ${nextPayday.daysRemaining}d`
+        : nextPayday.daysRemaining === 0
+          ? 'Payday Today'
+          : nextPayday.daysRemaining === 1
+            ? 'Tomorrow'
+            : `In ${nextPayday.daysRemaining}d`;
 
     return (
         <View className={`px-5 mb-4 ${className}`}>

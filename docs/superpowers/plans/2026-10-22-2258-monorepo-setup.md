@@ -24,6 +24,7 @@
 ### Task 1: Scaffolding Root Monorepo Configuration & Docker Setup
 
 **Files:**
+
 - Create: `package.json` (root workspace)
 - Create: `turbo.json`
 - Create: `docker-compose.yml`
@@ -32,6 +33,7 @@
 - Modify: `.gitignore`
 
 **Interfaces:**
+
 - Consumes: User specification for MySQL host port `3307`.
 - Produces: Root npm scripts (`npm run dev`, `npm run build`, `npm run test`, `npm run typecheck`) and container orchestration.
 
@@ -46,11 +48,13 @@
 ### Task 2: Restore and Configure `apps/mobile`
 
 **Files:**
+
 - Create/Restore: `apps/mobile/**` from git commit `e7c816c`
 - Modify: `apps/mobile/package.json` (set name to `@finance-tracker/mobile`)
 - Verify: `apps/mobile/tsconfig.json`, `apps/mobile/metro.config.js`, `apps/mobile/global.css`
 
 **Interfaces:**
+
 - Consumes: Git tree from `e7c816c`.
 - Produces: Fully functional Expo mobile client inside `apps/mobile/`.
 
@@ -65,11 +69,13 @@
 ### Task 3: Scaffold Stubs for `apps/web`, `apps/api`, and `packages/shared`
 
 **Files:**
+
 - Create: `apps/web/package.json`, `apps/web/README.md`
 - Create: `apps/api/requirements.txt`, `apps/api/app/main.py`, `apps/api/Dockerfile`, `apps/api/README.md`
 - Create: `packages/shared/package.json`, `packages/shared/src/index.ts`, `packages/shared/tsconfig.json`
 
 **Interfaces:**
+
 - Consumes: Monorepo workspace conventions.
 - Produces: Minimal working stubs so Turborepo tasks and Docker Compose can discover and validate all services.
 
@@ -83,6 +89,7 @@
 ### Task 4: Final Verification and Documentation
 
 **Files:**
+
 - Modify: `README.md` (ensure port 3307 note is clearly mentioned in Docker section)
 
 - [ ] **Step 1: Check `docker-compose config` or validate compose syntax**

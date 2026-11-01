@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
     calculateNetTakeHome,
+    calculateAdjustedEarnings,
     normalizeMonthlySalary,
     categorizeDeductions,
     clampDayToMonth,
@@ -12,7 +13,9 @@ import {
     archiveJob,
     unarchiveJob,
     deleteJob,
-    getIncomeSummary
+    getIncomeSummary,
+    recordPaydayManual,
+    processDuePaydays
 } from '../src/services/salaryService';
 import type { CreateJobInput, CreateDeductionInput } from '../src/types/database';
 
@@ -265,6 +268,50 @@ describe('salaryService database CRUD', () => {
         const deductionInserts = executed.filter((e) => e.sql.includes('INSERT INTO job_deductions'));
         expect(deductionInserts.length).toBe(3);
         expect(deductionInserts[0]?.params).toContain('both');
+    });
+
+    it('createJob persists isVariableSalary when specified', async () => {
+        const executed: { sql: string; params: any[] }[] = [];
+        const mockDb: any = {
+            withTransactionAsync: vi.fn(async (cb: () => Promise<void>) => {
+                await cb();
+            }),
+            runAsync: vi.fn(async (sql: string, params: any[]) => {
+                executed.push({ sql, params });
+                return { changes: 1 };
+            }),
+            getFirstAsync: vi.fn(async () => ({
+                id: 'job_var_test',
+                title: 'Sales Agent',
+                company_name: 'Metro Retail',
+                employment_type: 'part_time',
+                pay_schedule: 'semi_monthly',
+                pay_day_1: 15,
+                gross_salary: 18000,
+                salary_period: 'per_paycheck',
+                target_pocket_id: 'pock_1',
+                is_variable_salary: 1,
+                status: 'active',
+                created_at: '2026-01-01',
+                updated_at: '2026-01-01'
+            })),
+            getAllAsync: vi.fn(async () => [])
+        };
+
+        await createJob(mockDb, {
+            title: 'Sales Agent',
+            companyName: 'Metro Retail',
+            employmentType: 'part_time',
+            paySchedule: 'semi_monthly',
+            payDay1: 15,
+            grossSalary: 18000,
+            targetPocketId: 'pock_1',
+            isVariableSalary: true
+        });
+
+        const insert = executed.find((e) => e.sql.includes('INSERT INTO jobs'));
+        expect(insert).toBeDefined();
+        expect(insert?.params).toContain(1);
     });
 
     it('archiveJob and unarchiveJob update job status', async () => {
@@ -556,5 +603,253 @@ describe('salaryService database CRUD', () => {
 
         const summary = await getIncomeSummary(mockDb);
         expect(summary.nextPayday).toBeUndefined();
+    });
+
+    describe('calculateAdjustedEarnings', () => {
+        it('calculates gross earnings with overtime, holiday pay, and allowances', () => {
+            const basePay = 20000;
+            const res = calculateAdjustedEarnings(basePay, {
+                overtimePay: 2500,
+                holidayPay: 1200,
+                allowances: 1000
+            });
+
+            expect(res.basicPay).toBe(20000);
+            expect(res.overtimePay).toBe(2500);
+            expect(res.holidayPay).toBe(1200);
+            expect(res.allowances).toBe(1000);
+            expect(res.undertimeDeduction).toBe(0);
+            expect(res.absenceDeduction).toBe(0);
+            expect(res.grossEarnings).toBe(24700);
+            expect(res.itemized.length).toBe(4);
+        });
+
+        it('deducts tardiness/undertime and absences from gross earnings', () => {
+            const basePay = 20000;
+            const res = calculateAdjustedEarnings(basePay, {
+                overtimePay: 1500,
+                undertimeDeduction: 450,
+                absenceDeduction: 1800
+            });
+
+            expect(res.basicPay).toBe(20000);
+            expect(res.overtimePay).toBe(1500);
+            expect(res.undertimeDeduction).toBe(450);
+            expect(res.absenceDeduction).toBe(1800);
+            // 20000 + 1500 - 450 - 1800 = 19250
+            expect(res.grossEarnings).toBe(19250);
+        });
+
+        it('clamps gross earnings to 0 if deductions exceed additions', () => {
+            const basePay = 5000;
+            const res = calculateAdjustedEarnings(basePay, {
+                absenceDeduction: 8000
+            });
+            expect(res.grossEarnings).toBe(0);
+        });
+    });
+
+    describe('recordPaydayManual with variable attendance and quick net override', () => {
+        it('records variable attendance breakdown and updates pocket balance', async () => {
+            let currentPocketBalance = 10000;
+            const runCalls: any[] = [];
+
+            const mockDb: any = {
+                getFirstAsync: vi.fn(async (sql: string, _params: any[]) => {
+                    if (sql.includes('FROM jobs') && (sql.includes('j.id = ?') || sql.includes('id = ?'))) {
+                        return {
+                            id: 'job_var_1',
+                            title: 'Operations Lead',
+                            company_name: 'Metro Logistics',
+                            employment_type: 'full_time',
+                            pay_schedule: 'semi_monthly',
+                            pay_day_1: 15,
+                            pay_day_2: 30,
+                            gross_salary: 25000,
+                            salary_period: 'per_paycheck',
+                            target_pocket_id: 'pock_ops',
+                            is_variable_salary: 1,
+                            status: 'active'
+                        };
+                    }
+                    if (sql.includes('FROM pay_slips WHERE job_id = ? AND pay_date = ?')) {
+                        return null; // Not yet recorded
+                    }
+                    if (sql.includes('FROM account_pockets WHERE id = ?')) {
+                        return { id: 'pock_ops', current_balance: currentPocketBalance, name: 'Payroll Pocket' };
+                    }
+                    if (sql.includes('FROM pay_slips WHERE id = ?')) {
+                        return {
+                            id: 'ps_new_1',
+                            job_id: 'job_var_1',
+                            pocket_id: 'pock_ops',
+                            pay_date: '2026-11-15',
+                            gross_amount: 27500,
+                            total_deductions: 3200,
+                            net_amount: 24300,
+                            basic_pay: 25000,
+                            overtime_pay: 3000,
+                            undertime_deduction: 500,
+                            status: 'paid'
+                        };
+                    }
+                    return null;
+                }),
+                getAllAsync: vi.fn(async (sql: string) => {
+                    if (sql.includes('FROM job_deductions')) {
+                        return [
+                            { id: 'd1', job_id: 'job_var_1', name: 'Tax', category: 'tax', amount: 2000, pay_cutoff: 'both' },
+                            { id: 'd2', job_id: 'job_var_1', name: 'SSS', category: 'statutory', amount: 1200, pay_cutoff: 'both' }
+                        ];
+                    }
+                    return [];
+                }),
+                withTransactionAsync: vi.fn(async (cb: () => Promise<void>) => {
+                    await cb();
+                }),
+                runAsync: vi.fn(async (sql: string, params: any[]) => {
+                    runCalls.push({ sql, params });
+                    if (sql.includes('UPDATE account_pockets SET current_balance = ?')) {
+                        currentPocketBalance = params[0];
+                    }
+                })
+            };
+
+            const slip = await recordPaydayManual(mockDb, {
+                jobId: 'job_var_1',
+                payDate: '2026-11-15',
+                basicPay: 25000,
+                overtimePay: 3000,
+                undertimeDeduction: 500,
+                totalDeductions: 3200,
+                netAmount: 24300,
+                notes: 'Cutoff with 12 hours overtime'
+            });
+
+            expect(slip.net_amount).toBe(24300);
+            expect(currentPocketBalance).toBe(34300);
+            expect(runCalls.some((c) => c.sql.includes('INSERT INTO transactions'))).toBe(true);
+            expect(runCalls.some((c) => c.sql.includes('INSERT INTO pay_slips'))).toBe(true);
+        });
+
+        it('supports quick net pay override directly without itemized calculations', async () => {
+            let currentPocketBalance = 5000;
+            const runCalls: any[] = [];
+
+            const mockDb: any = {
+                getFirstAsync: vi.fn(async (sql: string) => {
+                    if (sql.includes('FROM jobs') && (sql.includes('j.id = ?') || sql.includes('id = ?'))) {
+                        return {
+                            id: 'job_quick_1',
+                            title: 'Designer',
+                            company_name: 'Studio Inc',
+                            employment_type: 'contract',
+                            pay_schedule: 'monthly',
+                            pay_day_1: 25,
+                            gross_salary: 40000,
+                            salary_period: 'monthly',
+                            target_pocket_id: 'pock_quick',
+                            status: 'active'
+                        };
+                    }
+                    if (sql.includes('FROM pay_slips WHERE job_id = ? AND pay_date = ?')) {
+                        return null;
+                    }
+                    if (sql.includes('FROM account_pockets WHERE id = ?')) {
+                        return { id: 'pock_quick', current_balance: currentPocketBalance, name: 'Main Account' };
+                    }
+                    if (sql.includes('FROM pay_slips WHERE id = ?')) {
+                        return {
+                            id: 'ps_quick_1',
+                            job_id: 'job_quick_1',
+                            pocket_id: 'pock_quick',
+                            pay_date: '2026-11-25',
+                            net_amount: 38245.5
+                        };
+                    }
+                    return null;
+                }),
+                getAllAsync: vi.fn(async () => []),
+                withTransactionAsync: vi.fn(async (cb: () => Promise<void>) => {
+                    await cb();
+                }),
+                runAsync: vi.fn(async (sql: string, params: any[]) => {
+                    runCalls.push({ sql, params });
+                    if (sql.includes('UPDATE account_pockets SET current_balance = ?')) {
+                        currentPocketBalance = params[0];
+                    }
+                })
+            };
+
+            const slip = await recordPaydayManual(mockDb, {
+                jobId: 'job_quick_1',
+                payDate: '2026-11-25',
+                netAmount: 38245.5,
+                notes: 'Exact bank credit confirmed via BDO SMS'
+            });
+
+            expect(slip.net_amount).toBe(38245.5);
+            expect(currentPocketBalance).toBe(43245.5);
+        });
+    });
+
+    describe('processDuePaydays with variable salary jobs', () => {
+        it('skips auto-depositing variable salary jobs and queues salary_due notification', async () => {
+            const notifsInserted: any[] = [];
+            const txsInserted: any[] = [];
+
+            const mockDb: any = {
+                getAllAsync: vi.fn(async (sql: string) => {
+                    if (sql.includes('FROM jobs')) {
+                        return [
+                            {
+                                id: 'job_var_due',
+                                title: 'Field Agent',
+                                company_name: 'Logistics Co',
+                                employment_type: 'full_time',
+                                pay_schedule: 'monthly',
+                                pay_day_1: 1,
+                                gross_salary: 30000,
+                                salary_period: 'monthly',
+                                target_pocket_id: 'pock_1',
+                                is_variable_salary: 1, // VARIABLE SALARY
+                                status: 'active'
+                            }
+                        ];
+                    }
+                    return [];
+                }),
+                getFirstAsync: vi.fn(async (sql: string) => {
+                    if (sql.includes('FROM pay_slips WHERE job_id = ? AND pay_date = ?')) {
+                        return null; // Due and not yet paid
+                    }
+                    if (sql.includes('FROM app_notifications WHERE id = ?')) {
+                        return null; // Not yet notified
+                    }
+                    return null;
+                }),
+                runAsync: vi.fn(async (sql: string, params: any[]) => {
+                    if (sql.includes('INSERT INTO app_notifications')) {
+                        notifsInserted.push(params);
+                    }
+                    if (sql.includes('INSERT INTO transactions')) {
+                        txsInserted.push(params);
+                    }
+                })
+            };
+
+            // Reference date is 2026-11-05, pay_day_1 is 1 -> Payday is due
+            const result = await processDuePaydays(mockDb, new Date(2026, 10, 5));
+
+            // Should NOT auto-deposit variable salary
+            expect(result.processedCount).toBe(0);
+            expect(result.totalCredited).toBe(0);
+            expect(txsInserted.length).toBe(0);
+
+            // Should insert salary_due notification
+            expect(notifsInserted.length).toBe(1);
+            expect(notifsInserted[0][1]).toBe('salary_due');
+            expect(notifsInserted[0][2]).toContain('Payday Due: Confirm Salary');
+        });
     });
 });

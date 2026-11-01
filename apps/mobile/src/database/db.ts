@@ -256,6 +256,7 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
           gross_salary REAL NOT NULL,
           salary_period TEXT NOT NULL DEFAULT 'per_paycheck' CHECK(salary_period IN ('monthly', 'per_paycheck')),
           target_pocket_id TEXT NOT NULL,
+          is_variable_salary INTEGER NOT NULL DEFAULT 0,
           status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'archived')),
           color TEXT DEFAULT '#4F46E5',
           notes TEXT DEFAULT '',
@@ -305,6 +306,17 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
         }
     } catch {
         // Ignore table migration check failure
+    }
+
+    // 9c. Ensure jobs table has is_variable_salary column
+    try {
+        await db.getFirstAsync('SELECT is_variable_salary FROM jobs LIMIT 1;');
+    } catch {
+        try {
+            await db.execAsync('ALTER TABLE jobs ADD COLUMN is_variable_salary INTEGER NOT NULL DEFAULT 0;');
+        } catch {
+            // Column may already exist
+        }
     }
 
     // 10. Ensure job_deductions table exists
@@ -361,6 +373,13 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
           total_deductions REAL NOT NULL,
           net_amount REAL NOT NULL,
           deductions_snapshot TEXT NOT NULL DEFAULT '[]',
+          basic_pay REAL DEFAULT 0.0,
+          overtime_pay REAL DEFAULT 0.0,
+          holiday_pay REAL DEFAULT 0.0,
+          allowances REAL DEFAULT 0.0,
+          undertime_deduction REAL DEFAULT 0.0,
+          absence_deduction REAL DEFAULT 0.0,
+          earnings_snapshot TEXT DEFAULT NULL,
           status TEXT NOT NULL DEFAULT 'paid' CHECK(status IN ('paid', 'pending', 'skipped')),
           notes TEXT DEFAULT '',
           created_at TEXT NOT NULL,
@@ -375,6 +394,35 @@ async function runSchemaSetup(db: SQLite.SQLiteDatabase): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_pay_slips_pocket ON pay_slips(pocket_id);
       `);
         }
+    }
+
+    // 11b. Ensure pay_slips has attendance and earnings snapshot columns
+    try {
+        const slipCols = await db.getAllAsync<{ name: string }>("PRAGMA table_info('pay_slips');");
+        const slipColNames = new Set(slipCols.map((c) => c.name));
+        if (!slipColNames.has('basic_pay')) {
+            await db.execAsync('ALTER TABLE pay_slips ADD COLUMN basic_pay REAL DEFAULT 0.0;');
+        }
+        if (!slipColNames.has('overtime_pay')) {
+            await db.execAsync('ALTER TABLE pay_slips ADD COLUMN overtime_pay REAL DEFAULT 0.0;');
+        }
+        if (!slipColNames.has('holiday_pay')) {
+            await db.execAsync('ALTER TABLE pay_slips ADD COLUMN holiday_pay REAL DEFAULT 0.0;');
+        }
+        if (!slipColNames.has('allowances')) {
+            await db.execAsync('ALTER TABLE pay_slips ADD COLUMN allowances REAL DEFAULT 0.0;');
+        }
+        if (!slipColNames.has('undertime_deduction')) {
+            await db.execAsync('ALTER TABLE pay_slips ADD COLUMN undertime_deduction REAL DEFAULT 0.0;');
+        }
+        if (!slipColNames.has('absence_deduction')) {
+            await db.execAsync('ALTER TABLE pay_slips ADD COLUMN absence_deduction REAL DEFAULT 0.0;');
+        }
+        if (!slipColNames.has('earnings_snapshot')) {
+            await db.execAsync('ALTER TABLE pay_slips ADD COLUMN earnings_snapshot TEXT DEFAULT NULL;');
+        }
+    } catch (err) {
+        console.warn('[SQLite] Error migrating pay_slips columns:', err);
     }
 }
 

@@ -6,6 +6,9 @@ import type {
     CreateJobInput,
     UpdateJobInput,
     CreateDeductionInput,
+    RecordPaydayInput,
+    EarningsSnapshotItem,
+    DeductionSnapshotItem,
     PaySchedule,
     JobStatus,
     DeductionCategory,
@@ -53,6 +56,7 @@ export interface IncomeSummary {
         pocketName: string;
         institutionColor?: string;
         daysRemaining: number;
+        isVariableSalary?: boolean;
     };
 }
 
@@ -105,6 +109,61 @@ export function calculateNetTakeHome(
         grossSalary: safeGross,
         totalDeductions,
         netTakeHome,
+        itemized
+    };
+}
+
+export interface AttendanceAdjustments {
+    basicPay?: number;
+    overtimePay?: number;
+    holidayPay?: number;
+    allowances?: number;
+    undertimeDeduction?: number;
+    absenceDeduction?: number;
+}
+
+export interface AdjustedEarningsResult {
+    grossEarnings: number;
+    basicPay: number;
+    overtimePay: number;
+    holidayPay: number;
+    allowances: number;
+    undertimeDeduction: number;
+    absenceDeduction: number;
+    itemized: EarningsSnapshotItem[];
+}
+
+/**
+ * Calculates adjusted gross earnings incorporating attendance adjustments:
+ * Overtime, Holiday pay, Allowances, Tardiness/Undertime, and Absences.
+ */
+export function calculateAdjustedEarnings(basePay: number, adjustments?: AttendanceAdjustments): AdjustedEarningsResult {
+    const basic = Math.max(0, adjustments?.basicPay !== undefined ? adjustments.basicPay : basePay);
+    const overtime = Math.max(0, adjustments?.overtimePay || 0);
+    const holiday = Math.max(0, adjustments?.holidayPay || 0);
+    const allowances = Math.max(0, adjustments?.allowances || 0);
+    const undertime = Math.max(0, adjustments?.undertimeDeduction || 0);
+    const absences = Math.max(0, adjustments?.absenceDeduction || 0);
+
+    const itemized: EarningsSnapshotItem[] = [{ name: 'Basic Pay', amount: basic, type: 'basic' }];
+    if (overtime > 0) itemized.push({ name: 'Overtime Pay', amount: overtime, type: 'overtime' });
+    if (holiday > 0) itemized.push({ name: 'Holiday / Premium Pay', amount: holiday, type: 'holiday' });
+    if (allowances > 0) itemized.push({ name: 'Allowances & Incentives', amount: allowances, type: 'allowance' });
+    if (undertime > 0) itemized.push({ name: 'Tardiness & Undertime', amount: undertime, type: 'undertime' });
+    if (absences > 0) itemized.push({ name: 'Absences & LWOP', amount: absences, type: 'absence' });
+
+    const additions = basic + overtime + holiday + allowances;
+    const subtractions = undertime + absences;
+    const grossEarnings = Math.max(0, Math.round((additions - subtractions) * 100) / 100);
+
+    return {
+        grossEarnings,
+        basicPay: basic,
+        overtimePay: overtime,
+        holidayPay: holiday,
+        allowances,
+        undertimeDeduction: undertime,
+        absenceDeduction: absences,
         itemized
     };
 }
@@ -282,8 +341,8 @@ export async function createJob(db: SQLiteDatabase, input: CreateJobInput, deduc
             `INSERT INTO jobs (
         id, title, company_name, employment_type, pay_schedule,
         pay_day_1, pay_day_2, payout_date, gross_salary, salary_period,
-        target_pocket_id, status, color, notes, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        target_pocket_id, is_variable_salary, status, color, notes, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
             [
                 id,
                 input.title.trim(),
@@ -296,6 +355,7 @@ export async function createJob(db: SQLiteDatabase, input: CreateJobInput, deduc
                 input.grossSalary,
                 salaryPeriod,
                 input.targetPocketId,
+                input.isVariableSalary ? 1 : 0,
                 'active',
                 color,
                 input.notes?.trim() || '',
@@ -496,6 +556,10 @@ export async function updateJob(db: SQLiteDatabase, id: string, input: UpdateJob
             fields.push('target_pocket_id = ?');
             params.push(input.targetPocketId);
         }
+        if (input.isVariableSalary !== undefined) {
+            fields.push('is_variable_salary = ?');
+            params.push(input.isVariableSalary ? 1 : 0);
+        }
         if (input.status !== undefined) {
             fields.push('status = ?');
             params.push(input.status);
@@ -665,7 +729,8 @@ export async function getIncomeSummary(db: SQLiteDatabase): Promise<IncomeSummar
                 netAmount: upcomingBreakdown.netTakeHome,
                 pocketName: job.pocket_name || 'Account Pocket',
                 institutionColor: job.institution_color,
-                daysRemaining
+                daysRemaining,
+                isVariableSalary: Boolean(job.is_variable_salary)
             };
         }
     }
@@ -705,12 +770,29 @@ export async function getPaySlipsByJob(db: SQLiteDatabase, jobId: string): Promi
     return await db.getAllAsync<PaySlipRecord>(query, [jobId]);
 }
 
+interface ExecutePaydayOptions {
+    pocketId?: string;
+    customNotes?: string;
+    basicPay?: number;
+    overtimePay?: number;
+    holidayPay?: number;
+    allowances?: number;
+    undertimeDeduction?: number;
+    absenceDeduction?: number;
+    grossAmount?: number;
+    totalDeductions?: number;
+    netAmount?: number;
+    deductionsSnapshot?: DeductionSnapshotItem[];
+    earningsSnapshot?: EarningsSnapshotItem[];
+}
+
 /**
  * Internal helper to record an income transaction, update target pocket balance,
- * insert an itemized pay slip, and queue an in-app notification.
+ * insert an itemized pay slip with attendance metrics, and queue an in-app notification.
  */
-async function executePaydayDeposit(db: SQLiteDatabase, job: JobRecord, payDate: string, customNotes?: string): Promise<PaySlipRecord> {
-    const deductions = await getDeductionsByJobId(db, job.id);
+async function executePaydayDeposit(db: SQLiteDatabase, job: JobRecord, payDate: string, options?: ExecutePaydayOptions): Promise<PaySlipRecord> {
+    const targetPocketId = options?.pocketId || job.target_pocket_id;
+
     let targetCutoff: DeductionCutoff = 'both';
     if (job.pay_schedule === 'semi_monthly') {
         const payDayNum = parseInt(payDate.split('-')[2], 10);
@@ -720,23 +802,57 @@ async function executePaydayDeposit(db: SQLiteDatabase, job: JobRecord, payDate:
         const diff2 = Math.abs(payDayNum - d2);
         targetCutoff = diff1 <= diff2 ? 'first_cutoff' : 'second_cutoff';
     }
-    const breakdown = calculateNetTakeHome(job.gross_salary, deductions, targetCutoff);
 
-    // Check target pocket exists
+    let defaultGross = job.gross_salary;
+    if (job.salary_period === 'monthly' && job.pay_schedule === 'semi_monthly') {
+        defaultGross = Math.round((job.gross_salary / 2) * 100) / 100;
+    }
+
+    const earningsResult = calculateAdjustedEarnings(defaultGross, {
+        basicPay: options?.basicPay,
+        overtimePay: options?.overtimePay,
+        holidayPay: options?.holidayPay,
+        allowances: options?.allowances,
+        undertimeDeduction: options?.undertimeDeduction,
+        absenceDeduction: options?.absenceDeduction
+    });
+
+    const finalGross = options?.grossAmount !== undefined ? options.grossAmount : earningsResult.grossEarnings;
+
+    let finalDeductionsTotal = 0;
+    let finalDeductionsSnapshot: DeductionSnapshotItem[];
+
+    if (options?.deductionsSnapshot) {
+        finalDeductionsSnapshot = options.deductionsSnapshot;
+        finalDeductionsTotal =
+            options.totalDeductions !== undefined
+                ? options.totalDeductions
+                : Math.round(options.deductionsSnapshot.reduce((sum, d) => sum + (d.amount || 0), 0) * 100) / 100;
+    } else {
+        const jobDeductions = await getDeductionsByJobId(db, job.id);
+        const breakdown = calculateNetTakeHome(finalGross, jobDeductions, targetCutoff);
+        finalDeductionsTotal = breakdown.totalDeductions;
+        finalDeductionsSnapshot = breakdown.itemized;
+    }
+
+    const finalNet =
+        options?.netAmount !== undefined ? Math.max(0, options.netAmount) : Math.max(0, Math.round((finalGross - finalDeductionsTotal) * 100) / 100);
+
     const pocket = await db.getFirstAsync<{ id: string; current_balance: number; name?: string }>(
         `SELECT id, current_balance, name FROM account_pockets WHERE id = ?;`,
-        [job.target_pocket_id]
+        [targetPocketId]
     );
     if (!pocket) {
-        throw new Error(`Target account pocket '${job.target_pocket_id}' not found for job '${job.title}'`);
+        throw new Error(`Target account pocket '${targetPocketId}' not found for job '${job.title}'`);
     }
 
     const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const paySlipId = `ps_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const notifId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const now = new Date().toISOString();
-    const newBalance = Math.round((pocket.current_balance + breakdown.netTakeHome) * 100) / 100;
-    const snapshotJson = JSON.stringify(breakdown.itemized);
+    const newBalance = Math.round((pocket.current_balance + finalNet) * 100) / 100;
+    const deductionsSnapshotJson = JSON.stringify(finalDeductionsSnapshot);
+    const earningsSnapshotJson = options?.earningsSnapshot ? JSON.stringify(options.earningsSnapshot) : JSON.stringify(earningsResult.itemized);
 
     await db.withTransactionAsync(async () => {
         // 1. Insert income transaction
@@ -747,46 +863,55 @@ async function executePaydayDeposit(db: SQLiteDatabase, job: JobRecord, payDate:
             [
                 txId,
                 `Salary: ${job.title} (${job.company_name})`,
-                job.target_pocket_id,
+                targetPocketId,
                 null,
                 'income',
-                breakdown.netTakeHome,
+                finalNet,
                 'Salary',
                 payDate,
-                customNotes || `Automated salary deposit for ${job.title}`,
+                options?.customNotes || `Salary deposit for ${job.title}`,
                 now,
                 now
             ]
         );
 
         // 2. Update target pocket balance
-        await db.runAsync(`UPDATE account_pockets SET current_balance = ?, updated_at = ? WHERE id = ?;`, [newBalance, now, job.target_pocket_id]);
+        await db.runAsync(`UPDATE account_pockets SET current_balance = ?, updated_at = ? WHERE id = ?;`, [newBalance, now, targetPocketId]);
 
         // 3. Insert pay slip record
         await db.runAsync(
             `INSERT INTO pay_slips (
         id, job_id, pocket_id, transaction_id, pay_date, gross_amount,
-        total_deductions, net_amount, deductions_snapshot, status, notes, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        total_deductions, net_amount, deductions_snapshot, basic_pay,
+        overtime_pay, holiday_pay, allowances, undertime_deduction,
+        absence_deduction, earnings_snapshot, status, notes, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
             [
                 paySlipId,
                 job.id,
-                job.target_pocket_id,
+                targetPocketId,
                 txId,
                 payDate,
-                job.gross_salary,
-                breakdown.totalDeductions,
-                breakdown.netTakeHome,
-                snapshotJson,
+                finalGross,
+                finalDeductionsTotal,
+                finalNet,
+                deductionsSnapshotJson,
+                earningsResult.basicPay,
+                earningsResult.overtimePay,
+                earningsResult.holidayPay,
+                earningsResult.allowances,
+                earningsResult.undertimeDeduction,
+                earningsResult.absenceDeduction,
+                earningsSnapshotJson,
                 'paid',
-                customNotes || 'Automated deposit',
+                options?.customNotes || 'Payday deposit',
                 now,
                 now
             ]
         );
 
         // 4. Queue in-app notification
-        const formattedNet = breakdown.netTakeHome.toLocaleString('en-US', {
+        const formattedNet = finalNet.toLocaleString('en-US', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
         });
@@ -800,7 +925,7 @@ async function executePaydayDeposit(db: SQLiteDatabase, job: JobRecord, payDate:
                 'salary_deposit',
                 `Payday Deposited: ${job.company_name}`,
                 `Net salary of ₱${formattedNet} for ${job.title} has been deposited to ${pocketName}.`,
-                JSON.stringify({ jobId: job.id, payDate, amount: breakdown.netTakeHome, pocketId: job.target_pocket_id }),
+                JSON.stringify({ jobId: job.id, payDate, amount: finalNet, pocketId: targetPocketId }),
                 0,
                 now
             ]
@@ -817,6 +942,7 @@ async function executePaydayDeposit(db: SQLiteDatabase, job: JobRecord, payDate:
 /**
  * Automated cron/dashboard runner: detects due pay dates for all active jobs
  * on or before referenceDate and records transactions and pay slips if not already processed.
+ * For jobs with variable salary (is_variable_salary = 1), skips auto-crediting and creates a prompt notification instead.
  */
 export async function processDuePaydays(
     db: SQLiteDatabase,
@@ -868,9 +994,31 @@ export async function processDuePaydays(
                     payDate
                 ]);
                 if (!alreadyPaid) {
-                    const slip = await executePaydayDeposit(db, job, payDate);
-                    processedCount++;
-                    totalCredited += slip.net_amount;
+                    if (job.is_variable_salary === 1) {
+                        // For variable salary jobs, skip auto-depositing an assumed amount; notify the user to confirm/record
+                        const notifId = `notif_due_${job.id}_${payDate}`;
+                        const existingNotif = await db.getFirstAsync<{ id: string }>(`SELECT id FROM app_notifications WHERE id = ?;`, [notifId]);
+                        if (!existingNotif) {
+                            await db.runAsync(
+                                `INSERT INTO app_notifications (
+                                    id, type, title, body, data, is_read, created_at
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?);`,
+                                [
+                                    notifId,
+                                    'salary_due',
+                                    `Payday Due: Confirm Salary for ${job.company_name}`,
+                                    `Your paycheck for ${job.title} is ready. Record your actual earnings and attendance adjustments.`,
+                                    JSON.stringify({ jobId: job.id, payDate, pocketId: job.target_pocket_id }),
+                                    0,
+                                    new Date().toISOString()
+                                ]
+                            );
+                        }
+                    } else {
+                        const slip = await executePaydayDeposit(db, job, payDate);
+                        processedCount++;
+                        totalCredited += slip.net_amount;
+                    }
                 }
             }
         }
@@ -884,8 +1032,19 @@ export async function processDuePaydays(
 
 /**
  * Manually records and deposits a paycheck for a specific job on a specified date.
+ * Accepts either a simple job ID string (legacy) or full RecordPaydayInput with attendance and net adjustments.
  */
-export async function recordPaydayManual(db: SQLiteDatabase, jobId: string, payDate: string, notes?: string): Promise<PaySlipRecord> {
+export async function recordPaydayManual(
+    db: SQLiteDatabase,
+    inputOrJobId: RecordPaydayInput | string,
+    legacyPayDate?: string,
+    legacyNotes?: string
+): Promise<PaySlipRecord> {
+    const isLegacy = typeof inputOrJobId === 'string';
+    const jobId = isLegacy ? inputOrJobId : inputOrJobId.jobId;
+    const payDate = isLegacy ? legacyPayDate! : inputOrJobId.payDate;
+    const notes = isLegacy ? legacyNotes : inputOrJobId.notes;
+
     const job = await getJobById(db, jobId);
     if (!job) {
         throw new Error(`Job '${jobId}' not found.`);
@@ -896,5 +1055,25 @@ export async function recordPaydayManual(db: SQLiteDatabase, jobId: string, payD
         throw new Error(`A pay slip has already been recorded for ${job.title} on ${payDate}.`);
     }
 
-    return await executePaydayDeposit(db, job, payDate, notes || 'Manual payday recording');
+    if (isLegacy) {
+        return await executePaydayDeposit(db, job, payDate, {
+            customNotes: notes || 'Manual payday recording'
+        });
+    }
+
+    return await executePaydayDeposit(db, job, payDate, {
+        pocketId: inputOrJobId.pocketId,
+        customNotes: notes || 'Manual payday recording',
+        basicPay: inputOrJobId.basicPay,
+        overtimePay: inputOrJobId.overtimePay,
+        holidayPay: inputOrJobId.holidayPay,
+        allowances: inputOrJobId.allowances,
+        undertimeDeduction: inputOrJobId.undertimeDeduction,
+        absenceDeduction: inputOrJobId.absenceDeduction,
+        grossAmount: inputOrJobId.grossAmount,
+        totalDeductions: inputOrJobId.totalDeductions,
+        netAmount: inputOrJobId.netAmount,
+        deductionsSnapshot: inputOrJobId.deductionsSnapshot,
+        earningsSnapshot: inputOrJobId.earningsSnapshot
+    });
 }

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Modal, View, Text, Pressable, ScrollView, Share } from 'react-native';
 import { X, FileCheck, Share2, Wallet, Building2, CheckCircle2 } from 'lucide-react-native';
-import type { PaySlipRecord, DeductionSnapshotItem } from '../../types/database';
+import type { PaySlipRecord, DeductionSnapshotItem, EarningsSnapshotItem } from '../../types/database';
 import { formatCurrency, formatDisplayDate, formatTime12 } from '../../utils/formatters';
 import { DEDUCTION_CATEGORY_CONFIG } from '../../constants/salaryPresets';
 
@@ -21,9 +21,43 @@ export function PaySlipDetailModal({ visible, paySlip, onClose }: PaySlipDetailM
         }
     }, [paySlip]);
 
+    const earnings: EarningsSnapshotItem[] = useMemo(() => {
+        if (!paySlip?.earnings_snapshot) return [];
+        try {
+            return JSON.parse(paySlip.earnings_snapshot);
+        } catch {
+            return [];
+        }
+    }, [paySlip]);
+
+    const hasAttendanceData = useMemo(() => {
+        if (!paySlip) return false;
+        return Boolean(
+            (paySlip.overtime_pay && paySlip.overtime_pay > 0) ||
+            (paySlip.holiday_pay && paySlip.holiday_pay > 0) ||
+            (paySlip.allowances && paySlip.allowances > 0) ||
+            (paySlip.undertime_deduction && paySlip.undertime_deduction > 0) ||
+            (paySlip.absence_deduction && paySlip.absence_deduction > 0) ||
+            earnings.length > 0
+        );
+    }, [paySlip, earnings]);
+
     const handleShare = async () => {
         if (!paySlip) return;
         try {
+            const attendanceLines: string[] = [];
+            if (paySlip.basic_pay) attendanceLines.push(`  - Basic Pay: ₱${paySlip.basic_pay.toLocaleString('en-US', { minimumFractionDigits: 2 })}`);
+            if (paySlip.overtime_pay)
+                attendanceLines.push(`  + Overtime: ₱${paySlip.overtime_pay.toLocaleString('en-US', { minimumFractionDigits: 2 })}`);
+            if (paySlip.holiday_pay)
+                attendanceLines.push(`  + Holiday / Premium: ₱${paySlip.holiday_pay.toLocaleString('en-US', { minimumFractionDigits: 2 })}`);
+            if (paySlip.allowances)
+                attendanceLines.push(`  + Allowances: ₱${paySlip.allowances.toLocaleString('en-US', { minimumFractionDigits: 2 })}`);
+            if (paySlip.undertime_deduction)
+                attendanceLines.push(`  - Undertime / Late: ₱${paySlip.undertime_deduction.toLocaleString('en-US', { minimumFractionDigits: 2 })}`);
+            if (paySlip.absence_deduction)
+                attendanceLines.push(`  - Absences / LWOP: ₱${paySlip.absence_deduction.toLocaleString('en-US', { minimumFractionDigits: 2 })}`);
+
             const breakdownText = deductions
                 .map((d) => `  - ${d.name}: ₱${d.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`)
                 .join('\n');
@@ -33,7 +67,7 @@ Company: ${paySlip.company_name || 'Employer'}
 Position: ${paySlip.job_title || 'Position'}
 Pay Date: ${formatDisplayDate(paySlip.pay_date)}
 --------------------------------
-Gross Salary: ₱${paySlip.gross_amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+${attendanceLines.length > 0 ? `ATTENDANCE & EARNINGS:\n${attendanceLines.join('\n')}\n` : ''}Gross Salary: ₱${paySlip.gross_amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
 Total Deductions: ₱${paySlip.total_deductions.toLocaleString('en-US', { minimumFractionDigits: 2 })}
 ${breakdownText}
 --------------------------------
@@ -119,6 +153,69 @@ Status: Paid (${formatTime12(paySlip.created_at)})`;
                                 </View>
                             </View>
                         </View>
+
+                        {/* Attendance & Earnings Breakdown Card (if recorded) */}
+                        {hasAttendanceData && (
+                            <View className="mb-4">
+                                <Text className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
+                                    Attendance & Earnings Details
+                                </Text>
+                                <View className="rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-850 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+                                    {paySlip.basic_pay !== undefined && paySlip.basic_pay > 0 && (
+                                        <View className="flex-row items-center justify-between p-3">
+                                            <Text className="text-xs font-semibold text-slate-900 dark:text-white">Basic Pay</Text>
+                                            <Text className="text-xs font-bold text-slate-900 dark:text-white">
+                                                {formatCurrency(paySlip.basic_pay)}
+                                            </Text>
+                                        </View>
+                                    )}
+                                    {paySlip.overtime_pay !== undefined && paySlip.overtime_pay > 0 && (
+                                        <View className="flex-row items-center justify-between p-3">
+                                            <Text className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Overtime (OT) Pay</Text>
+                                            <Text className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                                                + {formatCurrency(paySlip.overtime_pay)}
+                                            </Text>
+                                        </View>
+                                    )}
+                                    {paySlip.holiday_pay !== undefined && paySlip.holiday_pay > 0 && (
+                                        <View className="flex-row items-center justify-between p-3">
+                                            <Text className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                                                Holiday / Premium Pay
+                                            </Text>
+                                            <Text className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                                                + {formatCurrency(paySlip.holiday_pay)}
+                                            </Text>
+                                        </View>
+                                    )}
+                                    {paySlip.allowances !== undefined && paySlip.allowances > 0 && (
+                                        <View className="flex-row items-center justify-between p-3">
+                                            <Text className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                                                Allowances & Incentives
+                                            </Text>
+                                            <Text className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                                                + {formatCurrency(paySlip.allowances)}
+                                            </Text>
+                                        </View>
+                                    )}
+                                    {paySlip.undertime_deduction !== undefined && paySlip.undertime_deduction > 0 && (
+                                        <View className="flex-row items-center justify-between p-3">
+                                            <Text className="text-xs font-semibold text-rose-600 dark:text-rose-400">Late / Undertime</Text>
+                                            <Text className="text-xs font-bold text-rose-600 dark:text-rose-400">
+                                                - {formatCurrency(paySlip.undertime_deduction)}
+                                            </Text>
+                                        </View>
+                                    )}
+                                    {paySlip.absence_deduction !== undefined && paySlip.absence_deduction > 0 && (
+                                        <View className="flex-row items-center justify-between p-3">
+                                            <Text className="text-xs font-semibold text-rose-600 dark:text-rose-400">Absences / LWOP</Text>
+                                            <Text className="text-xs font-bold text-rose-600 dark:text-rose-400">
+                                                - {formatCurrency(paySlip.absence_deduction)}
+                                            </Text>
+                                        </View>
+                                    )}
+                                </View>
+                            </View>
+                        )}
 
                         {/* Itemized Deductions Snapshot */}
                         <View className="mb-4">

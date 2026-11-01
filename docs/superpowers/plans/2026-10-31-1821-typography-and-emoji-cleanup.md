@@ -35,4 +35,3 @@
 - [ ] Run `npm run test --workspace=@finance-tracker/mobile`.
 - [ ] Format files with Prettier.
 - [ ] Commit to `main` with `BypassSandbox: true`.
-
