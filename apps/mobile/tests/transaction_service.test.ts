@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createTransaction, deleteTransaction, getTransactions } from '../src/services/transactionService';
+import { createTransaction, deleteTransaction, getTransactions, getTransactionById } from '../src/services/transactionService';
 
 describe('transactionService database operations', () => {
     it('createTransaction updates pocket balance and saves expense record', async () => {
@@ -169,5 +169,28 @@ describe('transactionService database operations', () => {
         expect(updateTx?.params?.[2]).toBe('2026-10-15');
         expect(updateTx?.params?.[3]).toBe('Updated itemized receipt');
         expect(updateTx?.params?.[5]).toBe('tx_999');
+    });
+
+    it('getTransactionById fetches transaction with pocket and institution names', async () => {
+        const mockDb: any = {
+            getFirstAsync: vi.fn(async (sql: string, params: any[]) => {
+                if (params[0] === 'tx_abc') {
+                    return {
+                        id: 'tx_abc',
+                        title: 'Lunch',
+                        amount: 150,
+                        pocket_name: 'Cash Pocket',
+                        institution_name: 'Cash Wallet'
+                    };
+                }
+                return null;
+            })
+        };
+
+        const res = await getTransactionById(mockDb, 'tx_abc');
+        expect(mockDb.getFirstAsync).toHaveBeenCalledWith(expect.stringContaining('WHERE t.id = ?'), ['tx_abc']);
+        expect(res).toBeDefined();
+        expect(res?.title).toBe('Lunch');
+        expect(res?.pocket_name).toBe('Cash Pocket');
     });
 });

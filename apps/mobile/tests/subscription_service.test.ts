@@ -5,7 +5,8 @@ import {
     createSubscription,
     processDueSubscriptions,
     updateSubscriptionStatus,
-    getSubscriptionsSummary
+    getSubscriptionsSummary,
+    getSubscriptionById
 } from '../src/services/subscriptionService';
 
 describe('subscriptionService', () => {
@@ -306,5 +307,28 @@ describe('subscriptionService', () => {
         } finally {
             (Notifications as any).scheduleNotificationAsync = origSchedule;
         }
+    });
+
+    it('getSubscriptionById fetches subscription with pocket metadata', async () => {
+        const mockDb: any = {
+            getFirstAsync: vi.fn(async (sql: string, params: any[]) => {
+                if (params[0] === 'sub_spotify') {
+                    return {
+                        id: 'sub_spotify',
+                        service_name: 'Spotify',
+                        pocket_name: 'Savings',
+                        institution_name: 'BDO',
+                        amount: 149
+                    };
+                }
+                return null;
+            })
+        };
+
+        const res = await getSubscriptionById(mockDb, 'sub_spotify');
+        expect(mockDb.getFirstAsync).toHaveBeenCalledWith(expect.stringContaining('WHERE s.id = ?'), ['sub_spotify']);
+        expect(res).toBeDefined();
+        expect(res?.service_name).toBe('Spotify');
+        expect(res?.institution_name).toBe('BDO');
     });
 });

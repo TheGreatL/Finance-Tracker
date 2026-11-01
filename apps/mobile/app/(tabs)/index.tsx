@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ScrollView, RefreshControl, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -617,6 +617,9 @@ export default function DashboardScreen() {
                     setEditingPocket(pocket);
                 }}
                 onQuickExpense={(pocket) => {
+                    if (selectedInstitution) {
+                        pushModalBackStack({ type: 'institution', institutionId: selectedInstitution.id });
+                    }
                     setSelectedInstitution(null);
                     handleOpenTransactionModal('expense', pocket.id);
                 }}
@@ -732,8 +735,15 @@ export default function DashboardScreen() {
                 initialType={txModalType}
                 preselectedPocketId={preselectedPocketId}
                 pockets={allPockets}
-                onClose={() => setTxModalVisible(false)}
-                onSubmit={handleCreateTransaction}
+                onClose={() => {
+                    setTxModalVisible(false);
+                    popAndRestoreModal();
+                }}
+                onSubmit={async (input) => {
+                    await handleCreateTransaction(input);
+                    setTxModalVisible(false);
+                    popAndRestoreModal();
+                }}
             />
 
             <TransactionDetailSheet

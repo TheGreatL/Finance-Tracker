@@ -3,6 +3,7 @@ import {
     createLoan,
     getLoansSummary,
     getLoansByInstitution,
+    getLoanById,
     recordLoanPayment,
     deleteLoan,
     updateLoanMetadata,
@@ -460,5 +461,27 @@ describe('loanService operations', () => {
         expect(mockDb.getAllAsync).toHaveBeenCalledWith(expect.stringContaining('WHERE l.institution_id IS NULL'));
         expect(res).toHaveLength(1);
         expect(res[0].lender_name).toBe('Kuya Mark');
+    });
+
+    it('getLoanById fetches loan details with institution metadata', async () => {
+        const mockDb: any = {
+            getFirstAsync: vi.fn(async (sql: string, params: any[]) => {
+                if (params[0] === 'loan_123') {
+                    return {
+                        id: 'loan_123',
+                        title: 'GLoan',
+                        institution_name: 'GCash',
+                        remaining_balance: 5000
+                    };
+                }
+                return null;
+            })
+        };
+
+        const result = await getLoanById(mockDb, 'loan_123');
+        expect(mockDb.getFirstAsync).toHaveBeenCalledWith(expect.stringContaining('WHERE l.id = ?'), ['loan_123']);
+        expect(result).toBeDefined();
+        expect(result?.title).toBe('GLoan');
+        expect(result?.institution_name).toBe('GCash');
     });
 });

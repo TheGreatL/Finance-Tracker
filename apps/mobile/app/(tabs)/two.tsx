@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, ScrollView, RefreshControl, TextInput, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Search, Plus, Filter, Menu, X } from 'lucide-react-native';
@@ -12,6 +12,7 @@ import {
     createTransaction,
     deleteTransaction,
     updateTransactionMetadata,
+    getTransactionById,
     type CreateTransactionInput
 } from '@/src/services/transactionService';
 import { getAllActivePockets } from '@/src/services/accountService';
@@ -20,6 +21,8 @@ import { TransactionItem } from '@/src/components/dashboard/TransactionItem';
 import { TransactionFormModal } from '@/src/components/transactions/TransactionFormModal';
 import { TransactionDetailSheet } from '@/src/components/transactions/TransactionDetailSheet';
 import { EditTransactionModal } from '@/src/components/transactions/EditTransactionModal';
+
+type ModalStackItem = { type: 'transactionDetail'; transactionId: string };
 
 export default function LedgerScreen() {
     const insets = useSafeAreaInsets();
@@ -41,6 +44,33 @@ export default function LedgerScreen() {
     const [formModalOpen, setFormModalOpen] = useState(false);
     const [selectedTx, setSelectedTx] = useState<TransactionRecord | null>(null);
     const [editingTx, setEditingTx] = useState<TransactionRecord | null>(null);
+
+    const modalBackStackRef = useRef<ModalStackItem[]>([]);
+
+    const pushModalBackStack = useCallback((item: ModalStackItem) => {
+        modalBackStackRef.current.push(item);
+    }, []);
+
+    const popAndRestoreModal = useCallback(() => {
+        const prev = modalBackStackRef.current.pop();
+        if (!prev) return;
+
+        setTimeout(async () => {
+            try {
+                const db = await getDatabase();
+                if (prev.type === 'transactionDetail') {
+                    const target = await getTransactionById(db, prev.transactionId);
+                    if (target) {
+                        setSelectedTx(target);
+                    } else if (modalBackStackRef.current.length > 0) {
+                        popAndRestoreModal();
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to restore modal back-stack in ledger:', err);
+            }
+        }, 120);
+    }, []);
 
     const loadLedger = useCallback(async () => {
         try {
@@ -257,12 +287,31 @@ export default function LedgerScreen() {
             <TransactionDetailSheet
                 visible={!!selectedTx}
                 transaction={selectedTx}
-                onClose={() => setSelectedTx(null)}
+                onClose={() => {
+                    modalBackStackRef.current = [];
+                    setSelectedTx(null);
+                }}
                 onDelete={handleDeleteTransaction}
-                onEdit={(tx) => setEditingTx(tx)}
+                onEdit={(tx) => {
+                    pushModalBackStack({ type: 'transactionDetail', transactionId: tx.id });
+                    setSelectedTx(null);
+                    setEditingTx(tx);
+                }}
             />
 
-            <EditTransactionModal visible={!!editingTx} transaction={editingTx} onClose={() => setEditingTx(null)} onSave={handleUpdateTransaction} />
+            <EditTransactionModal
+                visible={!!editingTx}
+                transaction={editingTx}
+                onClose={() => {
+                    setEditingTx(null);
+                    popAndRestoreModal();
+                }}
+                onSave={async (id, updates) => {
+                    await handleUpdateTransaction(id, updates);
+                    setEditingTx(null);
+                    popAndRestoreModal();
+                }}
+            />
         </View>
     );
 }
