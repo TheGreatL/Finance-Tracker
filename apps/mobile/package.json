@@ -11,7 +11,8 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "mobile-preview": "npx eas-cli build -p android --profile preview",
-        "build:apk": "npx eas-cli build -p android --profile preview"
+        "build:apk": "npx eas-cli build -p android --profile preview",
+        "build:apk:async": "npx eas-cli build -p android --profile preview --no-wait"
     },
     "dependencies": {
         "@react-native-masked-view/masked-view": "0.3.2",

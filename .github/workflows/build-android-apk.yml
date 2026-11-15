@@ -1,0 +1,60 @@
+name: Build Android APK
+
+on:
+    workflow_dispatch:
+        inputs:
+            profile:
+                description: 'Build profile (preview produces standalone APK)'
+                required: true
+                default: 'preview'
+                type: choice
+                options:
+                    - preview
+                    - production
+                    - development
+            wait_for_finish:
+                description: 'Wait for build to complete in GitHub Actions logs'
+                required: false
+                default: true
+                type: boolean
+    push:
+        tags:
+            - 'v*' # Trigger build automatically when pushing version tags (e.g., git tag v1.0.0)
+
+jobs:
+    build:
+        name: Build Android Binary on EAS Cloud
+        runs-on: ubuntu-latest
+        steps:
+            - name: ⬇️ Checkout repository
+              uses: actions/checkout@v4
+
+            - name: 🟢 Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+                  cache: 'npm'
+
+            - name: 📦 Setup Expo & EAS
+              uses: expo/expo-github-action@v8
+              with:
+                  eas-version: latest
+                  packager: npm
+                  token: ${{ secrets.EXPO_TOKEN }}
+
+            - name: 📥 Install dependencies
+              run: npm ci
+
+            - name: 🔨 Trigger EAS Build
+              working-directory: apps/mobile
+              env:
+                  EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+              run: |
+                  PROFILE="${{ github.event.inputs.profile || 'preview' }}"
+                  WAIT_PARAM=""
+                  if [ "${{ github.event.inputs.wait_for_finish }}" = "false" ]; then
+                    WAIT_PARAM="--no-wait"
+                  fi
+
+                  echo "Triggering EAS build for Android with profile: $PROFILE"
+                  eas build --platform android --profile "$PROFILE" $WAIT_PARAM --non-interactive
