@@ -1,14 +1,28 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Modal, View, Text, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, ActivityIndicator, Switch } from 'react-native';
 import { X, Check, Calendar, AlertCircle, Briefcase } from 'lucide-react-native';
-import type { JobRecord, AccountPocket, RecordPaydayInput, DeductionSnapshotItem, DeductionCategory, DeductionCutoff } from '../../types/database';
+import type {
+    JobRecord,
+    AccountPocket,
+    RecordPaydayInput,
+    DeductionSnapshotItem,
+    DeductionCategory,
+    DeductionCutoff,
+    PaySlipRecord
+} from '../../types/database';
 import { formatCurrency, formatDisplayDate, formatMoneyInput, parseMoneyInput } from '../../utils/formatters';
 import { DatePickerModal } from '../common/DatePickerModal';
 import { SearchableSelectField, type SelectOption } from '../common/SearchableSelectModal';
 import { PocketBadge } from '../accounts/PocketBadge';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 import { getDatabase } from '../../database/db';
-import { getDeductionsByJobId, getNextPayDate, calculateNetTakeHome, calculateAdjustedEarnings } from '../../services/salaryService';
+import {
+    getDeductionsByJobId,
+    getNextPayDate,
+    calculateNetTakeHome,
+    calculateAdjustedEarnings,
+    getPaySlipsByJob
+} from '../../services/salaryService';
 import { DEDUCTION_CATEGORY_CONFIG } from '../../constants/salaryPresets';
 
 interface RecordPaydayModalProps {
@@ -51,11 +65,14 @@ export function RecordPaydayModal({ visible, job, pockets, onClose, onSubmit }: 
 
     // Detailed Mode state: Statutory / Job deductions
     const [deductionsList, setDeductionsList] = useState<DeductionAdjustItem[]>([]);
+    const [existingSlips, setExistingSlips] = useState<PaySlipRecord[]>([]);
     const [notes, setNotes] = useState<string>('');
 
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string>('');
     const keyboardInset = useKeyboardBottomInset(36);
+
+    const isOneTime = job?.pay_schedule === 'one_time';
 
     const pocketOptions: SelectOption[] = useMemo(() => {
         return pockets.map((p) => ({
@@ -70,9 +87,11 @@ export function RecordPaydayModal({ visible, job, pockets, onClose, onSubmit }: 
     useEffect(() => {
         if (!visible || !job) return;
 
+        const isOneTimeJob = job.pay_schedule === 'one_time';
         const now = new Date();
         const nextDue = getNextPayDate(job.pay_schedule, job.pay_day_1, job.pay_day_2, now, job.payout_date);
-        setPayDate(nextDue);
+        const todayStr = now.toISOString().split('T')[0];
+        setPayDate(isOneTimeJob ? todayStr : nextDue);
         setSelectedPocketId(job.target_pocket_id || (pockets[0]?.id ?? ''));
         setError('');
         setNotes('');
@@ -105,11 +124,27 @@ export function RecordPaydayModal({ visible, job, pockets, onClose, onSubmit }: 
         (async () => {
             try {
                 const db = await getDatabase();
-                const existing = await getDeductionsByJobId(db, job.id);
+                const [existing, slips] = await Promise.all([
+                    getDeductionsByJobId(db, job.id),
+                    isOneTimeJob ? getPaySlipsByJob(db, job.id) : Promise.resolve([])
+                ]);
+                setExistingSlips(slips);
+
                 const breakdown = calculateNetTakeHome(baseGross, existing, targetCutoff);
 
-                // Quick mode pre-filled with standard calculated net
-                setQuickNetStr(formatMoneyInput(String(breakdown.netTakeHome)));
+                if (isOneTimeJob && slips.length > 0) {
+                    const totalPaidNet = slips.reduce((sum, s) => sum + (s.net_amount || 0), 0);
+                    const totalPaidGross = slips.reduce((sum, s) => sum + (s.gross_amount || 0), 0);
+                    const remainingNet = Math.max(0, Math.round((breakdown.netTakeHome - totalPaidNet) * 100) / 100);
+                    const remainingGross = Math.max(0, Math.round((baseGross - totalPaidGross) * 100) / 100);
+
+                    setQuickNetStr(formatMoneyInput(String(remainingNet > 0 ? remainingNet : breakdown.netTakeHome)));
+                    setBasicPayStr(formatMoneyInput(String(remainingGross > 0 ? remainingGross : baseGross)));
+                } else {
+                    // Quick mode pre-filled with standard calculated net
+                    setQuickNetStr(formatMoneyInput(String(breakdown.netTakeHome)));
+                    setBasicPayStr(formatMoneyInput(String(baseGross)));
+                }
 
                 // Populate deduction items
                 const initialList: DeductionAdjustItem[] = existing.map((d) => {
@@ -216,7 +251,8 @@ export function RecordPaydayModal({ visible, job, pockets, onClose, onSubmit }: 
                 pocketId: selectedPocketId,
                 mode,
                 netAmount: activeNetAmount,
-                notes: notes.trim() || undefined
+                notes: notes.trim() || undefined,
+                closeJob: isOneTime
             };
 
             if (mode === 'detailed') {
@@ -261,7 +297,9 @@ export function RecordPaydayModal({ visible, job, pockets, onClose, onSubmit }: 
                                     <Briefcase size={20} className="text-emerald-700 dark:text-emerald-400" />
                                 </View>
                                 <View>
-                                    <Text className="text-base font-bold text-slate-900 dark:text-white">Record Payday Deposit</Text>
+                                    <Text className="text-base font-bold text-slate-900 dark:text-white">
+                                        {isOneTime ? 'Deposit One-Time Payout' : 'Record Payday Deposit'}
+                                    </Text>
                                     <Text className="text-xs text-slate-500 dark:text-slate-400">
                                         {job.company_name} • {job.title}
                                     </Text>
@@ -285,6 +323,25 @@ export function RecordPaydayModal({ visible, job, pockets, onClose, onSubmit }: 
                                     <Text className="text-xs font-medium text-rose-700 dark:text-rose-300 flex-1">{error}</Text>
                                 </View>
                             ) : null}
+
+                            {/* One-Time Payout Status Banner */}
+                            {isOneTime && (
+                                <View className="mb-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 p-3.5 border border-amber-200 dark:border-amber-800/40">
+                                    <View className="flex-row items-center justify-between mb-1">
+                                        <Text className="text-xs font-bold text-amber-900 dark:text-amber-300">One-Time Payout Settlement</Text>
+                                        {existingSlips.length > 0 && (
+                                            <View className="rounded px-1.5 py-0.5 bg-amber-200 dark:bg-amber-900/60">
+                                                <Text className="text-[10px] font-bold text-amber-900 dark:text-amber-200">Remaining Balance</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                    <Text className="text-[11px] text-amber-800 dark:text-amber-300">
+                                        {existingSlips.length > 0
+                                            ? 'Depositing this remaining balance will record the income transaction and close this one-time income.'
+                                            : 'Depositing this agreed payout will record the income transaction and close this one-time income.'}
+                                    </Text>
+                                </View>
+                            )}
 
                             {/* Destination Pocket & Pay Date Row */}
                             <View className="mb-4 space-y-3">
@@ -620,7 +677,13 @@ export function RecordPaydayModal({ visible, job, pockets, onClose, onSubmit }: 
                                 ) : (
                                     <>
                                         <Check size={18} color="#FFFFFF" />
-                                        <Text className="text-sm font-bold text-white">Confirm Deposit</Text>
+                                        <Text className="text-sm font-bold text-white">
+                                            {isOneTime
+                                                ? existingSlips.length > 0
+                                                    ? 'Deposit Remaining Balance'
+                                                    : 'Deposit Payout & Close'
+                                                : 'Confirm Deposit'}
+                                        </Text>
                                     </>
                                 )}
                             </Pressable>

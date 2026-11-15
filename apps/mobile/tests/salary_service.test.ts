@@ -15,7 +15,9 @@ import {
     deleteJob,
     getIncomeSummary,
     recordPaydayManual,
-    processDuePaydays
+    processDuePaydays,
+    reconcileOneTimeJobs,
+    getJobPaymentSummary
 } from '../src/services/salaryService';
 import type { CreateJobInput, CreateDeductionInput } from '../src/types/database';
 
@@ -850,6 +852,106 @@ describe('salaryService database CRUD', () => {
             expect(notifsInserted.length).toBe(1);
             expect(notifsInserted[0][1]).toBe('salary_due');
             expect(notifsInserted[0][2]).toContain('Payday Due: Confirm Salary');
+        });
+    });
+
+    describe('getJobPaymentSummary & reconcileOneTimeJobs', () => {
+        it('calculates remaining balance for one_time job with partial payment', async () => {
+            const mockDb: any = {
+                getFirstAsync: vi.fn(async (sql: string) => {
+                    if (sql.includes('COALESCE(SUM(gross_amount), 0)')) {
+                        // 25000 paid so far
+                        return { total_gross: 25000, total_net: 25000, slip_count: 1 };
+                    }
+                    if (sql.includes('FROM jobs')) {
+                        return {
+                            id: 'job_partial',
+                            title: 'Design Project',
+                            company_name: 'Agency XYZ',
+                            employment_type: 'freelance',
+                            pay_schedule: 'one_time',
+                            gross_salary: 60000,
+                            salary_period: 'per_paycheck',
+                            target_pocket_id: 'pock_1',
+                            status: 'active'
+                        };
+                    }
+                    return null;
+                }),
+                getAllAsync: vi.fn(async (sql: string) => {
+                    if (sql.includes('FROM job_deductions')) {
+                        return [];
+                    }
+                    return [];
+                })
+            };
+
+            const summary = await getJobPaymentSummary(mockDb, 'job_partial');
+            expect(summary.totalAgreedGross).toBe(60000);
+            expect(summary.totalPaidGross).toBe(25000);
+            expect(summary.remainingGross).toBe(35000);
+            expect(summary.remainingNet).toBe(35000);
+            expect(summary.isFullyPaid).toBe(false);
+            expect(summary.slipCount).toBe(1);
+        });
+
+        it('identifies fully paid one_time job when remaining balance is 0', async () => {
+            const mockDb: any = {
+                getFirstAsync: vi.fn(async (sql: string) => {
+                    if (sql.includes('COALESCE(SUM(gross_amount), 0)')) {
+                        // 40000 fully paid
+                        return { total_gross: 40000, total_net: 40000, slip_count: 2 };
+                    }
+                    if (sql.includes('FROM jobs')) {
+                        return {
+                            id: 'job_complete',
+                            title: 'Consulting Contract',
+                            company_name: 'Corp',
+                            employment_type: 'contract',
+                            pay_schedule: 'one_time',
+                            gross_salary: 40000,
+                            salary_period: 'per_paycheck',
+                            target_pocket_id: 'pock_1',
+                            status: 'active'
+                        };
+                    }
+                    return null;
+                }),
+                getAllAsync: vi.fn(async () => [])
+            };
+
+            const summary = await getJobPaymentSummary(mockDb, 'job_complete');
+            expect(summary.remainingGross).toBe(0);
+            expect(summary.remainingNet).toBe(0);
+            expect(summary.isFullyPaid).toBe(true);
+        });
+
+        it('reconcileOneTimeJobs automatically archives active one-time jobs that are already paid out', async () => {
+            const executed: { sql: string; params: any[] }[] = [];
+            const mockDb: any = {
+                getAllAsync: vi.fn(async (sql: string) => {
+                    if (sql.includes('FROM jobs') && sql.includes('one_time')) {
+                        return [{ id: 'job_paid_lingering', gross_salary: 50000 }];
+                    }
+                    return [];
+                }),
+                getFirstAsync: vi.fn(async (sql: string) => {
+                    if (sql.includes('COALESCE(SUM(gross_amount), 0)')) {
+                        return { total_gross: 50000, total_net: 50000, slip_count: 1 };
+                    }
+                    return null;
+                }),
+                runAsync: vi.fn(async (sql: string, params: any[]) => {
+                    executed.push({ sql, params });
+                    return { changes: 1 };
+                })
+            };
+
+            const closedCount = await reconcileOneTimeJobs(mockDb);
+            expect(closedCount).toBe(1);
+            expect(
+                executed.some((e) => e.sql.includes('UPDATE jobs SET status =') && e.params[0] === 'archived' && e.params[2] === 'job_paid_lingering')
+            ).toBe(true);
         });
     });
 });
