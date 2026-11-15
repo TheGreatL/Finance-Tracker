@@ -8,7 +8,8 @@ import { PanelUIProvider } from 'panelui-native';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { requestInitialAppPermissions } from '../src/services/permissionService';
-import { ToastProvider } from '../src/context/ToastContext';
+import { ToastProvider, useToast } from '../src/context/ToastContext';
+import { autoCheckAndNotify } from '../src/services/updateService';
 
 export {
     // Catch any errors thrown by the Layout component.
@@ -59,6 +60,16 @@ export default function RootLayout() {
     return <RootLayoutNav />;
 }
 
+function AutoUpdateNotifier() {
+    const { showToast } = useToast();
+
+    useEffect(() => {
+        autoCheckAndNotify(showToast);
+    }, [showToast]);
+
+    return null;
+}
+
 function RootLayoutNav() {
     const colorScheme = useColorScheme();
 
@@ -72,6 +83,7 @@ function RootLayoutNav() {
         <PanelUIProvider>
             <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
                 <ToastProvider>
+                    <AutoUpdateNotifier />
                     <Stack>
                         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />

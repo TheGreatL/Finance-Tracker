@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { View, Text, Pressable, Animated, Dimensions, ScrollView, BackHandler, Alert, ActivityIndicator, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, usePathname } from 'expo-router';
@@ -16,12 +16,15 @@ import {
     Clock,
     Sparkles,
     X,
-    ShieldCheck
+    ShieldCheck,
+    RefreshCw
 } from 'lucide-react-native';
 import { useSidebar } from '../../context/SidebarContext';
+import { useToast } from '../../context/ToastContext';
 import { SidebarItem } from './SidebarItem';
 import { getDatabase } from '../../database/db';
 import { exportDatabaseBackup, importDatabaseBackup, pickAndValidateBackupFile } from '../../services/databaseBackupService';
+import { getUpdateInfo, checkForUpdate, fetchAndApplyUpdate } from '../../services/updateService';
 
 const DRAWER_MAX_WIDTH = 340;
 
@@ -37,6 +40,41 @@ export function SidebarDrawer({ onNotificationPress, onDataChanged }: SidebarDra
 
     const [isExporting, setIsExporting] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
+    const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+    const [updateStatusText, setUpdateStatusText] = useState<string | null>(null);
+
+    const { showToast } = useToast();
+    const updateInfo = useMemo(() => getUpdateInfo(), []);
+
+    const handleCheckUpdate = async () => {
+        if (isCheckingUpdate) return;
+
+        if (__DEV__ || !updateInfo.isEnabled) {
+            showToast({ message: 'Running in development mode (OTA updates disabled)', type: 'info' });
+            return;
+        }
+
+        setIsCheckingUpdate(true);
+        showToast({ message: 'Checking for updates...', type: 'info' });
+
+        try {
+            const check = await checkForUpdate();
+            if (check.isAvailable) {
+                showToast({ message: 'New update found! Downloading...', type: 'info' });
+                const res = await fetchAndApplyUpdate();
+                if (!res.success) {
+                    showToast({ message: res.error || 'Failed to apply update', type: 'error' });
+                }
+            } else {
+                setUpdateStatusText('App is up to date');
+                showToast({ message: 'App is already up to date!', type: 'success' });
+            }
+        } catch (err: any) {
+            showToast({ message: 'Could not connect to update server', type: 'error' });
+        } finally {
+            setIsCheckingUpdate(false);
+        }
+    };
 
     const windowWidth = Dimensions.get('window').width;
     const drawerWidth = Math.min(windowWidth * 0.82, DRAWER_MAX_WIDTH);
@@ -312,6 +350,18 @@ export function SidebarDrawer({ onNotificationPress, onDataChanged }: SidebarDra
                         <View className="mt-4 pt-3 border-t border-stone-100">
                             <Text className="text-[11px] font-bold text-stone-400 tracking-wider uppercase px-3.5 mb-1.5">System & Diagnostics</Text>
                             <SidebarItem
+                                icon={RefreshCw}
+                                label="App Updates (OTA)"
+                                subtitle={
+                                    isCheckingUpdate
+                                        ? 'Checking for updates...'
+                                        : updateStatusText || (updateInfo.isEnabled ? `Active: ${updateInfo.shortUpdateId}` : 'Local dev mode')
+                                }
+                                badge={isCheckingUpdate ? 'Checking...' : updateInfo.isEnabled ? updateInfo.channel : 'Dev'}
+                                badgeColor={updateInfo.isEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-700'}
+                                onPress={handleCheckUpdate}
+                            />
+                            <SidebarItem
                                 icon={Clock}
                                 label="Time Format"
                                 subtitle="Standard 12-hour clock"
@@ -340,8 +390,10 @@ export function SidebarDrawer({ onNotificationPress, onDataChanged }: SidebarDra
 
                     {/* Footer */}
                     <View className="px-5 pt-3 border-t border-stone-100 flex-row items-center justify-between">
-                        <Text className="text-xs text-stone-400 font-medium">Pocket Tracker v1.2.0</Text>
-                        <Text className="text-[10px] text-stone-300 font-semibold">2026.10 Build</Text>
+                        <Text className="text-xs text-stone-400 font-medium">Finance Tracker v1.0.0</Text>
+                        <Text className="text-[10px] text-stone-400 font-semibold">
+                            {updateInfo.shortUpdateId !== 'Embedded' ? `OTA ${updateInfo.shortUpdateId}` : 'Base APK'}
+                        </Text>
                     </View>
                 </Animated.View>
             </View>

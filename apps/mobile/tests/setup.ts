@@ -77,7 +77,8 @@ vi.mock('lucide-react-native', () => {
         'Banknote',
         'PieChart',
         'TrendingDown',
-        'ShieldCheck'
+        'ShieldCheck',
+        'RefreshCw'
     ];
     const mock: Record<string, any> = {};
     for (const name of iconNames) {
@@ -139,4 +140,16 @@ vi.mock('expo-image-picker', () => ({
     requestMediaLibraryPermissionsAsync: vi.fn(async () => ({ status: 'granted' })),
     getCameraPermissionsAsync: vi.fn(async () => ({ status: 'undetermined' })),
     requestCameraPermissionsAsync: vi.fn(async () => ({ status: 'granted' }))
+}));
+
+vi.mock('expo-updates', () => ({
+    isEnabled: false,
+    updateId: null,
+    channel: 'preview',
+    runtimeVersion: '1.0.0',
+    isEmbeddedLaunch: true,
+    createdAt: null,
+    checkForUpdateAsync: vi.fn(async () => ({ isAvailable: false })),
+    fetchUpdateAsync: vi.fn(async () => ({ isNew: false })),
+    reloadAsync: vi.fn(async () => {})
 }));
