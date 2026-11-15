@@ -156,7 +156,7 @@ export async function getActiveLoans(db: SQLite.SQLiteDatabase): Promise<LoanRec
       i.color AS institution_color
     FROM loans l
     LEFT JOIN institutions i ON l.institution_id = i.id
-    WHERE l.status = 'active'`
+    WHERE l.status = 'active' AND l.remaining_balance > 0.009`
     );
 
     return rows.sort((a, b) => {
