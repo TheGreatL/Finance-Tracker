@@ -362,14 +362,6 @@ export function SidebarDrawer({ onNotificationPress, onDataChanged }: SidebarDra
                                 onPress={handleCheckUpdate}
                             />
                             <SidebarItem
-                                icon={Clock}
-                                label="Time Format"
-                                subtitle="Standard 12-hour clock"
-                                badge="12-Hour"
-                                badgeColor="bg-stone-100 text-stone-700"
-                                onPress={() => {}}
-                            />
-                            <SidebarItem
                                 icon={Sparkles}
                                 label="AI Engine"
                                 subtitle="Gemini 3.5 Flash-Lite"
