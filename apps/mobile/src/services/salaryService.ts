@@ -394,9 +394,100 @@ export async function createJob(db: SQLiteDatabase, input: CreateJobInput, deduc
 }
 
 /**
+ * Automatically archives any active one-time jobs whose payout has already been deposited.
+ * Ensures lingering one-time jobs in the database get closed upon loading.
+ */
+export async function reconcileOneTimeJobs(db: SQLiteDatabase): Promise<number> {
+    try {
+        const activeOneTimeJobs = await db.getAllAsync<{ id: string; gross_salary: number }>(
+            `SELECT j.id, j.gross_salary FROM jobs j WHERE j.status = 'active' AND j.pay_schedule = 'one_time';`
+        );
+
+        if (!activeOneTimeJobs || activeOneTimeJobs.length === 0) {
+            return 0;
+        }
+
+        let closedCount = 0;
+        const now = new Date().toISOString();
+
+        for (const job of activeOneTimeJobs) {
+            const stats = await db.getFirstAsync<{ total_gross: number; total_net: number; slip_count: number }>(
+                `SELECT COALESCE(SUM(gross_amount), 0) as total_gross, COALESCE(SUM(net_amount), 0) as total_net, COUNT(*) as slip_count FROM pay_slips WHERE job_id = ?;`,
+                [job.id]
+            );
+            if (stats && stats.slip_count > 0) {
+                if (stats.total_gross >= job.gross_salary - 0.01 || stats.total_net > 0) {
+                    await db.runAsync(`UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?;`, ['archived', now, job.id]);
+                    closedCount++;
+                }
+            }
+        }
+
+        return closedCount;
+    } catch {
+        return 0;
+    }
+}
+
+export interface JobPaymentSummary {
+    totalAgreedGross: number;
+    expectedNet: number;
+    totalPaidGross: number;
+    totalPaidNet: number;
+    remainingGross: number;
+    remainingNet: number;
+    isFullyPaid: boolean;
+    slipCount: number;
+}
+
+/**
+ * Computes payment status, total deposited, and remaining balance for a job.
+ */
+export async function getJobPaymentSummary(db: SQLiteDatabase, jobId: string): Promise<JobPaymentSummary> {
+    const job = await getJobById(db, jobId);
+    if (!job) {
+        throw new Error(`Job '${jobId}' not found.`);
+    }
+
+    const deductions = await getDeductionsByJobId(db, jobId);
+    const breakdown = calculateNetTakeHome(job.gross_salary, deductions);
+    const expectedNet = breakdown.netTakeHome;
+
+    const stats = await db.getFirstAsync<{ total_gross: number; total_net: number; slip_count: number }>(
+        `SELECT COALESCE(SUM(gross_amount), 0) as total_gross, COALESCE(SUM(net_amount), 0) as total_net, COUNT(*) as slip_count FROM pay_slips WHERE job_id = ?;`,
+        [jobId]
+    );
+
+    const totalPaidGross = stats?.total_gross || 0;
+    const totalPaidNet = stats?.total_net || 0;
+    const slipCount = stats?.slip_count || 0;
+
+    const remainingGross = Math.max(0, Math.round((job.gross_salary - totalPaidGross) * 100) / 100);
+    const remainingNet = Math.max(0, Math.round((expectedNet - totalPaidNet) * 100) / 100);
+
+    const isFullyPaid =
+        job.pay_schedule === 'one_time' &&
+        slipCount > 0 &&
+        (remainingGross <= 0.01 || remainingNet <= 0.01 || totalPaidGross >= job.gross_salary - 0.01);
+
+    return {
+        totalAgreedGross: job.gross_salary,
+        expectedNet,
+        totalPaidGross,
+        totalPaidNet,
+        remainingGross,
+        remainingNet,
+        isFullyPaid,
+        slipCount
+    };
+}
+
+/**
  * Retrieves all jobs with joined pocket and institution details.
  */
 export async function getAllJobs(db: SQLiteDatabase, statusFilter?: JobStatus): Promise<JobRecord[]> {
+    await reconcileOneTimeJobs(db).catch(() => 0);
+
     let query = `
     SELECT 
       j.*,
@@ -437,6 +528,25 @@ export async function getAllJobs(db: SQLiteDatabase, statusFilter?: JobStatus): 
         }
         const monthlyNet = Math.max(0, Math.round((monthlyGross - monthlyDeductions) * 100) / 100);
 
+        let remainingBalance = 0;
+        let totalPaid = 0;
+        let isFullyPaid = false;
+
+        if (row.pay_schedule === 'one_time') {
+            try {
+                const slipStats = await db.getFirstAsync<{ total_gross: number; total_net: number; slip_count: number }>(
+                    `SELECT COALESCE(SUM(gross_amount), 0) as total_gross, COALESCE(SUM(net_amount), 0) as total_net, COUNT(*) as slip_count FROM pay_slips WHERE job_id = ?;`,
+                    [row.id]
+                );
+                totalPaid = slipStats?.total_net || 0;
+                remainingBalance = Math.max(0, Math.round((breakdown.netTakeHome - totalPaid) * 100) / 100);
+                isFullyPaid =
+                    (slipStats?.slip_count || 0) > 0 && (remainingBalance <= 0.01 || (slipStats?.total_gross || 0) >= row.gross_salary - 0.01);
+            } catch {
+                // Ignore query failure if mock db doesn't define it
+            }
+        }
+
         jobs.push({
             ...row,
             deductions_count: deductions.length,
@@ -444,7 +554,10 @@ export async function getAllJobs(db: SQLiteDatabase, statusFilter?: JobStatus): 
             net_take_home: breakdown.netTakeHome,
             monthly_gross: monthlyGross,
             monthly_deductions: monthlyDeductions,
-            monthly_net: monthlyNet
+            monthly_net: monthlyNet,
+            remaining_balance: remainingBalance,
+            total_paid: totalPaid,
+            is_fully_paid: isFullyPaid
         });
     }
 
@@ -488,6 +601,24 @@ export async function getJobById(db: SQLiteDatabase, id: string): Promise<JobRec
     }
     const monthlyNet = Math.max(0, Math.round((monthlyGross - monthlyDeductions) * 100) / 100);
 
+    let remainingBalance = 0;
+    let totalPaid = 0;
+    let isFullyPaid = false;
+
+    if (row.pay_schedule === 'one_time') {
+        try {
+            const slipStats = await db.getFirstAsync<{ total_gross: number; total_net: number; slip_count: number }>(
+                `SELECT COALESCE(SUM(gross_amount), 0) as total_gross, COALESCE(SUM(net_amount), 0) as total_net, COUNT(*) as slip_count FROM pay_slips WHERE job_id = ?;`,
+                [row.id]
+            );
+            totalPaid = slipStats?.total_net || 0;
+            remainingBalance = Math.max(0, Math.round((breakdown.netTakeHome - totalPaid) * 100) / 100);
+            isFullyPaid = (slipStats?.slip_count || 0) > 0 && (remainingBalance <= 0.01 || (slipStats?.total_gross || 0) >= row.gross_salary - 0.01);
+        } catch {
+            // Ignore query failure if mock db doesn't define it
+        }
+    }
+
     return {
         ...row,
         deductions_count: deductions.length,
@@ -495,7 +626,10 @@ export async function getJobById(db: SQLiteDatabase, id: string): Promise<JobRec
         net_take_home: breakdown.netTakeHome,
         monthly_gross: monthlyGross,
         monthly_deductions: monthlyDeductions,
-        monthly_net: monthlyNet
+        monthly_net: monthlyNet,
+        remaining_balance: remainingBalance,
+        total_paid: totalPaid,
+        is_fully_paid: isFullyPaid
     };
 }
 
@@ -785,6 +919,7 @@ interface ExecutePaydayOptions {
     netAmount?: number;
     deductionsSnapshot?: DeductionSnapshotItem[];
     earningsSnapshot?: EarningsSnapshotItem[];
+    closeJob?: boolean;
 }
 
 /**
@@ -911,7 +1046,33 @@ async function executePaydayDeposit(db: SQLiteDatabase, job: JobRecord, payDate:
             ]
         );
 
-        // 4. Queue in-app notification
+        // 4. For one_time jobs: auto-archive and close if full payout or remaining balance is paid
+        if (job.pay_schedule === 'one_time') {
+            let totalGross = finalGross;
+            let totalNet = finalNet;
+            try {
+                const stats = await db.getFirstAsync<{ total_gross: number; total_net: number }>(
+                    `SELECT COALESCE(SUM(gross_amount), 0) as total_gross, COALESCE(SUM(net_amount), 0) as total_net FROM pay_slips WHERE job_id = ?;`,
+                    [job.id]
+                );
+                if (stats) {
+                    totalGross = stats.total_gross || finalGross;
+                    totalNet = stats.total_net || finalNet;
+                }
+            } catch {
+                // If query is not supported in mock environment, fallback to final amounts
+            }
+
+            const remainingGross = Math.max(0, job.gross_salary - totalGross);
+            const expectedNet = Math.max(0, job.gross_salary - finalDeductionsTotal);
+            const remainingNet = Math.max(0, expectedNet - totalNet);
+
+            if (remainingGross <= 0.01 || remainingNet <= 0.01 || totalGross >= job.gross_salary - 0.01 || options?.closeJob) {
+                await db.runAsync(`UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?;`, ['archived', now, job.id]);
+            }
+        }
+
+        // 5. Queue in-app notification
         const formattedNet = finalNet.toLocaleString('en-US', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
@@ -983,6 +1144,21 @@ export async function processDuePaydays(
                 cur.setDate(cur.getDate() + interval);
             }
         } else if (job.pay_schedule === 'one_time') {
+            let existingSlips: { id: string; gross_amount: number; net_amount: number }[] = [];
+            try {
+                const slips = await db.getAllAsync<{ id: string; gross_amount: number; net_amount: number }>(
+                    `SELECT id, gross_amount, net_amount FROM pay_slips WHERE job_id = ?;`,
+                    [job.id]
+                );
+                if (slips) existingSlips = slips;
+            } catch {
+                existingSlips = [];
+            }
+            if (existingSlips.length > 0) {
+                // Already paid out (e.g. deposited early or previously settled). Auto-archive and skip.
+                await db.runAsync(`UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?;`, ['archived', new Date().toISOString(), job.id]);
+                continue;
+            }
             if (job.payout_date) {
                 candidatePayDates.push(job.payout_date);
             }
@@ -990,36 +1166,46 @@ export async function processDuePaydays(
 
         for (const payDate of candidatePayDates) {
             if (payDate <= refDateStr) {
-                const alreadyPaid = await db.getFirstAsync<{ id: string }>(`SELECT id FROM pay_slips WHERE job_id = ? AND pay_date = ?;`, [
-                    job.id,
-                    payDate
-                ]);
+                let alreadyPaid =
+                    job.pay_schedule === 'one_time'
+                        ? await db.getFirstAsync<{ id: string }>(`SELECT id FROM pay_slips WHERE job_id = ?;`, [job.id])
+                        : null;
                 if (!alreadyPaid) {
-                    if (job.is_variable_salary === 1) {
-                        // For variable salary jobs, skip auto-depositing an assumed amount; notify the user to confirm/record
-                        const notifId = `notif_due_${job.id}_${payDate}`;
-                        const existingNotif = await db.getFirstAsync<{ id: string }>(`SELECT id FROM app_notifications WHERE id = ?;`, [notifId]);
-                        if (!existingNotif) {
-                            await db.runAsync(
-                                `INSERT INTO app_notifications (
-                                    id, type, title, body, data, is_read, created_at
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?);`,
-                                [
-                                    notifId,
-                                    'salary_due',
-                                    `Payday Due: Confirm Salary for ${job.company_name}`,
-                                    `Your paycheck for ${job.title} is ready. Record your actual earnings and attendance adjustments.`,
-                                    JSON.stringify({ jobId: job.id, payDate, pocketId: job.target_pocket_id }),
-                                    0,
-                                    new Date().toISOString()
-                                ]
-                            );
-                        }
-                    } else {
-                        const slip = await executePaydayDeposit(db, job, payDate);
-                        processedCount++;
-                        totalCredited += slip.net_amount;
+                    alreadyPaid = await db.getFirstAsync<{ id: string }>(`SELECT id FROM pay_slips WHERE job_id = ? AND pay_date = ?;`, [
+                        job.id,
+                        payDate
+                    ]);
+                }
+                if (alreadyPaid) {
+                    if (job.pay_schedule === 'one_time') {
+                        await db.runAsync(`UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?;`, ['archived', new Date().toISOString(), job.id]);
                     }
+                    continue;
+                }
+                if (job.is_variable_salary === 1) {
+                    // For variable salary jobs, skip auto-depositing an assumed amount; notify the user to confirm/record
+                    const notifId = `notif_due_${job.id}_${payDate}`;
+                    const existingNotif = await db.getFirstAsync<{ id: string }>(`SELECT id FROM app_notifications WHERE id = ?;`, [notifId]);
+                    if (!existingNotif) {
+                        await db.runAsync(
+                            `INSERT INTO app_notifications (
+                                id, type, title, body, data, is_read, created_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?);`,
+                            [
+                                notifId,
+                                'salary_due',
+                                `Payday Due: Confirm Salary for ${job.company_name}`,
+                                `Your paycheck for ${job.title} is ready. Record your actual earnings and attendance adjustments.`,
+                                JSON.stringify({ jobId: job.id, payDate, pocketId: job.target_pocket_id }),
+                                0,
+                                new Date().toISOString()
+                            ]
+                        );
+                    }
+                } else {
+                    const slip = await executePaydayDeposit(db, job, payDate);
+                    processedCount++;
+                    totalCredited += slip.net_amount;
                 }
             }
         }
@@ -1075,6 +1261,7 @@ export async function recordPaydayManual(
         totalDeductions: inputOrJobId.totalDeductions,
         netAmount: inputOrJobId.netAmount,
         deductionsSnapshot: inputOrJobId.deductionsSnapshot,
-        earningsSnapshot: inputOrJobId.earningsSnapshot
+        earningsSnapshot: inputOrJobId.earningsSnapshot,
+        closeJob: inputOrJobId.closeJob
     });
 }
