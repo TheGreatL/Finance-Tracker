@@ -230,6 +230,9 @@ export interface JobRecord {
     monthly_gross?: number;
     monthly_net?: number;
     monthly_deductions?: number;
+    remaining_balance?: number;
+    total_paid?: number;
+    is_fully_paid?: boolean;
 }
 
 export interface JobDeductionRecord {
@@ -307,6 +310,7 @@ export interface RecordPaydayInput {
     deductionsSnapshot?: DeductionSnapshotItem[];
     earningsSnapshot?: EarningsSnapshotItem[];
     notes?: string;
+    closeJob?: boolean;
 }
 
 export interface CreateDeductionInput {

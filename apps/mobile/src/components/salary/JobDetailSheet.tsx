@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
-import { X, Edit3, Calendar, Wallet, Building2, FileText, ChevronRight, Archive } from 'lucide-react-native';
+import { X, Edit3, Calendar, Wallet, Building2, FileText, ChevronRight, Archive, CheckCircle2 } from 'lucide-react-native';
 import type { JobRecord, JobDeductionRecord, PaySlipRecord } from '../../types/database';
 import { formatCurrency, formatDisplayDate } from '../../utils/formatters';
 import { getDatabase } from '../../database/db';
@@ -57,15 +57,20 @@ export function JobDetailSheet({ visible, job, onClose, onEdit, onRecordPayday, 
                 : 'second_cutoff'
             : 'both';
     const upcomingBreakdown = calculateNetTakeHome(job.gross_salary, deductions, targetCutoff);
+    const totalPaidNet = paySlips.reduce((sum, s) => sum + (s.net_amount || 0), 0);
+    const hasExistingPayouts = isOneTime && paySlips.length > 0;
+    const remainingNet = isOneTime ? Math.max(0, Math.round((upcomingBreakdown.netTakeHome - totalPaidNet) * 100) / 100) : 0;
 
     const bannerTitle = isOneTime
-        ? daysRemaining < 0
-            ? 'Payout Pending'
-            : daysRemaining === 0
-              ? 'Payout Due Today'
-              : daysRemaining === 1
-                ? 'Payout Tomorrow'
-                : `Payout in ${daysRemaining} days`
+        ? hasExistingPayouts
+            ? `Payout Remaining (${formatCurrency(remainingNet)})`
+            : daysRemaining < 0
+              ? 'Payout Pending'
+              : daysRemaining === 0
+                ? 'Payout Due Today'
+                : daysRemaining === 1
+                  ? 'Payout Tomorrow'
+                  : `Payout in ${daysRemaining} days`
         : daysRemaining === 0
           ? 'Payday Today'
           : daysRemaining === 1
@@ -113,12 +118,34 @@ export function JobDetailSheet({ visible, job, onClose, onEdit, onRecordPayday, 
                         <ScrollView className="px-6 py-4" showsVerticalScrollIndicator={false}>
                             {/* Status and Next Payday Banner */}
                             {isArchived ? (
-                                <View className="mb-4 flex-row items-center gap-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 p-3.5 border border-slate-200 dark:border-slate-700">
-                                    <Archive size={18} className="text-slate-500" />
+                                <View
+                                    className={`mb-4 flex-row items-center gap-2.5 rounded-2xl p-3.5 border ${
+                                        isOneTime
+                                            ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/50'
+                                            : 'bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700'
+                                    }`}
+                                >
+                                    {isOneTime ? (
+                                        <CheckCircle2 size={18} className="text-emerald-600 dark:text-emerald-400" />
+                                    ) : (
+                                        <Archive size={18} className="text-slate-500" />
+                                    )}
                                     <View className="flex-1">
-                                        <Text className="text-xs font-bold text-slate-700 dark:text-slate-300">Archived Career Record</Text>
-                                        <Text className="text-[11px] text-slate-500 dark:text-slate-400">
-                                            Historical pay slips and past deductions are preserved.
+                                        <Text
+                                            className={`text-xs font-bold ${
+                                                isOneTime ? 'text-emerald-900 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'
+                                            }`}
+                                        >
+                                            {isOneTime ? 'Closed • Paid Out' : 'Archived Career Record'}
+                                        </Text>
+                                        <Text
+                                            className={`text-[11px] ${
+                                                isOneTime ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'
+                                            }`}
+                                        >
+                                            {isOneTime
+                                                ? 'One-time agreed payout was deposited into your pocket and income is closed.'
+                                                : 'Historical pay slips and past deductions are preserved.'}
                                         </Text>
                                     </View>
                                 </View>
@@ -137,7 +164,9 @@ export function JobDetailSheet({ visible, job, onClose, onEdit, onRecordPayday, 
                                         onPress={() => onRecordPayday(job)}
                                         className="rounded-xl bg-amber-500 active:bg-amber-600 px-3 py-1.5"
                                     >
-                                        <Text className="text-xs font-bold text-white">{isOneTime ? 'Deposit' : 'Record Now'}</Text>
+                                        <Text className="text-xs font-bold text-white">
+                                            {isOneTime ? (hasExistingPayouts ? 'Deposit Remaining' : 'Deposit') : 'Record Now'}
+                                        </Text>
                                     </Pressable>
                                 </View>
                             )}
@@ -317,7 +346,13 @@ export function JobDetailSheet({ visible, job, onClose, onEdit, onRecordPayday, 
                                 onPress={() => onRecordPayday(job)}
                                 className="flex-1 h-12 rounded-xl bg-emerald-600 items-center justify-center active:bg-emerald-700"
                             >
-                                <Text className="text-sm font-bold text-white">{isOneTime ? 'Deposit Payout Now' : 'Record Payday Now'}</Text>
+                                <Text className="text-sm font-bold text-white">
+                                    {isOneTime
+                                        ? hasExistingPayouts
+                                            ? `Deposit Remaining (${formatCurrency(remainingNet)})`
+                                            : 'Deposit Payout Now'
+                                        : 'Record Payday Now'}
+                                </Text>
                             </Pressable>
                         )}
                         <Pressable

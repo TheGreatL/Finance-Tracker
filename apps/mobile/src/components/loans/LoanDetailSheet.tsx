@@ -42,7 +42,7 @@ export function LoanDetailSheet({ visible, loan, onClose, onRecordPayment, onDel
 
     if (!loan) return null;
 
-    const isPaid = loan.status === 'paid';
+    const isPaid = loan.status === 'paid' || (loan.remaining_balance !== undefined && loan.remaining_balance <= 0.009);
     const progressPercent = Math.min(100, Math.max(0, Math.round(((loan.total_amount - loan.remaining_balance) / loan.total_amount) * 100)));
     const metrics = getLoanTimelineMetrics(loan);
     const isPerson = loan.lender_type === 'person';

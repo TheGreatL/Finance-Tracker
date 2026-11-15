@@ -370,4 +370,174 @@ describe('salary payday processing & ledger balance synchronization', () => {
         expect(slip1[6]).toBe(3125); // deductions (tax + sss)
         expect(slip1[7]).toBe(26875); // net (30000 - 3125)
     });
+
+    it('recordPaydayManual automatically archives and closes one_time job when payout is deposited earlier than scheduled payout', async () => {
+        const executed: { sql: string; params?: any[] }[] = [];
+
+        const mockDb: any = {
+            withTransactionAsync: vi.fn(async (cb: () => Promise<void>) => {
+                await cb();
+            }),
+            runAsync: vi.fn(async (sql: string, params?: any[]) => {
+                executed.push({ sql, params });
+                return { changes: 1 };
+            }),
+            getFirstAsync: vi.fn(async (sql: string, params?: any[]) => {
+                if (sql.includes('FROM jobs')) {
+                    return {
+                        id: 'job_onetime_early',
+                        title: 'Mobile App Freelance Project',
+                        company_name: 'Client Alpha',
+                        employment_type: 'freelance',
+                        pay_schedule: 'one_time',
+                        pay_day_1: 30,
+                        payout_date: '2026-11-30',
+                        gross_salary: 50000,
+                        salary_period: 'per_paycheck',
+                        target_pocket_id: 'pocket_gcash',
+                        status: 'active',
+                        created_at: '2026-11-01',
+                        updated_at: '2026-11-01'
+                    };
+                }
+                if (sql.includes('FROM pay_slips WHERE job_id = ? AND pay_date = ?')) {
+                    return null; // No slip on this early date yet
+                }
+                if (sql.includes('FROM account_pockets WHERE id = ?')) {
+                    return { id: 'pocket_gcash', current_balance: 10000, name: 'GCash' };
+                }
+                if (sql.includes('SELECT COALESCE(SUM(gross_amount), 0)')) {
+                    return { total_gross: 50000, total_net: 50000 };
+                }
+                if (sql.includes('FROM pay_slips WHERE id = ?')) {
+                    return {
+                        id: 'ps_onetime_early',
+                        job_id: 'job_onetime_early',
+                        pocket_id: 'pocket_gcash',
+                        pay_date: '2026-11-15',
+                        gross_amount: 50000,
+                        total_deductions: 0,
+                        net_amount: 50000,
+                        deductions_snapshot: '[]',
+                        status: 'paid',
+                        created_at: '2026-11-15',
+                        updated_at: '2026-11-15'
+                    };
+                }
+                return null;
+            }),
+            getAllAsync: vi.fn(async (sql: string) => {
+                if (sql.includes('FROM job_deductions')) {
+                    return [];
+                }
+                if (sql.includes('FROM pay_slips WHERE job_id = ?')) {
+                    return [
+                        {
+                            id: 'ps_onetime_early',
+                            job_id: 'job_onetime_early',
+                            pocket_id: 'pocket_gcash',
+                            pay_date: '2026-11-15',
+                            gross_amount: 50000,
+                            net_amount: 50000,
+                            total_deductions: 0,
+                            status: 'paid'
+                        }
+                    ];
+                }
+                return [];
+            })
+        };
+
+        // User deposits full remaining balance on Nov 15, earlier than scheduled Nov 30 payout
+        const paySlip = await recordPaydayManual(mockDb, {
+            jobId: 'job_onetime_early',
+            payDate: '2026-11-15',
+            pocketId: 'pocket_gcash',
+            netAmount: 50000,
+            notes: 'Early client payout completion'
+        });
+
+        expect(paySlip.net_amount).toBe(50000);
+        // Verify transaction logged
+        const txInsert = executed.find((e) => e.sql.includes('INSERT INTO transactions'));
+        expect(txInsert).toBeDefined();
+        // Verify pocket updated
+        const pocketUpdate = executed.find((e) => e.sql.includes('UPDATE account_pockets'));
+        expect(pocketUpdate).toBeDefined();
+        // Verify pay slip created
+        const paySlipInsert = executed.find((e) => e.sql.includes('INSERT INTO pay_slips'));
+        expect(paySlipInsert).toBeDefined();
+        // Verify job was closed/archived because one-time payout was settled
+        const jobArchiveUpdate = executed.find((e) => e.sql.includes('UPDATE jobs SET status =') && e.params?.includes('archived'));
+        expect(jobArchiveUpdate).toBeDefined();
+        expect(jobArchiveUpdate?.params).toContain('job_onetime_early');
+    });
+
+    it('processDuePaydays does not duplicate deposit on scheduled date if one_time job was already paid early', async () => {
+        const executed: { sql: string; params?: any[] }[] = [];
+
+        const mockDb: any = {
+            withTransactionAsync: vi.fn(async (cb: () => Promise<void>) => {
+                await cb();
+            }),
+            runAsync: vi.fn(async (sql: string, params?: any[]) => {
+                executed.push({ sql, params });
+                return { changes: 1 };
+            }),
+            getAllAsync: vi.fn(async (sql: string) => {
+                if (sql.includes('FROM jobs')) {
+                    return [
+                        {
+                            id: 'job_already_paid_early',
+                            title: 'Consulting Gig',
+                            company_name: 'Beta LLC',
+                            employment_type: 'contract',
+                            pay_schedule: 'one_time',
+                            pay_day_1: 30,
+                            payout_date: '2026-11-30',
+                            gross_salary: 25000,
+                            salary_period: 'per_paycheck',
+                            target_pocket_id: 'pocket_1',
+                            status: 'active', // lingering active in database
+                            created_at: '2026-11-01',
+                            updated_at: '2026-11-01'
+                        }
+                    ];
+                }
+                if (sql.includes('FROM job_deductions')) {
+                    return [];
+                }
+                if (sql.includes('FROM pay_slips WHERE job_id = ?')) {
+                    // Pay slip already exists from Nov 15
+                    return [
+                        {
+                            id: 'ps_early_1',
+                            job_id: 'job_already_paid_early',
+                            pay_date: '2026-11-15',
+                            gross_amount: 25000,
+                            net_amount: 25000,
+                            status: 'paid'
+                        }
+                    ];
+                }
+                return [];
+            }),
+            getFirstAsync: vi.fn(async (sql: string, params?: any[]) => {
+                if (sql.includes('FROM pay_slips WHERE job_id = ?')) {
+                    return { id: 'ps_early_1', gross_amount: 25000, net_amount: 25000 };
+                }
+                return null;
+            })
+        };
+
+        // On Nov 30 (scheduled payout date): processDuePaydays should NOT deposit again
+        const result = await processDuePaydays(mockDb, new Date(2026, 10, 30));
+        expect(result.processedCount).toBe(0);
+        expect(result.totalCredited).toBe(0);
+        // Ensure no transaction was inserted
+        expect(executed.some((e) => e.sql.includes('INSERT INTO transactions'))).toBe(false);
+        // Job should be marked archived to close the lingering active status
+        const archiveCall = executed.find((e) => e.sql.includes('UPDATE jobs SET status = ?') && e.params?.includes('archived'));
+        expect(archiveCall).toBeDefined();
+    });
 });

@@ -87,9 +87,25 @@ export function JobCard({ job, onPress }: JobCardProps) {
 
                 <View className="items-end gap-1">
                     {isArchived ? (
-                        <View className="flex-row items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 border border-slate-200 dark:border-slate-700">
-                            <Archive size={11} className="text-slate-500" />
-                            <Text className="text-[10px] font-bold text-slate-600 dark:text-slate-400">Archived</Text>
+                        <View
+                            className={`flex-row items-center gap-1 rounded-full px-2.5 py-0.5 border ${
+                                isOneTime
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/50'
+                                    : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                            }`}
+                        >
+                            {isOneTime ? (
+                                <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
+                            ) : (
+                                <Archive size={11} className="text-slate-500" />
+                            )}
+                            <Text
+                                className={`text-[10px] font-bold ${
+                                    isOneTime ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-400'
+                                }`}
+                            >
+                                {isOneTime ? 'Paid • One-Time' : 'Archived'}
+                            </Text>
                         </View>
                     ) : (
                         <View className="flex-row items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 border border-emerald-200 dark:border-emerald-800/50">

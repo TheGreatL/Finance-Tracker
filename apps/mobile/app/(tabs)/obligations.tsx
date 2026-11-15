@@ -355,9 +355,14 @@ export default function ObligationsScreen() {
 
     const handleRecordPayday = async (input: RecordPaydayInput) => {
         const db = await getDatabase();
+        const targetJob = jobs.find((j) => j.id === input.jobId);
         await recordPaydayManual(db, input);
         await loadData();
-        showToast(input.mode === 'detailed' ? 'Payday recorded with attendance breakdown' : 'Payday deposited');
+        if (targetJob?.pay_schedule === 'one_time') {
+            showToast('One-time payout deposited and income closed');
+        } else {
+            showToast(input.mode === 'detailed' ? 'Payday recorded with attendance breakdown' : 'Payday deposited');
+        }
     };
 
     // Filtered lists

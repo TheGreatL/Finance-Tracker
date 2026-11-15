@@ -444,6 +444,31 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
         } catch (err) {
             console.warn('[SQLite] Error during backfillInitialBalanceTransactions:', err);
         }
+        try {
+            await db.runAsync("UPDATE loans SET status = 'paid' WHERE remaining_balance <= 0.009 AND status != 'paid';");
+        } catch (err) {
+            console.warn('[SQLite] Error healing loan statuses:', err);
+        }
+        try {
+            await db.runAsync(
+                `UPDATE jobs 
+                 SET status = 'archived', updated_at = ?
+                 WHERE status = 'active' 
+                   AND pay_schedule = 'one_time'
+                   AND id IN (
+                       SELECT j.id 
+                       FROM jobs j
+                       JOIN pay_slips ps ON j.id = ps.job_id
+                       WHERE j.status = 'active' AND j.pay_schedule = 'one_time'
+                       GROUP BY j.id
+                       HAVING COALESCE(SUM(ps.gross_amount), 0) >= (j.gross_salary - 0.01)
+                          OR COALESCE(SUM(ps.net_amount), 0) > 0
+                   );`,
+                [new Date().toISOString()]
+            );
+        } catch (err) {
+            console.warn('[SQLite] Error healing one-time job statuses:', err);
+        }
         dbInstance = db;
         return db;
     })();

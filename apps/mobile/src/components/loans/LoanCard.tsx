@@ -13,7 +13,7 @@ interface LoanCardProps {
 }
 
 export function LoanCard({ loan, onPress, className = '' }: LoanCardProps) {
-    const isPaid = loan.status === 'paid';
+    const isPaid = loan.status === 'paid' || (loan.remaining_balance !== undefined && loan.remaining_balance <= 0.009);
     const progressPercent = Math.min(100, Math.max(0, Math.round(((loan.total_amount - loan.remaining_balance) / loan.total_amount) * 100)));
     const timeline = getLoanTimelineMetrics(loan);
     const isPerson = loan.lender_type === 'person';
