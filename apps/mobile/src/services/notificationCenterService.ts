@@ -1,4 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { getActiveLoans, getEffectiveNextDueDate } from './loanService';
 
 export type AppNotificationType = 'subscription_due' | 'subscription_paid' | 'loan_due' | 'system';
 
@@ -147,28 +148,21 @@ export async function syncAppNotificationsFromSchedule(db: SQLiteDatabase, refer
     const loanThresholdStr = loanThreshold.toISOString().split('T')[0];
 
     try {
-        const upcomingLoans = await db.getAllAsync<{
-            id: string;
-            title: string;
-            monthly_payment: number;
-            due_date: string;
-            status: string;
-            institution_name?: string;
-        }>(
-            `SELECT l.id, l.title, l.monthly_payment, l.due_date, l.status, i.name as institution_name
-       FROM loans l
-       LEFT JOIN institutions i ON l.institution_id = i.id
-       WHERE l.status = 'active' AND l.due_date <= ?;`,
-            loanThresholdStr
-        );
+        const activeLoans = await getActiveLoans(db);
+        const upcomingLoans = activeLoans
+            .map((l) => ({
+                ...l,
+                effectiveDueDate: getEffectiveNextDueDate(l, referenceDate) || l.due_date
+            }))
+            .filter((l) => l.effectiveDueDate && l.effectiveDueDate <= loanThresholdStr);
 
         for (const loan of upcomingLoans) {
-            const deterministicId = `loan_due_${loan.id}_${loan.due_date}`;
+            const deterministicId = `loan_due_${loan.id}_${loan.effectiveDueDate}`;
             const instName = loan.institution_name || 'Lending Provider';
 
             const title = `Loan Payment Due Soon: ${loan.title}`;
-            const body = `₱${loan.monthly_payment.toLocaleString()} monthly installment on ${instName} is due on ${loan.due_date}.`;
-            const dataStr = JSON.stringify({ loanId: loan.id, dueDate: loan.due_date });
+            const body = `₱${loan.monthly_payment.toLocaleString()} monthly installment on ${instName} is due on ${loan.effectiveDueDate}.`;
+            const dataStr = JSON.stringify({ loanId: loan.id, dueDate: loan.effectiveDueDate });
 
             const res = await db.runAsync(
                 `INSERT OR IGNORE INTO app_notifications (

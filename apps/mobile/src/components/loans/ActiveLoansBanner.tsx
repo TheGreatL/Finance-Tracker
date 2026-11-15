@@ -3,6 +3,7 @@ import { View, Text, Pressable } from 'react-native';
 import { HandCoins, ChevronRight, CalendarClock, AlertCircle } from 'lucide-react-native';
 import type { LoanRecord } from '../../types/database';
 import { formatCurrency } from '../../utils/formatters';
+import { getEffectiveNextDueDate } from '../../services/loanService';
 
 interface ActiveLoansBannerProps {
     totalLoanBalance: number;
@@ -16,13 +17,14 @@ export function ActiveLoansBanner({ totalLoanBalance, nextDueLoan, onPress, clas
         return null;
     }
 
-    // Calculate days until due date
+    // Calculate days until due date based on active installment
     let dueText = '';
     let isDueVerySoon = false;
-    if (nextDueLoan?.due_date) {
+    const effectiveDueDate = nextDueLoan ? getEffectiveNextDueDate(nextDueLoan) || nextDueLoan.due_date : null;
+    if (effectiveDueDate) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const due = new Date(nextDueLoan.due_date);
+        const due = new Date(effectiveDueDate);
         due.setHours(0, 0, 0, 0);
         const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 

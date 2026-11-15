@@ -8,7 +8,8 @@ import {
     deleteLoan,
     updateLoanMetadata,
     getLoanTimelineMetrics,
-    calculateLoanInstallmentSchedule
+    calculateLoanInstallmentSchedule,
+    getEffectiveNextDueDate
 } from '../src/services/loanService';
 import type { LoanRecord } from '../src/types/database';
 
@@ -673,6 +674,102 @@ describe('loanService operations', () => {
             expect(disbTx).toBeDefined();
             expect(disbTx?.params).toContain(9700);
             expect(disbTx?.params).toContain('Loan Proceeds: Emergency Cash Loan');
+        });
+    });
+
+    describe('getEffectiveNextDueDate calculation', () => {
+        const baseLoan: LoanRecord = {
+            id: 'loan_gloan_test',
+            title: 'GLoan 20k',
+            lender_type: 'institution',
+            institution_id: 'inst_gcash',
+            principal_amount: 20000,
+            processing_fee: 0,
+            total_amount: 27000,
+            remaining_balance: 27000,
+            monthly_payment: 2284.67,
+            start_date: '2026-09-12',
+            due_date: '2026-10-12',
+            term_months: 12,
+            interest_rate: 3,
+            has_interest_cashback: 0,
+            interest_cashback_received: 0,
+            attachment_path: '',
+            attachment_name: '',
+            status: 'active',
+            notes: '',
+            created_at: '2026-09-12T00:00:00Z',
+            updated_at: '2026-09-12T00:00:00Z'
+        };
+
+        it('returns initial month 1 due date when no payments have been made', () => {
+            const effectiveDue = getEffectiveNextDueDate(baseLoan, new Date('2026-09-15T00:00:00Z'));
+            expect(effectiveDue).toBe('2026-10-12');
+        });
+
+        it('advances next due date to month 4 when 3 full installments + partial month 4 have been paid', () => {
+            // Paid 8,284.67 -> remaining balance 27,000 - 8,284.67 = 18,715.33
+            const paidAheadLoan: LoanRecord = {
+                ...baseLoan,
+                remaining_balance: 18715.33
+            };
+
+            const effectiveDue = getEffectiveNextDueDate(paidAheadLoan, new Date('2026-11-15T00:00:00Z'));
+            // Month 1 (Oct 12), Month 2 (Nov 12), Month 3 (Dec 12) paid. Month 4 is Jan 12, 2027.
+            expect(effectiveDue).toBe('2027-01-12');
+        });
+
+        it('advances next due date to month 5 when 4 full installments have been paid', () => {
+            // Paid 4 * 2284.67 = 9138.68 -> remaining 27,000 - 9,138.68 = 17,861.32
+            const paidAheadLoan: LoanRecord = {
+                ...baseLoan,
+                remaining_balance: 17861.32
+            };
+
+            const effectiveDue = getEffectiveNextDueDate(paidAheadLoan, new Date('2026-11-15T00:00:00Z'));
+            // Month 5 is Feb 12, 2027.
+            expect(effectiveDue).toBe('2027-02-12');
+        });
+
+        it('returns null when loan is fully paid or status is paid', () => {
+            const fullyPaidLoan: LoanRecord = {
+                ...baseLoan,
+                remaining_balance: 0,
+                status: 'paid'
+            };
+
+            expect(getEffectiveNextDueDate(fullyPaidLoan)).toBeNull();
+        });
+
+        it('getLoansSummary reorders active loans by effective upcoming due date instead of stale initial due date', async () => {
+            const mockLoans: LoanRecord[] = [
+                {
+                    ...baseLoan,
+                    id: 'loan_paid_ahead',
+                    title: 'GLoan (Paid Ahead)',
+                    remaining_balance: 18715.33, // effective due Jan 12, 2027
+                    due_date: '2026-10-12' // stale initial due date
+                },
+                {
+                    ...baseLoan,
+                    id: 'loan_due_soon',
+                    title: 'SPayLater (Due Soon)',
+                    remaining_balance: 5000,
+                    monthly_payment: 1000,
+                    due_date: '2026-11-20' // effective due Nov 20, 2026
+                }
+            ];
+
+            const mockDb: any = {
+                getAllAsync: vi.fn(async () => mockLoans)
+            };
+
+            const summary = await getLoansSummary(mockDb, new Date('2026-11-15T00:00:00Z'));
+
+            // The loan due soon (Nov 20, 2026) must be selected as nextDueLoan, NOT the loan paid ahead to Jan 2027
+            expect(summary.nextDueLoan?.id).toBe('loan_due_soon');
+            expect(summary.nextDueLoan?.due_date).toBe('2026-11-20');
+            expect(summary.dueSoonCount).toBe(1); // Nov 20 is within 7 days of Nov 15
         });
     });
 });

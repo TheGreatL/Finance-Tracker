@@ -2,7 +2,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import type { TransactionRecord, AccountPocket, LoanRecord, SubscriptionRecord } from '../types/database';
 import { getAllActivePockets } from './accountService';
 import { getRecentTransactions } from './transactionService';
-import { getActiveLoans } from './loanService';
+import { getActiveLoans, getEffectiveNextDueDate } from './loanService';
 import { getAllSubscriptions, normalizeToMonthlyAmount } from './subscriptionService';
 
 export interface MonthlyFlow {
@@ -226,12 +226,17 @@ export function calculateLoansAnalytics(loans: (LoanRecord & { institution_name?
 
     const monthlyPaymentTotal = Math.round(active.reduce((sum, l) => sum + l.monthly_payment, 0) * 100) / 100;
 
-    const sortedByDue = [...active].sort((a, b) => a.due_date.localeCompare(b.due_date));
+    const sortedByDue = [...active].sort((a, b) => {
+        const dueA = getEffectiveNextDueDate(a) || a.due_date || '';
+        const dueB = getEffectiveNextDueDate(b) || b.due_date || '';
+        return dueA.localeCompare(dueB);
+    });
     const nextDue = sortedByDue.length > 0 ? sortedByDue[0] : null;
 
     const loanItems: LoanAnalyticsItem[] = active.map((l) => {
         const repaid = Math.max(0, l.total_amount - l.remaining_balance);
         const progress = l.total_amount > 0 ? Math.min(100, Math.round((repaid / l.total_amount) * 100)) : 0;
+        const effectiveDue = getEffectiveNextDueDate(l) || l.due_date;
 
         return {
             id: l.id,
@@ -242,7 +247,7 @@ export function calculateLoansAnalytics(loans: (LoanRecord & { institution_name?
             repaidAmount: repaid,
             progressPercentage: progress,
             monthlyPayment: l.monthly_payment,
-            dueDate: l.due_date,
+            dueDate: effectiveDue,
             interestRate: l.interest_rate
         };
     });
@@ -259,7 +264,7 @@ export function calculateLoansAnalytics(loans: (LoanRecord & { institution_name?
                   title: nextDue.title,
                   institutionName: nextDue.institution_name || 'Lender',
                   monthlyPayment: nextDue.monthly_payment,
-                  dueDate: nextDue.due_date,
+                  dueDate: getEffectiveNextDueDate(nextDue) || nextDue.due_date,
                   remainingBalance: nextDue.remaining_balance
               }
             : null,

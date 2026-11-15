@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { Paperclip, Calendar, ChevronRight, User, Sparkles } from 'lucide-react-native';
+import { Paperclip, ChevronRight, User, Sparkles } from 'lucide-react-native';
 import type { LoanRecord } from '../../types/database';
 import { formatCurrency } from '../../utils/formatters';
 import { InstitutionLogo } from '../accounts/InstitutionLogo';
-import { getLoanTimelineMetrics } from '../../services/loanService';
+import { getLoanTimelineMetrics, getEffectiveNextDueDate } from '../../services/loanService';
 
 interface LoanCardProps {
     loan: LoanRecord;
@@ -18,13 +18,14 @@ export function LoanCard({ loan, onPress, className = '' }: LoanCardProps) {
     const timeline = getLoanTimelineMetrics(loan);
     const isPerson = loan.lender_type === 'person';
 
-    // Due date countdown
+    // Due date countdown based on next active installment
     let dueText = '';
     let isDueSoon = false;
-    if (loan.due_date && !isPaid) {
+    const effectiveDueDate = getEffectiveNextDueDate(loan) || loan.due_date;
+    if (effectiveDueDate && !isPaid) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const due = new Date(loan.due_date);
+        const due = new Date(effectiveDueDate);
         due.setHours(0, 0, 0, 0);
         const diff = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 

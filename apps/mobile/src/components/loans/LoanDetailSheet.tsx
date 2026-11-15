@@ -4,7 +4,12 @@ import { X, Calendar, Paperclip, Trash2, Pencil, User, Sparkles, Clock, Check, E
 import type { LoanRecord } from '../../types/database';
 import { formatCurrency, formatDisplayDate } from '../../utils/formatters';
 import { InstitutionLogo } from '../accounts/InstitutionLogo';
-import { getLoanTimelineMetrics, calculateLoanInstallmentSchedule, type LoanInstallmentSchedule } from '../../services/loanService';
+import {
+    getLoanTimelineMetrics,
+    calculateLoanInstallmentSchedule,
+    getEffectiveNextDueDate,
+    type LoanInstallmentSchedule
+} from '../../services/loanService';
 
 interface LoanDetailSheetProps {
     visible: boolean;
@@ -213,7 +218,9 @@ export function LoanDetailSheet({ visible, loan, onClose, onRecordPayment, onDel
                                 <Text className="text-xs text-stone-600">Next Due Date</Text>
                                 <View className="flex-row items-center">
                                     <Calendar size={13} color="#57534E" />
-                                    <Text className="text-xs font-bold text-stone-900 ml-1.5">{formatDisplayDate(loan.due_date)}</Text>
+                                    <Text className="text-xs font-bold text-stone-900 ml-1.5">
+                                        {isPaid ? 'Paid Off' : formatDisplayDate(getEffectiveNextDueDate(loan) || loan.due_date)}
+                                    </Text>
                                 </View>
                             </View>
 

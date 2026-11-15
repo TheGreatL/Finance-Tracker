@@ -1,8 +1,9 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { Briefcase, CreditCard, Repeat, ChevronRight } from 'lucide-react-native';
+import { Briefcase, CreditCard, Repeat } from 'lucide-react-native';
 import { formatCurrency } from '../../utils/formatters';
 import type { LoanRecord } from '../../types/database';
+import { getEffectiveNextDueDate } from '../../services/loanService';
 import type { SubscriptionsSummary } from '../../services/subscriptionService';
 import type { IncomeSummary } from '../../services/salaryService';
 
@@ -58,8 +59,17 @@ export function FinancialPulseStrip({
               : `${nextPayday.daysRemaining}d left`
         : 'No salary';
 
-    const loanDueDays = loansSummary.nextDueLoan ? computeDaysRemaining(loansSummary.nextDueLoan.due_date) : null;
-    const loanDueText = hasLoans ? (loanDueDays !== null ? (loanDueDays <= 0 ? 'Due now' : `${loanDueDays}d left`) : 'Active') : 'Debt-free';
+    const effectiveDueDate = loansSummary.nextDueLoan ? getEffectiveNextDueDate(loansSummary.nextDueLoan) || loansSummary.nextDueLoan.due_date : null;
+    const loanDueDays = effectiveDueDate ? computeDaysRemaining(effectiveDueDate) : null;
+    const loanDueText = hasLoans
+        ? loanDueDays !== null
+            ? loanDueDays < 0
+                ? `Overdue (${Math.abs(loanDueDays)}d)`
+                : loanDueDays === 0
+                  ? 'Due today'
+                  : `${loanDueDays}d left`
+            : 'Active'
+        : 'Debt-free';
 
     const subsText = hasSubs ? `${subsSummary.activeCount} active` : 'No bills';
 

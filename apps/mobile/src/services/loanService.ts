@@ -148,7 +148,7 @@ export async function createLoan(db: SQLite.SQLiteDatabase, input: CreateLoanInp
 }
 
 export async function getActiveLoans(db: SQLite.SQLiteDatabase): Promise<LoanRecord[]> {
-    return await db.getAllAsync<LoanRecord>(
+    const rows = await db.getAllAsync<LoanRecord>(
         `SELECT
       l.*,
       i.name AS institution_name,
@@ -156,13 +156,18 @@ export async function getActiveLoans(db: SQLite.SQLiteDatabase): Promise<LoanRec
       i.color AS institution_color
     FROM loans l
     LEFT JOIN institutions i ON l.institution_id = i.id
-    WHERE l.status = 'active'
-    ORDER BY l.due_date ASC`
+    WHERE l.status = 'active'`
     );
+
+    return rows.sort((a, b) => {
+        const dueA = getEffectiveNextDueDate(a) || a.due_date || '';
+        const dueB = getEffectiveNextDueDate(b) || b.due_date || '';
+        return dueA.localeCompare(dueB);
+    });
 }
 
 export async function getAllLoans(db: SQLite.SQLiteDatabase): Promise<LoanRecord[]> {
-    return await db.getAllAsync<LoanRecord>(
+    const rows = await db.getAllAsync<LoanRecord>(
         `SELECT
       l.*,
       i.name AS institution_name,
@@ -170,8 +175,17 @@ export async function getAllLoans(db: SQLite.SQLiteDatabase): Promise<LoanRecord
       i.color AS institution_color
     FROM loans l
     LEFT JOIN institutions i ON l.institution_id = i.id
-    ORDER BY l.status ASC, l.due_date ASC`
+    ORDER BY l.status ASC`
     );
+
+    return rows.sort((a, b) => {
+        if (a.status !== b.status) {
+            return a.status.localeCompare(b.status);
+        }
+        const dueA = getEffectiveNextDueDate(a) || a.due_date || '';
+        const dueB = getEffectiveNextDueDate(b) || b.due_date || '';
+        return dueA.localeCompare(dueB);
+    });
 }
 
 export async function getLoanById(db: SQLite.SQLiteDatabase, id: string): Promise<LoanRecord | null> {
@@ -190,8 +204,9 @@ export async function getLoanById(db: SQLite.SQLiteDatabase, id: string): Promis
 }
 
 export async function getLoansByInstitution(db: SQLite.SQLiteDatabase, institutionId?: string | null): Promise<LoanRecord[]> {
+    let rows: LoanRecord[];
     if (!institutionId) {
-        return await db.getAllAsync<LoanRecord>(
+        rows = await db.getAllAsync<LoanRecord>(
             `SELECT
           l.*,
           i.name AS institution_name,
@@ -200,21 +215,31 @@ export async function getLoansByInstitution(db: SQLite.SQLiteDatabase, instituti
         FROM loans l
         LEFT JOIN institutions i ON l.institution_id = i.id
         WHERE l.institution_id IS NULL
-        ORDER BY l.status ASC, l.due_date ASC`
+        ORDER BY l.status ASC`
+        );
+    } else {
+        rows = await db.getAllAsync<LoanRecord>(
+            `SELECT
+        l.*,
+        i.name AS institution_name,
+        i.code AS institution_code,
+        i.color AS institution_color
+      FROM loans l
+      LEFT JOIN institutions i ON l.institution_id = i.id
+      WHERE l.institution_id = ?
+      ORDER BY l.status ASC`,
+            [institutionId]
         );
     }
-    return await db.getAllAsync<LoanRecord>(
-        `SELECT
-      l.*,
-      i.name AS institution_name,
-      i.code AS institution_code,
-      i.color AS institution_color
-    FROM loans l
-    LEFT JOIN institutions i ON l.institution_id = i.id
-    WHERE l.institution_id = ?
-    ORDER BY l.status ASC, l.due_date ASC`,
-        [institutionId]
-    );
+
+    return rows.sort((a, b) => {
+        if (a.status !== b.status) {
+            return a.status.localeCompare(b.status);
+        }
+        const dueA = getEffectiveNextDueDate(a) || a.due_date || '';
+        const dueB = getEffectiveNextDueDate(b) || b.due_date || '';
+        return dueA.localeCompare(dueB);
+    });
 }
 
 export async function getLoansSummary(
@@ -230,15 +255,27 @@ export async function getLoansSummary(
 
     const totalLoanBalance = activeLoans.reduce((sum, loan) => sum + loan.remaining_balance, 0);
     const activeCount = activeLoans.length;
-    const nextDueLoan = activeLoans.length > 0 ? activeLoans[0] : null;
+
+    // Attach effective due date to nextDueLoan if present
+    const nextDueLoan =
+        activeLoans.length > 0
+            ? {
+                  ...activeLoans[0],
+                  due_date: getEffectiveNextDueDate(activeLoans[0], referenceDate) || activeLoans[0].due_date
+              }
+            : null;
 
     // Due within 7 days
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const refDateStr = `${referenceDate.getFullYear()}-${pad(referenceDate.getMonth() + 1)}-${pad(referenceDate.getDate())}`;
     const sevenDaysLater = new Date(referenceDate);
     sevenDaysLater.setDate(sevenDaysLater.getDate() + 7);
+    const sevenDaysStr = `${sevenDaysLater.getFullYear()}-${pad(sevenDaysLater.getMonth() + 1)}-${pad(sevenDaysLater.getDate())}`;
 
     const dueSoonCount = activeLoans.filter((loan) => {
-        const due = new Date(loan.due_date);
-        return due.getTime() >= referenceDate.getTime() && due.getTime() <= sevenDaysLater.getTime();
+        const effectiveDue = getEffectiveNextDueDate(loan, referenceDate) || loan.due_date;
+        if (!effectiveDue) return false;
+        return effectiveDue >= refDateStr && effectiveDue <= sevenDaysStr;
     }).length;
 
     return {
@@ -633,4 +670,22 @@ export function calculateLoanInstallmentSchedule(loan: LoanRecord, referenceDate
         totalPaid,
         remainingDebt: isFullyPaid ? 0 : loan.remaining_balance
     };
+}
+
+/**
+ * Calculates the actual upcoming due date for a loan based on its installment schedule.
+ * If the current month or prior months are already paid, this returns the first active
+ * (unpaid or partially paid) installment's due date. Returns null if the loan is fully paid.
+ */
+export function getEffectiveNextDueDate(loan: LoanRecord, referenceDate: Date = new Date()): string | null {
+    if (loan.status === 'paid' || loan.remaining_balance <= 0) {
+        return null;
+    }
+
+    const schedule = calculateLoanInstallmentSchedule(loan, referenceDate);
+    if (schedule.activeInstallment && schedule.activeInstallment.dueDate) {
+        return schedule.activeInstallment.dueDate;
+    }
+
+    return loan.due_date || null;
 }
