@@ -5,6 +5,7 @@ import { exportDatabaseBackup, importDatabaseBackup, pickAndValidateBackupFile, 
 import { getDatabase } from '../../database/db';
 import { resetDatabase, seedDatabaseWithDemoData } from '../../database/seed';
 import { DatabaseResetDialog } from '../dev/DatabaseResetDialog';
+import { isDemoDataAvailable } from '../../utils/environment';
 
 interface DatabaseManagementCardProps {
     onDataChanged: () => Promise<void>;
@@ -204,32 +205,36 @@ export function DatabaseManagementCard({ onDataChanged }: DatabaseManagementCard
                         )}
                     </Pressable>
 
-                    {/* 3. Seed Demo Data */}
-                    <Pressable
-                        onPress={handleSeedDemo}
-                        disabled={loadingAction !== null}
-                        accessibilityRole="button"
-                        accessibilityLabel="Seed demo data"
-                        className="flex-row items-center justify-between p-3.5 rounded-2xl bg-amber-50/50 border border-amber-200/70 active:bg-amber-100/50 mb-2"
-                    >
-                        <View className="flex-row items-center flex-1 mr-2">
-                            <View className="w-9 h-9 rounded-xl bg-amber-100 items-center justify-center mr-3">
-                                <Sparkles size={18} color="#D97706" />
+                    {/* 3. Seed Demo Data - Only visible in development / emulator mode */}
+                    {isDemoDataAvailable ? (
+                        <Pressable
+                            onPress={handleSeedDemo}
+                            disabled={loadingAction !== null}
+                            accessibilityRole="button"
+                            accessibilityLabel="Seed demo data"
+                            className="flex-row items-center justify-between p-3.5 rounded-2xl bg-amber-50/50 border border-amber-200/70 active:bg-amber-100/50 mb-2"
+                        >
+                            <View className="flex-row items-center flex-1 mr-2">
+                                <View className="w-9 h-9 rounded-xl bg-amber-100 items-center justify-center mr-3">
+                                    <Sparkles size={18} color="#D97706" />
+                                </View>
+                                <View className="flex-1">
+                                    <Text className="text-xs font-bold text-amber-950">Seed Demo Data</Text>
+                                    <Text className="text-[11px] text-amber-800/80 mt-0.5">
+                                        Populate sample Maya, BPI, GoTyme & cash transactions
+                                    </Text>
+                                </View>
                             </View>
-                            <View className="flex-1">
-                                <Text className="text-xs font-bold text-amber-950">Seed Demo Data</Text>
-                                <Text className="text-[11px] text-amber-800/80 mt-0.5">Populate sample Maya, BPI, GoTyme & cash transactions</Text>
-                            </View>
-                        </View>
-                        {loadingAction === 'seed' ? (
-                            <ActivityIndicator size="small" color="#D97706" />
-                        ) : (
-                            <View className="bg-amber-100 px-2.5 py-1 rounded-lg flex-row items-center">
-                                <Text className="text-[10px] font-bold text-amber-900 mr-1">Load Demo</Text>
-                                <ArrowRight size={11} color="#B45309" />
-                            </View>
-                        )}
-                    </Pressable>
+                            {loadingAction === 'seed' ? (
+                                <ActivityIndicator size="small" color="#D97706" />
+                            ) : (
+                                <View className="bg-amber-100 px-2.5 py-1 rounded-lg flex-row items-center">
+                                    <Text className="text-[10px] font-bold text-amber-900 mr-1">Load Demo</Text>
+                                    <ArrowRight size={11} color="#B45309" />
+                                </View>
+                            )}
+                        </Pressable>
+                    ) : null}
 
                     {/* 4. Reset Database */}
                     <Pressable
