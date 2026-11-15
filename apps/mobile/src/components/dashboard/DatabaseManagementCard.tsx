@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, Alert, ActivityIndicator } from 'react-native';
-import { Database, Download, Upload, Trash2, ArrowRight } from 'lucide-react-native';
+import { Database, Download, Upload, Trash2, ArrowRight, Sparkles } from 'lucide-react-native';
 import { exportDatabaseBackup, importDatabaseBackup, pickAndValidateBackupFile, type DatabaseBackup } from '../../services/databaseBackupService';
 import { getDatabase } from '../../database/db';
-import { resetDatabase } from '../../database/seed';
+import { resetDatabase, seedDatabaseWithDemoData } from '../../database/seed';
 import { DatabaseResetDialog } from '../dev/DatabaseResetDialog';
 
 interface DatabaseManagementCardProps {
@@ -11,7 +11,7 @@ interface DatabaseManagementCardProps {
 }
 
 export function DatabaseManagementCard({ onDataChanged }: DatabaseManagementCardProps) {
-    const [loadingAction, setLoadingAction] = useState<'export' | 'import' | 'reset' | null>(null);
+    const [loadingAction, setLoadingAction] = useState<'export' | 'import' | 'reset' | 'seed' | null>(null);
     const [resetDialogOpen, setResetDialogOpen] = useState(false);
     const [pendingRestoreBackup, setPendingRestoreBackup] = useState<DatabaseBackup | null>(null);
 
@@ -105,6 +105,33 @@ export function DatabaseManagementCard({ onDataChanged }: DatabaseManagementCard
         }
     };
 
+    const handleSeedDemo = async () => {
+        Alert.alert(
+            'Load Demo Data',
+            'Reset database and load Philippine banking demo data (Maya, BPI, Cash, GoTyme, and sample transactions)?\n\nExisting records will be replaced.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Load Demo Data',
+                    style: 'default',
+                    onPress: async () => {
+                        try {
+                            setLoadingAction('seed');
+                            const db = await getDatabase();
+                            await seedDatabaseWithDemoData(db);
+                            await onDataChanged();
+                            Alert.alert('Demo Data Loaded', 'Sample banking accounts and transactions have been seeded successfully.');
+                        } catch (err: any) {
+                            Alert.alert('Seed Failed', err?.message || 'Could not seed demo data');
+                        } finally {
+                            setLoadingAction(null);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
     return (
         <>
             <View className="px-5 mt-6 mb-4">
@@ -177,7 +204,34 @@ export function DatabaseManagementCard({ onDataChanged }: DatabaseManagementCard
                         )}
                     </Pressable>
 
-                    {/* 3. Reset Database */}
+                    {/* 3. Seed Demo Data */}
+                    <Pressable
+                        onPress={handleSeedDemo}
+                        disabled={loadingAction !== null}
+                        accessibilityRole="button"
+                        accessibilityLabel="Seed demo data"
+                        className="flex-row items-center justify-between p-3.5 rounded-2xl bg-amber-50/50 border border-amber-200/70 active:bg-amber-100/50 mb-2"
+                    >
+                        <View className="flex-row items-center flex-1 mr-2">
+                            <View className="w-9 h-9 rounded-xl bg-amber-100 items-center justify-center mr-3">
+                                <Sparkles size={18} color="#D97706" />
+                            </View>
+                            <View className="flex-1">
+                                <Text className="text-xs font-bold text-amber-950">Seed Demo Data</Text>
+                                <Text className="text-[11px] text-amber-800/80 mt-0.5">Populate sample Maya, BPI, GoTyme & cash transactions</Text>
+                            </View>
+                        </View>
+                        {loadingAction === 'seed' ? (
+                            <ActivityIndicator size="small" color="#D97706" />
+                        ) : (
+                            <View className="bg-amber-100 px-2.5 py-1 rounded-lg flex-row items-center">
+                                <Text className="text-[10px] font-bold text-amber-900 mr-1">Load Demo</Text>
+                                <ArrowRight size={11} color="#B45309" />
+                            </View>
+                        )}
+                    </Pressable>
+
+                    {/* 4. Reset Database */}
                     <Pressable
                         onPress={() => setResetDialogOpen(true)}
                         disabled={loadingAction !== null}

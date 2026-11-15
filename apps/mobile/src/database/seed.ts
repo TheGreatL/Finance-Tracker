@@ -3,19 +3,21 @@ import { SCHEMA_SQL } from './schema';
 import { createInstitutionWithPocket, addPocket } from '../services/accountService';
 import { createTransaction } from '../services/transactionService';
 
-export async function seedDevData(db: SQLite.SQLiteDatabase): Promise<void> {
-    // Check if already seeded or intentionally kept empty
-    const seedFlag = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', ['has_seeded_dev']);
-    if (seedFlag && seedFlag.value === '1') {
-        return;
-    }
+export async function seedDevData(db: SQLite.SQLiteDatabase, force: boolean = false): Promise<void> {
+    if (!force) {
+        // Check if already seeded or intentionally kept empty
+        const seedFlag = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', ['has_seeded_dev']);
+        if (seedFlag && seedFlag.value === '1') {
+            return;
+        }
 
-    // Check if any institutions exist
-    const existing = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM institutions');
+        // Check if any institutions exist
+        const existing = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM institutions');
 
-    if (existing && existing.count > 0) {
-        await db.runAsync('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', ['has_seeded_dev', '1']);
-        return; // Already initialized
+        if (existing && existing.count > 0) {
+            await db.runAsync('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', ['has_seeded_dev', '1']);
+            return; // Already initialized
+        }
     }
 
     // 1. Seed Maya (Wallet + 4.5% High-Yield Savings)
@@ -130,4 +132,9 @@ export async function resetDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
   `);
     await db.execAsync(SCHEMA_SQL);
     await db.runAsync('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', ['has_seeded_dev', '1']);
+}
+
+export async function seedDatabaseWithDemoData(db: SQLite.SQLiteDatabase): Promise<void> {
+    await resetDatabase(db);
+    await seedDevData(db, true);
 }
