@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { Database, Download, Upload, Trash2, ArrowRight, Sparkles } from 'lucide-react-native';
-import { exportDatabaseBackup, importDatabaseBackup, pickAndValidateBackupFile, type DatabaseBackup } from '../../services/databaseBackupService';
+import { exportDatabaseBackup, importDatabaseBackup, pickAndValidateBackupFile } from '../../services/databaseBackupService';
 import { getDatabase } from '../../database/db';
 import { resetDatabase, seedDatabaseWithDemoData } from '../../database/seed';
 import { DatabaseResetDialog } from '../dev/DatabaseResetDialog';
@@ -14,7 +14,6 @@ interface DatabaseManagementCardProps {
 export function DatabaseManagementCard({ onDataChanged }: DatabaseManagementCardProps) {
     const [loadingAction, setLoadingAction] = useState<'export' | 'import' | 'reset' | 'seed' | null>(null);
     const [resetDialogOpen, setResetDialogOpen] = useState(false);
-    const [pendingRestoreBackup, setPendingRestoreBackup] = useState<DatabaseBackup | null>(null);
 
     const handleExport = async () => {
         try {
