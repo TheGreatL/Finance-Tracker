@@ -43,6 +43,7 @@ jobs:
               uses: expo/expo-github-action@v8
               with:
                   eas-version: latest
+                  packager: npm
                   token: ${{ secrets.EXPO_TOKEN }}
 
             - name: 📥 Install dependencies
@@ -55,4 +56,4 @@ jobs:
               run: |
                   MESSAGE="${{ github.event.inputs.message || github.event.head_commit.message || 'Automated OTA update from main' }}"
                   CHANNEL="${{ github.event.inputs.channel || 'preview' }}"
-                  npx eas-cli@latest update --channel "$CHANNEL" --message "$MESSAGE" --non-interactive
+                  eas update --channel "$CHANNEL" --message "$MESSAGE" --non-interactive
