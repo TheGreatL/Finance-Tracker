@@ -18,7 +18,7 @@ on:
             channel:
                 description: 'EAS Channel'
                 required: false
-                default: 'preview'
+                default: 'production'
                 type: string
 
 concurrency:
@@ -55,5 +55,5 @@ jobs:
                   EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
               run: |
                   MESSAGE="${{ github.event.inputs.message || github.event.head_commit.message || 'Automated OTA update from main' }}"
-                  CHANNEL="${{ github.event.inputs.channel || 'preview' }}"
+                  CHANNEL="${{ github.event.inputs.channel || 'production' }}"
                   eas update --channel "$CHANNEL" --message "$MESSAGE" --non-interactive

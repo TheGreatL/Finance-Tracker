@@ -4,13 +4,13 @@ on:
     workflow_dispatch:
         inputs:
             profile:
-                description: 'Build profile (preview produces standalone APK)'
+                description: 'Build profile (production produces standalone release APK)'
                 required: true
-                default: 'preview'
+                default: 'production'
                 type: choice
                 options:
-                    - preview
                     - production
+                    - preview
                     - development
             wait_for_finish:
                 description: 'Wait for build to complete in GitHub Actions logs'
@@ -50,7 +50,7 @@ jobs:
               env:
                   EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
               run: |
-                  PROFILE="${{ github.event.inputs.profile || 'preview' }}"
+                  PROFILE="${{ github.event.inputs.profile || 'production' }}"
                   WAIT_PARAM=""
                   if [ "${{ github.event.inputs.wait_for_finish }}" = "false" ]; then
                     WAIT_PARAM="--no-wait"

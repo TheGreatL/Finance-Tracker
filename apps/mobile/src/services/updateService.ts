@@ -23,7 +23,7 @@ export function getUpdateInfo(): UpdateInfo {
     const isEnabled = Updates.isEnabled ?? false;
     const updateId = Updates.updateId ?? null;
     const shortUpdateId = updateId ? updateId.slice(0, 8) : 'Embedded';
-    const channel = Updates.channel || (isEnabled ? 'preview' : 'local-dev');
+    const channel = Updates.channel || (isEnabled ? 'production' : 'local-dev');
     const runtimeVersion = Updates.runtimeVersion ?? null;
     const isEmbeddedLaunch = Updates.isEmbeddedLaunch ?? true;
     const createdAt = Updates.createdAt ?? null;
